@@ -1,0 +1,361 @@
+// js/modules/transaction-categories.js
+
+import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
+import { getTransactions } from '../store.js';
+import { showToast, openModal, closeModal, formatMoney } from '../utils.js';
+
+// --- DOM ELEMENTS ---
+const transactionCategoriesSection = document.getElementById('transaction-categories-section');
+const transactionCategoriesListEl = document.getElementById('transaction-categories-management-list');
+const selectAllCheckbox = document.getElementById('select-all-transaction-categories');
+
+// Modal elements
+const modal = document.getElementById('transaction-category-management-modal');
+const modalTitle = document.getElementById('transaction-category-management-modal-title');
+const form = document.getElementById('transaction-category-management-form');
+const closeModalBtn = document.getElementById('close-transaction-category-management-modal');
+const cancelBtn = document.getElementById('cancel-transaction-category-management');
+
+// Form inputs
+const idInput = document.getElementById('transaction-category-management-id');
+const nameInput = document.getElementById('transaction-category-management-name');
+
+// --- BIẾN TOÀN CỤC ---
+let transactionCategoriesCache = [];
+
+// --- HÀM CHÍNH ---
+
+/**
+ * Khởi tạo module
+ */
+export function initTransactionCategories() {
+    // Tạo các hạng mục mặc định khi khởi động
+    createDefaultCategories();
+    
+    // Lắng nghe sự kiện
+    document.body.addEventListener('click', handleBodyClick);
+    form?.addEventListener('submit', handleFormSubmit);
+    
+    // Gắn trực tiếp event cho button
+    const addBtn = document.getElementById('add-transaction-category-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', (e) => {
+            console.log('Direct button click!');
+            e.preventDefault();
+            e.stopPropagation();
+            openCategoryModal();
+        });
+    } else {
+        console.error('Add button not found!');
+    }
+    
+    // Modal events
+    [closeModalBtn, cancelBtn].forEach(btn => {
+        btn?.addEventListener('click', () => closeModal(modal));
+    });
+
+    // Select all checkbox
+    selectAllCheckbox?.addEventListener('change', (e) => {
+        document.querySelectorAll('.transaction-category-checkbox').forEach(cb => {
+            cb.checked = e.target.checked;
+        });
+    });
+
+    // Load data when section becomes visible
+    document.addEventListener('store:transactions:updated', () => {
+        if (!transactionCategoriesSection?.classList.contains('hidden')) {
+            loadTransactionCategories();
+        }
+    });
+}
+
+/**
+ * Load dữ liệu khi chuyển đến section
+ */
+export function loadTransactionCategories() {
+    loadTransactionCategoriesData();
+}
+
+/**
+ * Tải danh sách hạng mục từ Firebase
+ */
+async function loadTransactionCategoriesData() {
+    try {
+        const q = query(collection(db, 'transactionCategories'), orderBy('name', 'asc'));
+        const snapshot = await getDocs(q);
+        transactionCategoriesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        renderTransactionCategories();
+        
+    } catch (error) {
+        console.error('Error loading transaction categories:', error);
+        showToast('Lỗi tải danh sách hạng mục: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Render bảng hạng mục
+ */
+function renderTransactionCategories() {
+    if (!transactionCategoriesListEl) return;
+
+    // Calculate stats for each category
+    const transactions = getTransactions();
+    const categoryStats = calculateCategoryStats(transactions);
+
+    if (transactionCategoriesCache.length === 0) {
+        transactionCategoriesListEl.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-8 text-gray-500">
+                    Chưa có hạng mục nào. Nhấn nút "+" để thêm mới.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    transactionCategoriesListEl.innerHTML = transactionCategoriesCache.map(category => {
+        const stats = categoryStats[category.id] || { income: 0, expense: 0 };
+        const profit = stats.income - stats.expense;
+        
+        return `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="py-3 px-4">
+                    <input type="checkbox" class="transaction-category-checkbox w-4 h-4 cursor-pointer" data-id="${category.id}">
+                </td>
+                <td class="py-3 px-4">
+                    <div class="flex gap-2">
+                        <button data-id="${category.id}" class="edit-transaction-category-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                        </button>
+                        <button data-id="${category.id}" class="delete-transaction-category-btn w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
+                    </div>
+                </td>
+                <td class="py-3 px-4 font-medium">${category.name}</td>
+                <td class="py-3 px-4 text-green-600 font-medium">${formatMoney(stats.income)}</td>
+                <td class="py-3 px-4 text-red-600 font-medium">${formatMoney(stats.expense)}</td>
+                <td class="py-3 px-4 font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${formatMoney(Math.abs(profit))}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+/**
+ * Tính toán thống kê cho từng hạng mục
+ */
+function calculateCategoryStats(transactions) {
+    const stats = {};
+    
+    transactions.forEach(transaction => {
+        if (!transaction.items) return;
+        
+        transaction.items.forEach(item => {
+            if (!item.categoryId) return;
+            
+            if (!stats[item.categoryId]) {
+                stats[item.categoryId] = { income: 0, expense: 0 };
+            }
+            
+            if (transaction.type === 'income') {
+                stats[item.categoryId].income += item.amount || 0;
+            } else {
+                stats[item.categoryId].expense += item.amount || 0;
+            }
+        });
+    });
+    
+    return stats;
+}
+
+/**
+ * Xử lý sự kiện click
+ */
+function handleBodyClick(e) {
+    if (transactionCategoriesSection?.classList.contains('hidden')) return;
+
+    console.log('Clicked element ID:', e.target.id);
+    console.log('Target element:', e.target);
+
+    if (e.target.id === 'add-transaction-category-btn') {
+        console.log('Add button clicked!');
+        e.preventDefault();
+        e.stopPropagation();
+        openCategoryModal();
+    } else if (e.target.closest('.edit-transaction-category-btn')) {
+        const id = e.target.closest('.edit-transaction-category-btn').dataset.id;
+        editCategory(id);
+    } else if (e.target.closest('.delete-transaction-category-btn')) {
+        const id = e.target.closest('.delete-transaction-category-btn').dataset.id;
+        deleteCategory(id);
+    } else if (e.target.id === 'bulk-delete-transaction-categories-btn') {
+        bulkDeleteCategories();
+    }
+}
+
+/**
+ * Mở modal thêm hạng mục
+ */
+function openCategoryModal(categoryData = null) {
+    if (!modal || !form || !nameInput) {
+        console.error('Modal elements not found:', { modal, form, nameInput });
+        showToast('Lỗi: Không tìm thấy modal', 'error');
+        return;
+    }
+    
+    modalTitle.textContent = categoryData ? 'Sửa Hạng mục' : 'Thêm Hạng mục';
+    
+    // Reset form
+    form.reset();
+    idInput.value = categoryData?.id || '';
+    nameInput.value = categoryData?.name || '';
+    
+    openModal(modal);
+    nameInput.focus();
+}
+
+/**
+ * Sửa hạng mục
+ */
+function editCategory(id) {
+    const category = transactionCategoriesCache.find(c => c.id === id);
+    if (category) {
+        openCategoryModal(category);
+    }
+}
+
+/**
+ * Xử lý submit form
+ */
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const categoryData = {
+        name: nameInput.value.trim()
+    };
+    
+    if (!categoryData.name) {
+        showToast('Vui lòng nhập tên hạng mục', 'error');
+        return;
+    }
+    
+    try {
+        const id = idInput.value;
+        
+        if (id) {
+            // Update
+            await setDoc(doc(db, 'transactionCategories', id), {
+                ...categoryData,
+                updatedAt: serverTimestamp()
+            });
+            showToast('Cập nhật hạng mục thành công', 'success');
+        } else {
+            // Create
+            await addDoc(collection(db, 'transactionCategories'), {
+                ...categoryData,
+                createdAt: serverTimestamp()
+            });
+            showToast('Thêm hạng mục thành công', 'success');
+        }
+        
+        closeModal(modal);
+        loadTransactionCategoriesData();
+        
+    } catch (error) {
+        console.error('Error saving category:', error);
+        showToast('Lỗi lưu hạng mục: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Xóa hạng mục
+ */
+async function deleteCategory(id) {
+    const category = transactionCategoriesCache.find(c => c.id === id);
+    if (!category) return;
+    
+    const confirmed = confirm(`Bạn có chắc muốn xóa hạng mục "${category.name}"?\n\nLưu ý: Các phiếu thu chi đã sử dụng hạng mục này sẽ không bị ảnh hưởng.`);
+    if (!confirmed) return;
+    
+    try {
+        await deleteDoc(doc(db, 'transactionCategories', id));
+        showToast('Xóa hạng mục thành công', 'success');
+        loadTransactionCategoriesData();
+    } catch (error) {
+        console.error('Error deleting category:', error);
+        showToast('Lỗi xóa hạng mục: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Xóa nhiều hạng mục
+ */
+async function bulkDeleteCategories() {
+    const selectedIds = Array.from(document.querySelectorAll('.transaction-category-checkbox:checked'))
+        .map(cb => cb.dataset.id);
+    
+    if (selectedIds.length === 0) {
+        showToast('Vui lòng chọn ít nhất một hạng mục để xóa', 'error');
+        return;
+    }
+    
+    const confirmed = confirm(`Bạn có chắc muốn xóa ${selectedIds.length} hạng mục đã chọn?`);
+    if (!confirmed) return;
+    
+    try {
+        await Promise.all(selectedIds.map(id => deleteDoc(doc(db, 'transactionCategories', id))));
+        showToast(`Xóa thành công ${selectedIds.length} hạng mục`, 'success');
+        loadTransactionCategoriesData();
+    } catch (error) {
+        console.error('Error bulk deleting categories:', error);
+        showToast('Lỗi xóa hạng mục: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Tạo các hạng mục mặc định
+ */
+async function createDefaultCategories() {
+    try {
+        const defaultCategories = [
+            { name: 'Tiền hóa đơn', id: 'tien-hoa-don' },
+            { name: 'Tiền điện', id: 'tien-dien' },
+            { name: 'Tiền nước', id: 'tien-nuoc' },
+            { name: 'Tiền vệ sinh', id: 'tien-ve-sinh' },
+            { name: 'Chi phí cố định', id: 'chi-phi-co-dinh' },
+            { name: 'Tiền hoa hồng', id: 'tien-hoa-hong' },
+            { name: 'Chi phí khác', id: 'chi-phi-khac' }
+        ];
+
+        for (const category of defaultCategories) {
+            try {
+                // Kiểm tra xem đã tồn tại chưa
+                const existingDoc = await getDocs(query(
+                    collection(db, 'transactionCategories'),
+                    where('name', '==', category.name)
+                ));
+
+                if (existingDoc.empty) {
+                    // Tạo mới với ID cố định
+                    await setDoc(doc(db, 'transactionCategories', category.id), {
+                        name: category.name,
+                        createdAt: serverTimestamp()
+                    });
+                    console.log(`Created default category: ${category.name}`);
+                }
+            } catch (error) {
+                console.log(`Category ${category.name} may already exist or error:`, error.message);
+            }
+        }
+    } catch (error) {
+        console.error('Error creating default categories:', error);
+    }
+}

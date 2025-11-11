@@ -1,0 +1,2723 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N-Home - Web Admin</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/jpeg" sizes="192x192" href="/icon-nen-xanh.jpg">
+    <link rel="icon" type="image/jpeg" sizes="512x512" href="/icon-nen-xanh.jpg">
+    <link rel="apple-touch-icon" href="/icon-nen-xanh.jpg">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-100">
+
+    <div class="flex h-screen">
+        <!-- Mobile Overlay -->
+        <div id="mobile-overlay" class="mobile-overlay" onclick="closeMobileSidebar()"></div>
+        
+        <aside id="sidebar" class="sidebar">
+            <div id="n-home-logo" class="p-4 text-center bg-green-600 text-white text-4xl font-bold" style="display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 999 !important;">
+                N-Home
+            </div>
+            <nav class="mt-4">
+                <a href="#" class="block py-3 px-4 text-gray-700 sidebar-item" id="dashboard-btn">📊 Bảng tin</a>
+                <div class="dropdown-menu">
+                    <button id="data-menu-toggle" class="dropdown-toggle w-full text-left py-3 px-4 text-gray-700 sidebar-item flex justify-between items-center">
+                        <span>📋 Danh mục dữ liệu</span>
+                        <span class="dropdown-arrow text-xs">▼</span>
+                    </button>
+                    <div id="data-menu-content" class="dropdown-content ml-4 hidden">
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="buildings-btn">🏢 Tòa nhà</a>
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="services-btn">💰 Phí dịch vụ</a>
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="transaction-categories-btn">📋 Hạng mục thu chi</a>
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="accounts-btn">💳 Sổ quỹ</a>
+                    </div>
+                </div>
+                <div class="dropdown-menu">
+                    <button id="customers-menu-toggle" class="dropdown-toggle w-full text-left py-3 px-4 text-gray-700 sidebar-item flex justify-between items-center">
+                        <span>👥 Khách hàng</span>
+                        <span class="dropdown-arrow text-xs">▼</span>
+                    </button>
+                    <div id="customers-menu-content" class="dropdown-content ml-4 hidden">
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="contracts-btn">📋 Hợp đồng thuê</a>
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="customers-btn">👤 Khách hàng</a>
+                    </div>
+                </div>
+                <div class="dropdown-menu">
+                    <button id="finance-menu-toggle" class="dropdown-toggle w-full text-left py-3 px-4 text-gray-700 sidebar-item flex justify-between items-center">
+                        <span>💰 Tài chính</span>
+                        <span class="dropdown-arrow text-xs">▼</span>
+                    </button>
+                    <div id="finance-menu-content" class="dropdown-content ml-4 hidden">
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="bills-btn">📄 Hóa đơn</a>
+                        <a href="#" class="block py-2 px-4 text-gray-600 hover:bg-gray-100 sidebar-submenu-item" id="finance-btn">💸 Thu chi</a>
+                    </div>
+                </div>
+                <a href="#" class="block py-3 px-4 text-gray-700 sidebar-item" id="tasks-btn">🔧 Sự cố/công việc</a>
+                <a href="#" class="block py-3 px-4 text-gray-700 sidebar-item" id="notifications-btn">🔔 Thông báo <span id="notification-badge" class="hidden bg-red-500 text-white text-xs rounded-full px-2 ml-2">0</span></a>
+                <a href="#" class="block py-3 px-4 text-gray-700 sidebar-item" id="reports-btn">📈 Báo cáo tài chính</a>
+            </nav>
+        </aside>
+
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+                 <!-- Mobile Menu Button -->
+                 <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="toggleMobileSidebar()">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                     </svg>
+                 </button>
+                 
+                 <h1 class="text-xl font-semibold text-gray-800" id="main-header-title">Danh sách Hóa đơn</h1>
+                 <div class="user-info flex items-center gap-4">
+                     <span class="font-medium text-gray-800">Đặng Nhật Anh</span>
+                     
+                     <!-- 🔔 NOTIFICATION DROPDOWN -->
+                     <div class="relative notification-badge">
+                         <button id="notification-btn" class="cursor-pointer" type="button" title="Thông báo">
+                             <svg class="w-6 h-6 text-gray-600 hover:text-blue-600 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                 <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+                             </svg>
+                             <!-- Badge đỏ hiển thị số thông báo chưa đọc -->
+                             <span id="notification-count-badge" class="notification-count absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold hidden">0</span>
+                         </button>
+                         
+                         <!-- DROPDOWN NOTIFICATION PANEL -->
+                         <div id="notification-dropdown" class="notification-dropdown">
+                             <div class="notification-dropdown-panel">
+                                 <div class="notification-dropdown-header">
+                                     <div class="flex justify-between items-center">
+                                         <h3 class="font-semibold text-gray-800">Thông báo</h3>
+                                         <button type="button" class="text-blue-600 hover:text-blue-800 text-sm font-medium" onclick="goToNotificationsPage()">
+                                             Xem tất cả
+                                         </button>
+                                     </div>
+                                 </div>
+                                 
+                                 <div id="notification-list-container" class="notification-list-container">
+                                     <div class="notification-empty">
+                                         <div class="notification-empty-icon">🔔</div>
+                                         <div>Không có thông báo nào</div>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                     
+                     <!-- Logout icon button -->
+                     <button onclick="logout()" class="p-2 rounded-lg hover:bg-red-50 transition-colors group" title="Đăng xuất">
+                         <svg class="w-6 h-6 text-gray-600 group-hover:text-red-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                         </svg>
+                     </button>
+                 </div>
+            </header>
+
+            <div class="flex-1 p-6 overflow-y-auto">
+                <div id="buildings-section" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Tổng tòa nhà</p>
+                                <p class="text-2xl font-bold text-blue-600" id="total-buildings">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <svg class="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Hoạt động</p>
+                                <p class="text-2xl font-bold text-green-600" id="active-buildings">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <svg class="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Không hoạt động</p>
+                                <p class="text-2xl font-bold text-red-600" id="inactive-buildings">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <svg class="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold">Tòa nhà</h2>
+                                <div class="flex gap-2">
+                                <button id="add-building-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm tòa nhà">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                </button>
+                                <button id="import-buildings-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Nhập từ Excel">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                    </svg>
+                                </button>
+                                <button id="export-buildings-btn" class="w-10 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors" title="Xuất ra Excel">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                    </svg>
+                                </button>
+                                <button id="bulk-delete-buildings-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều tòa nhà">
+                                    <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <select id="building-status-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="all" selected>Tất cả trạng thái</option>
+                                        <option value="active">Hoạt động</option>
+                                        <option value="inactive">Không hoạt động</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <input type="text" id="building-search" placeholder="Tìm kiếm" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="select-all-buildings" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Mã</th>
+                                        <th class="py-3 px-4">Thao tác</th>
+                                        <th class="py-3 px-4">Địa chỉ</th>
+                                        <th class="py-3 px-4">Số phòng</th>
+                                        <th class="py-3 px-4">Danh sách phòng</th>
+                                        <th class="py-3 px-4">Sổ quỹ</th>
+                                        <th class="py-3 px-4">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="buildings-list">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Section -->
+                <div id="dashboard-section" class="hidden">
+                    <!-- Building Statistics -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">🏢 Tòa nhà</h3>
+                                <span class="text-3xl font-bold text-blue-600" id="dash-total-buildings">0</span>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-green-600">Hoạt động:</span>
+                                    <span class="font-semibold" id="dash-active-buildings">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-red-600">Không hoạt động:</span>
+                                    <span class="font-semibold" id="dash-inactive-buildings">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contract Statistics -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">📋 Hợp đồng</h3>
+                                <span class="text-3xl font-bold text-green-600" id="dash-total-contracts">0</span>
+                            </div>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-green-600">Đang thuê:</span>
+                                    <span class="font-semibold" id="dash-active-contracts">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-yellow-600">Sắp hết hạn:</span>
+                                    <span class="font-semibold" id="dash-expiring-contracts">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-red-600">Quá hạn:</span>
+                                    <span class="font-semibold" id="dash-expired-contracts">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Đã thanh lý:</span>
+                                    <span class="font-semibold" id="dash-terminated-contracts">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Customer Statistics -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">👥 Khách hàng</h3>
+                                <span class="text-3xl font-bold text-purple-600" id="dash-total-customers">0</span>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-green-600">Hiện tại:</span>
+                                    <span class="font-semibold" id="dash-current-customers">0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Đã chuyển đi:</span>
+                                    <span class="font-semibold" id="dash-moved-customers">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Financial Overview -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <!-- Monthly Bills -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">💰 Hóa đơn tháng này</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-green-600">Đã thanh toán:</span>
+                                    <span class="font-semibold text-green-600" id="dash-paid-bills-amount">0 ₫</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-red-600">Chưa thanh toán:</span>
+                                    <span class="font-semibold text-red-600" id="dash-unpaid-bills-amount">0 ₫</span>
+                                </div>
+                                <div class="border-t pt-2">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold">Tổng cộng:</span>
+                                        <span class="font-bold text-blue-600" id="dash-total-bills-amount">0 ₫</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Transaction Summary -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">📊 Thu chi tháng này</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-green-600">Tổng thu:</span>
+                                    <span class="font-semibold text-green-600" id="dash-total-income">0 ₫</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-red-600">Tổng chi:</span>
+                                    <span class="font-semibold text-red-600" id="dash-total-expense">0 ₫</span>
+                                </div>
+                                <div class="border-t pt-2">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold">Lãi/Lỗ:</span>
+                                        <span class="font-bold" id="dash-total-profit">0 ₫</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tasks Overview -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">🔧 Công việc & Sự cố</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                                <div class="text-2xl font-bold text-yellow-600" id="dash-pending-tasks">0</div>
+                                <div class="text-sm text-yellow-700">Đang xử lý</div>
+                            </div>
+                            <div class="text-center p-4 bg-red-50 rounded-lg">
+                                <div class="text-2xl font-bold text-red-600" id="dash-overdue-tasks">0</div>
+                                <div class="text-sm text-red-700">Quá hạn</div>
+                            </div>
+                            <div class="text-center p-4 bg-green-50 rounded-lg">
+                                <div class="text-2xl font-bold text-green-600" id="dash-completed-tasks-month">0</div>
+                                <div class="text-sm text-green-700">Hoàn thành tháng này</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="services-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold">Danh sách Dịch vụ</h2>
+                                <div class="flex gap-2">
+                                    <button id="add-service-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm dịch vụ">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-services-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều dịch vụ">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <select id="service-type-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="all" selected>Loại dịch vụ</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <select id="service-building-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="all" selected>Tòa nhà</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <input type="text" id="service-search" placeholder="Tìm kiếm" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="select-all-services" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Thao tác</th>
+                                        <th class="py-3 px-4">Tên dịch vụ</th>
+                                        <th class="py-3 px-4">Đơn giá</th>
+                                        <th class="py-3 px-4">Đơn vị</th>
+                                        <th class="py-3 px-4">Áp dụng cho tòa nhà</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="services-list">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="accounts-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800">Quản lý Sổ quỹ</h2>
+                            </div>
+                            <div class="flex gap-3">
+                                <button id="add-account-btn" class="w-10 h-10 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center justify-center" title="Thêm">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                </button>
+                                <button id="bulk-delete-accounts-btn" class="w-10 h-10 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center" title="Xóa nhiều">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b text-left text-gray-600">
+                                            <th class="py-3 px-4">
+                                                <input type="checkbox" id="select-all-accounts" class="w-4 h-4 cursor-pointer">
+                                            </th>
+                                            <th class="py-3 px-4">Thao tác</th>
+                                            <th class="py-3 px-4">Mã</th>
+                                            <th class="py-3 px-4">Ngân hàng</th>
+                                            <th class="py-3 px-4">Số tài khoản</th>
+                                            <th class="py-3 px-4">Chủ tài khoản</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="accounts-list">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="transaction-categories-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800">Quản lý hạng mục</h2>
+                            </div>
+                            <div class="flex gap-3">
+                                <button id="add-transaction-category-btn" class="w-10 h-10 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center justify-center" title="Thêm hạng mục">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                </button>
+                                <button id="bulk-delete-transaction-categories-btn" class="w-10 h-10 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center" title="Xóa nhiều">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b text-left text-gray-600">
+                                            <th class="py-3 px-4">
+                                                <input type="checkbox" id="select-all-transaction-categories" class="w-4 h-4 cursor-pointer">
+                                            </th>
+                                            <th class="py-3 px-4">Thao tác</th>
+                                            <th class="py-3 px-4">Tên hạng mục</th>
+                                            <th class="py-3 px-4">Tổng thu</th>
+                                            <th class="py-3 px-4">Tổng chi</th>
+                                            <th class="py-3 px-4">Lãi/Lỗ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="transaction-categories-management-list">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications Section -->
+                <div id="notifications-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold">Danh sách Thông báo</h2>
+                                <div class="flex gap-2">
+                                    <button id="mark-all-read-btn" class="w-10 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 flex items-center justify-center transition-colors" title="Đánh dấu tất cả đã đọc">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-notifications-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều thông báo">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <select id="notification-type-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="all" selected>Tất cả loại</option>
+                                        <option value="new_task">Sự cố mới</option>
+                                        <option value="bill_created">Hóa đơn mới</option>
+                                        <option value="payment_received">Thanh toán</option>
+                                        <option value="system">Hệ thống</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <select id="notification-status-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="all" selected>Tất cả trạng thái</option>
+                                        <option value="unread">Chưa đọc</option>
+                                        <option value="read">Đã đọc</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <input type="text" id="notification-search" placeholder="Tìm kiếm thông báo" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="select-all-notifications" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Thao tác</th>
+                                        <th class="py-3 px-4">Tiêu đề</th>
+                                        <th class="py-3 px-4">Nội dung</th>
+                                        <th class="py-3 px-4">Khách hàng</th>
+                                        <th class="py-3 px-4">Thời gian</th>
+                                        <th class="py-3 px-4">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="notifications-list">
+                                    </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination for notifications -->
+                        <div id="notifications-pagination" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <div id="contracts-section" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng Hợp đồng</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="total-contracts">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Đang Thuê</h3>
+                            <p class="text-2xl font-bold text-green-600" id="active-contracts">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Sắp Hết Hạn</h3>
+                            <p class="text-2xl font-bold text-yellow-600" id="expiring-contracts">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Quá Hạn</h3>
+                            <p class="text-2xl font-bold text-red-600" id="expired-contracts">0</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold">Hợp đồng</h2>
+                                <div class="flex gap-2">
+                                    <button id="add-contract-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm hợp đồng">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                    <button id="import-contracts-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Nhập từ Excel">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                        </svg>
+                                    </button>
+                                    <button id="export-contracts-btn" class="w-10 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors" title="Xuất ra Excel">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-contracts-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều hợp đồng">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 mb-4">
+                                <div class="flex-1">
+                                    <select id="filter-building" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Tòa nhà</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <select id="filter-room" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Phòng</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <select id="filter-status" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Trạng thái</option>
+                                        <option value="active">Đang thuê</option>
+                                        <option value="expiring">Sắp hết hạn</option>
+                                        <option value="expired">Quá hạn</option>
+                                        <option value="terminated">Đã thanh lý</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <input type="text" id="contract-search" placeholder="Tìm kiếm" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="select-all-contracts" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Mã hợp đồng</th>
+                                        <th class="py-3 px-4">Thao tác</th>
+                                        <th class="py-3 px-4">Khách hàng</th>
+                                        <th class="py-3 px-4">Bắt đầu</th>
+                                        <th class="py-3 px-4">Kết thúc</th>
+                                        <th class="py-3 px-4">Trạng thái</th>
+                                        <th class="py-3 px-4">Giá thuê</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contracts-list">
+                                    </tbody>
+                            </table>
+                            
+                            <div id="contract-pagination" class="flex justify-between items-center mt-4 pt-4 border-t">
+                                <div class="text-sm text-gray-600">
+                                    Hiển thị <span id="contract-showing-start">0</span>-<span id="contract-showing-end">0</span> trong tổng số <span id="contract-total">0</span> hợp đồng
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="contract-prev-page" class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        Trước
+                                    </button>
+                                    <span id="contract-page-info" class="px-3 py-1">Trang 1</span>
+                                    <button id="contract-next-page" class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        Sau
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="customers-section" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng Khách hàng</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="total-customers">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Đang Ở</h3>
+                            <p class="text-2xl font-bold text-green-600" id="active-customers">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Đã Chuyển Đi</h3>
+                            <p class="text-2xl font-bold text-red-600" id="moved-customers">0</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold">Khách hàng</h2>
+                                <div class="flex gap-2">
+                                    <button id="add-customer-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm khách hàng">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                    <button id="import-customers-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Nhập từ Excel">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                        </svg>
+                                    </button>
+                                    <button id="export-customers-btn" class="w-10 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors" title="Xuất ra Excel">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-customers-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều khách hàng">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 mb-4">
+                                <div class="flex-1">
+                                    <select id="filter-customer-building" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Tòa nhà</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <select id="filter-customer-room" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Phòng</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <select id="filter-customer-status" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Trạng thái</option>
+                                        <option value="active">Đang ở</option>
+                                        <option value="moved">Đã chuyển đi</option>
+                                        <option value="no_contract">Chưa thuê</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <input type="text" id="customer-search" placeholder="Tìm kiếm" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="select-all-customers" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Thao tác</th>
+                                        <th class="py-3 px-4">Họ tên</th>
+                                        <th class="py-3 px-4">Số điện thoại</th>
+                                        <th class="py-3 px-4">Tòa nhà</th>
+                                        <th class="py-3 px-4">Phòng</th>
+                                        <th class="py-3 px-4">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="customers-list">
+                                    </tbody>
+                            </table>
+                            
+                            <div id="customer-pagination" class="flex justify-between items-center mt-4 pt-4 border-t">
+                                <div class="text-sm text-gray-600">
+                                    Hiển thị <span id="customer-showing-start">0</span>-<span id="customer-showing-end">0</span> trong tổng số <span id="customer-total">0</span> khách hàng
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="customer-prev-page" class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        Trước
+                                    </button>
+                                    <span id="customer-page-info" class="px-3 py-1">Trang 1</span>
+                                    <button id="customer-next-page" class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        Sau
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="main-section" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="bg-white p-5 rounded-lg shadow">
+                        <h3 class="text-sm font-medium text-gray-500">Tổng Phải Thu</h3>
+                        <p class="text-2xl font-bold text-blue-600" id="total-receivable">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg shadow">
+                        <h3 class="text-sm font-medium text-gray-500">Đã Thanh Toán</h3>
+                        <p class="text-2xl font-bold text-green-600" id="total-paid">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg shadow">
+                        <h3 class="text-sm font-medium text-gray-500">Còn Nợ</h3>
+                        <p class="text-2xl font-bold text-red-600" id="total-debt">0</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg shadow">
+                        <h3 class="text-sm font-medium text-gray-500">Số Hóa đơn</h3>
+                        <p class="text-2xl font-bold text-gray-800" id="total-bills-count">0</p>
+                    </div>
+                </div>
+
+                <div id="bills-section">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng tiền</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="total-bill-amount">0 VNĐ</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Đã thu</h3>
+                            <p class="text-2xl font-bold text-green-600" id="collected-amount">0 VNĐ</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Phải thu</h3>
+                            <p class="text-2xl font-bold text-red-600" id="pending-amount">0 VNĐ</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-6 border-b">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-2xl font-bold">Hóa đơn</h2>
+                                <div class="flex gap-3">
+                                    <button id="add-bill-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm hóa đơn">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-approve-bills-btn" class="hidden w-10 h-10 rounded-lg bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors" title="Duyệt hàng loạt">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-unapprove-bills-btn" class="hidden w-10 h-10 rounded-lg bg-gray-400 hover:bg-gray-500 flex items-center justify-center transition-colors" title="Bỏ duyệt hàng loạt">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                    </button>
+                                    <button id="import-bills-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Nhập từ Excel">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                        </svg>
+                                    </button>
+                                    <button id="export-bills-btn" class="w-10 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors" title="Xuất ra Excel">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                        </svg>
+                                    </button>
+                                    <button id="download-bills-template-btn" class="w-10 h-10 rounded-lg bg-blue-500 hover:bg-blue-600 flex items-center justify-center transition-colors" title="Tải file mẫu Excel">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-bills-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều hóa đơn">
+                                        <svg class="w-5 h-5 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <select id="filter-bill-building" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Tòa nhà</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-bill-room" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Phòng</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-bill-month" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Tháng</option>
+                                            <option value="1">Tháng 1</option>
+                                            <option value="2">Tháng 2</option>
+                                            <option value="3">Tháng 3</option>
+                                            <option value="4">Tháng 4</option>
+                                            <option value="5">Tháng 5</option>
+                                            <option value="6">Tháng 6</option>
+                                            <option value="7">Tháng 7</option>
+                                            <option value="8">Tháng 8</option>
+                                            <option value="9">Tháng 9</option>
+                                            <option value="10">Tháng 10</option>
+                                            <option value="11">Tháng 11</option>
+                                            <option value="12">Tháng 12</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-bill-status" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Trạng thái</option>
+                                            <option value="unpaid">Chưa thanh toán</option>
+                                            <option value="paid">Đã thanh toán</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <input type="text" id="bill-search" placeholder="Tìm kiếm..." class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-4 px-4">
+                                            <input type="checkbox" id="select-all-bills" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-4 px-4">Thao tác</th>
+                                        <th class="py-4 px-4">Mã hóa đơn</th>
+                                        <th class="py-4 px-4">Khách hàng</th>
+                                        <th class="py-4 px-4">Kỳ thanh toán</th>
+                                        <th class="py-4 px-4">Ngày lập</th>
+                                        <th class="py-4 px-4">Tổng tiền</th>
+                                        <th class="py-4 px-4">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bills-list">
+                                    </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination for bills -->
+                        <div id="bills-pagination" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <div id="transactions-section" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng thu</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="total-income">0 VNĐ</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng chi</h3>
+                            <p class="text-2xl font-bold text-red-600" id="total-expense">0 VNĐ</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Lợi nhuận</h3>
+                            <p class="text-2xl font-bold text-green-600" id="profit-amount">0 VNĐ</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-6 border-b">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-2xl font-bold">Thu chi</h2>
+                                <div class="flex gap-3">
+                                    <button id="add-transaction-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm thu chi">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-approve-transactions-btn" class="hidden w-10 h-10 rounded-lg bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors" title="Duyệt hàng loạt">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-unapprove-transactions-btn" class="hidden w-10 h-10 rounded-lg bg-gray-400 hover:bg-gray-500 flex items-center justify-center transition-colors" title="Bỏ duyệt hàng loạt">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                    <button id="import-transactions-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Nhập từ Excel">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                        </svg>
+                                    </button>
+                                    <button id="export-transactions-btn" class="w-10 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors" title="Xuất ra Excel">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-transactions-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều phiếu">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <select id="filter-transaction-building" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Tòa nhà</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-transaction-room" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Phòng</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-transaction-type" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Tất cả phiếu</option>
+                                            <option value="income">Phiếu thu</option>
+                                            <option value="expense">Phiếu chi</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-transaction-account" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Sổ quỹ</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <div class="relative">
+                                            <input type="text" id="filter-transaction-start-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
+                                                   pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Từ ngày (dd-mm-yyyy)" 
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)">
+                                            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="relative">
+                                            <input type="text" id="filter-transaction-end-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
+                                                   pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Đến ngày (dd-mm-yyyy)" 
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)">
+                                            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <select id="filter-transaction-category" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Loại thu/chi</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-transaction-approval" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Trạng thái duyệt</option>
+                                            <option value="approved">Đã duyệt</option>
+                                            <option value="pending">Chưa duyệt</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <input type="text" id="transaction-search" placeholder="Tìm kiếm..." class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-4 px-4">
+                                            <input type="checkbox" id="select-all-transactions" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-4 px-4">Thao tác</th>
+                                        <th class="py-4 px-4">Tên phiếu thu/chi</th>
+                                        <th class="py-4 px-4">Loại</th>
+                                        <th class="py-4 px-4">Tòa nhà</th>
+                                        <th class="py-4 px-4">Người nộp/Người nhận</th>
+                                        <th class="py-4 px-4">Ngày thực thu/chi</th>
+                                        <th class="py-4 px-4">Số tiền</th>
+                                        <th class="py-4 px-4">Sổ quỹ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactions-list">
+                                    </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination for transactions -->
+                        <div id="transactions-pagination" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <div id="tasks-section" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng Sự cố/Công việc</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="total-tasks">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Chưa xử lý</h3>
+                            <p class="text-2xl font-bold text-red-600" id="new-tasks">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Đã hoàn thành</h3>
+                            <p class="text-2xl font-bold text-green-600" id="completed-tasks">0</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold">Sự cố / Công việc</h2>
+                                <div class="flex gap-2">
+                                    <button id="add-task-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm công việc">
+                                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                        </svg>
+                                    </button>
+                                    <button id="bulk-delete-tasks-btn" class="w-10 h-10 rounded-lg bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors" title="Xóa nhiều công việc">
+                                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <select id="filter-task-building" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Tòa nhà</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-task-room" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Phòng</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="filter-task-status" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="">Trạng thái</option>
+                                            <option value="pending">Chưa xử lý</option>
+                                            <option value="completed">Hoàn thành</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <input type="text" id="task-search" placeholder="Tìm kiếm" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <div class="relative">
+                                            <input type="text" id="filter-task-start-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
+                                                   pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Từ ngày (dd-mm-yyyy)" 
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)">
+                                            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="relative">
+                                            <input type="text" id="filter-task-end-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
+                                                   pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Đến ngày (dd-mm-yyyy)" 
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)">
+                                            <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div></div>
+                                    <div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="select-all-tasks" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Thao tác</th>
+                                        <th class="py-3 px-4">Công việc</th>
+                                        <th class="py-3 px-4">Tòa nhà</th>
+                                        <th class="py-3 px-4">Phòng</th>
+                                        <th class="py-3 px-4">Người báo sự cố</th>
+                                        <th class="py-3 px-4">Ngày báo cáo</th>
+                                        <th class="py-3 px-4">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tasks-list">
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination for tasks -->
+                        <div id="tasks-pagination" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <!-- Reports Section -->
+                <div id="reports-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <h2 class="text-lg font-semibold">Báo cáo thu chi theo tháng và quý</h2>
+                        </div>
+                        <div class="p-6">
+                            <div class="mb-4 flex gap-4">
+                                <select id="report-year" class="p-2.5 border rounded-lg bg-gray-50">
+                                    <option value="2050">2050</option>
+                                    <option value="2049">2049</option>
+                                    <option value="2048">2048</option>
+                                    <option value="2047">2047</option>
+                                    <option value="2046">2046</option>
+                                    <option value="2045">2045</option>
+                                    <option value="2044">2044</option>
+                                    <option value="2043">2043</option>
+                                    <option value="2042">2042</option>
+                                    <option value="2041">2041</option>
+                                    <option value="2040">2040</option>
+                                    <option value="2039">2039</option>
+                                    <option value="2038">2038</option>
+                                    <option value="2037">2037</option>
+                                    <option value="2036">2036</option>
+                                    <option value="2035">2035</option>
+                                    <option value="2034">2034</option>
+                                    <option value="2033">2033</option>
+                                    <option value="2032">2032</option>
+                                    <option value="2031">2031</option>
+                                    <option value="2030">2030</option>
+                                    <option value="2029">2029</option>
+                                    <option value="2028">2028</option>
+                                    <option value="2027">2027</option>
+                                    <option value="2026">2026</option>
+                                    <option value="2025" selected>2025</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2021">2021</option>
+                                    <option value="2020">2020</option>
+                                    <option value="2019">2019</option>
+                                </select>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full border-collapse border">
+                                    <thead class="bg-gray-50">
+                                        <tr class="border">
+                                            <th class="py-3 px-4 text-center font-semibold border" rowspan="2">Quý</th>
+                                            <th class="py-3 px-4 text-center font-semibold border" rowspan="2">Doanh thu</th>
+                                            <th class="py-3 px-4 text-center font-semibold border" rowspan="2">Chi phí</th>
+                                            <th class="py-3 px-4 text-center font-semibold border" rowspan="2">Lợi nhuận</th>
+                                            <th class="py-3 px-4 text-center font-semibold border" colspan="4">Chi tiết theo tháng</th>
+                                        </tr>
+                                        <tr class="border">
+                                            <th class="py-3 px-4 text-center font-medium border">Tháng</th>
+                                            <th class="py-3 px-4 text-center font-medium border">Doanh thu</th>
+                                            <th class="py-3 px-4 text-center font-medium border">Chi phí</th>
+                                            <th class="py-3 px-4 text-center font-medium border">Lợi nhuận</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reports-table-body">
+                                        <!-- Data will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+        </main>
+    </div>
+
+    <div id="import-buildings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Nhập dữ liệu Tòa nhà</h3>
+                <button id="close-import-buildings-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">1. TẢI FILE DỮ LIỆU MẪU</h4>
+                    <p class="text-sm text-gray-600 mb-3">File yêu cầu định dạng excel - <span class="text-green-600 font-medium cursor-pointer" id="download-buildings-template-link">↓ Tải file mẫu tại đây</span></p>
+                </div>
+                
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">2. UPLOAD DỮ LIỆU</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <p class="text-gray-500 mb-2">Kéo thả file ở đây</p>
+                        <p class="text-gray-400 text-sm mb-4">Hoặc</p>
+                        <label class="inline-block">
+                            <input type="file" id="import-buildings-file" accept=".xlsx,.xls" class="hidden">
+                            <span class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg cursor-pointer">Chọn File</span>
+                        </label>
+                        <p id="import-buildings-file-name" class="text-sm text-gray-600 mt-3"></p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-import-buildings-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="button" id="submit-import-buildings-btn" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Nhập dữ liệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-contracts-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Nhập dữ liệu Hợp đồng</h3>
+                <button id="close-import-contracts-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">1. TẢI FILE DỮ LIỆU MẪU</h4>
+                    <div class="mb-3">
+                        <label class="block mb-2 text-sm font-medium text-gray-700">Chọn tòa nhà để tải file mẫu</label>
+                        <select id="import-building-select" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                            <option value="">-- Chọn tòa nhà để tải mẫu --</option>
+                        </select>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">File yêu cầu định dạng excel - <span class="text-green-600 font-medium cursor-pointer" id="download-template-link">↓ Tải file mẫu tại đây</span></p>
+                </div>
+                
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">2. UPLOAD DỮ LIỆU</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <p class="text-gray-500 mb-2">Kéo thả file ở đây</p>
+                        <p class="text-gray-400 text-sm mb-4">Hoặc</p>
+                        <label class="inline-block">
+                            <input type="file" id="import-contracts-file" accept=".xlsx,.xls" class="hidden">
+                            <span class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg cursor-pointer">Chọn File</span>
+                        </label>
+                        <p id="import-file-name" class="text-sm text-gray-600 mt-3"></p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-import-contracts-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="button" id="submit-import-contracts-btn" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Nhập dữ liệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="building-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+                <h3 class="text-lg font-semibold" id="building-modal-title">Thêm Tòa nhà</h3>
+                <button id="close-building-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="building-form" class="p-5 space-y-6">
+                <input type="hidden" id="building-id">
+                
+                <div class="space-y-4">
+                    <h4 class="text-base font-semibold text-gray-700 border-b pb-2">1. Thông tin tòa nhà</h4>
+                    <div>
+                        <label for="building-code" class="block mb-2 text-sm font-medium">Mã tòa nhà</label>
+                        <input type="text" id="building-code" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Ví dụ: A1, B2, C3..." required>
+                    </div>
+                    <div>
+                        <label for="building-address" class="block mb-2 text-sm font-medium">Địa chỉ tòa nhà</label>
+                        <input type="text" id="building-address" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập địa chỉ tòa nhà" required>
+                    </div>
+                    <div>
+                        <label for="building-rooms" class="block mb-2 text-sm font-medium">Danh sách phòng</label>
+                        <input type="text" id="building-rooms" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="101, 102, 103, 201, 202..." required>
+                        <small class="text-gray-500">Nhập mã số phòng, ngăn cách bằng dấu phẩy</small>
+                    </div>
+                    <div>
+                        <label class="block mb-2 text-sm font-medium">Trạng thái hoạt động</label>
+                        <div class="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="building-is-active" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                            </label>
+                            <span class="text-sm font-medium" id="building-status-text">Hoạt động</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <h4 class="text-base font-semibold text-gray-700">2. Dịch vụ tòa nhà</h4>
+                        <div id="add-building-service-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors cursor-pointer" title="Thêm dịch vụ">
+                            <svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div id="building-services-list" class="space-y-3">
+                        <div class="text-center text-gray-500 text-sm py-4">Chưa có dịch vụ nào</div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h4 class="text-base font-semibold text-gray-700 border-b pb-2">3. Sổ quỹ</h4>
+                    <div>
+                        <label for="building-account" class="block mb-2 text-sm font-medium">Chọn tài khoản nhận tiền</label>
+                        <select id="building-account" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                            <option value="">-- Chọn tài khoản --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white border-t -mx-5 px-5 py-4">
+                    <button type="button" id="cancel-building-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="service-modal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="service-modal-title">Thêm Phí dịch vụ</h3>
+                <button id="close-service-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="service-form" class="p-5 space-y-4">
+                <input type="hidden" id="service-id">
+                <div>
+                    <label for="service-name" class="block mb-2 text-sm font-medium">Tên dịch vụ</label>
+                    <input type="text" id="service-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Ví dụ: Tiền điện" required>
+                </div>
+                <div>
+                    <label for="service-price" class="block mb-2 text-sm font-medium">Đơn giá</label>
+                    <input type="text" id="service-price" class="w-full p-2.5 border rounded-lg bg-gray-50 money-input" placeholder="Ví dụ: 4.000" required>
+                </div>
+                <div>
+                    <label for="service-unit" class="block mb-2 text-sm font-medium">Đơn vị</label>
+                    <input type="text" id="service-unit" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Ví dụ: Kwh, Người, Tháng..." required>
+                </div>
+                <div id="service-buildings-section">
+                    <label for="service-buildings" class="block mb-2 text-sm font-medium">Áp dụng cho tòa nhà</label>
+                    <div id="building-checkboxes" class="space-y-2 max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                        </div>
+                    <small class="text-gray-500">Chọn các tòa nhà muốn áp dụng phí dịch vụ này</small>
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" id="cancel-service-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="select-building-service-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden opacity-0 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 max-h-[80vh] overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center sticky top-0 bg-white">
+                <h3 class="text-lg font-semibold">Chọn dịch vụ cho tòa nhà</h3>
+                <button id="close-select-service-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-5">
+                <div class="mb-4">
+                    <input type="text" id="search-services" placeholder="Tìm kiếm dịch vụ..." class="w-full p-2.5 border rounded-lg bg-gray-50">
+                </div>
+                <div id="available-services-list" class="space-y-2 max-h-96 overflow-y-auto">
+                    </div>
+                <div class="mt-4 pt-4 border-t flex justify-between items-center gap-3">
+                    <button type="button" id="create-new-service-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Tạo dịch vụ mới
+                    </button>
+                    <div class="flex gap-3">
+                        <button type="button" id="cancel-select-service-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                        <button type="button" id="confirm-select-service-btn" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Hoàn tất</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="select-contract-service-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden opacity-0 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 max-h-[80vh] overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center sticky top-0 bg-white">
+                <h3 class="text-lg font-semibold">Chọn dịch vụ cho hợp đồng</h3>
+                <button id="close-select-contract-service-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-5">
+                <div class="mb-4">
+                    <input type="text" id="search-contract-services" placeholder="Tìm kiếm dịch vụ..." class="w-full p-2.5 border rounded-lg bg-gray-50">
+                </div>
+                <div id="available-contract-services-list" class="space-y-2 max-h-96 overflow-y-auto">
+                    </div>
+                <div class="mt-4 pt-4 border-t flex justify-between items-center gap-3">
+                    <button type="button" id="create-new-service-from-contract-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Tạo dịch vụ mới
+                    </button>
+                    <button type="button" id="cancel-select-contract-service-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal xem danh sách tòa nhà của dịch vụ -->
+    <div id="view-service-buildings-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden opacity-0 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 max-h-[80vh] overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center sticky top-0 bg-white">
+                <h3 class="text-lg font-semibold" id="view-service-buildings-title">Danh sách tòa nhà áp dụng</h3>
+                <button id="close-view-service-buildings-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-5">
+                <div id="service-buildings-list" class="space-y-2">
+                    <!-- Danh sách tòa nhà sẽ được render ở đây -->
+                </div>
+            </div>
+            <div class="p-5 border-t flex justify-end">
+                <button type="button" id="close-view-service-buildings-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="contract-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center sticky top-0 bg-white">
+                <h3 class="text-lg font-semibold" id="contract-modal-title">Thêm Hợp đồng thuê</h3>
+                <button id="close-contract-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="contract-form" class="p-5 space-y-6">
+                <input type="hidden" id="contract-id">
+                
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-blue-600">1. Thông tin chung</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="contract-building" class="block mb-2 text-sm font-medium">Chọn tòa nhà</label>
+                            <select id="contract-building" class="w-full p-2.5 border rounded-lg bg-gray-50" required>
+                                <option value="">-- Chọn tòa nhà --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="contract-room" class="block mb-2 text-sm font-medium">Phòng</label>
+                            <select id="contract-room" class="w-full p-2.5 border rounded-lg bg-gray-50" required>
+                                <option value="">-- Chọn phòng --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="contract-start-date" class="block mb-2 text-sm font-medium">Ngày bắt đầu</label>
+                            <div class="relative">
+                                <input type="text" id="contract-start-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50" 
+                                       pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)">
+                                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="contract-end-date" class="block mb-2 text-sm font-medium">Ngày kết thúc</label>
+                            <div class="relative">
+                                <input type="text" id="contract-end-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50" 
+                                       pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 28-02-2026)">
+                                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="contract-payment-day" class="block mb-2 text-sm font-medium">Hạn thanh toán (ngày trong tháng)</label>
+                            <input type="number" id="contract-payment-day" class="w-full p-2.5 border rounded-lg bg-gray-50" min="1" max="31" value="3" placeholder="Ví dụ: 3" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-md font-semibold text-blue-600">2. Khách hàng</h4>
+                        <button type="button" id="add-customer-from-contract" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm khách hàng">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="relative mb-3">
+                        <input type="text" id="customer-search" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Tìm kiếm khách hàng...">
+                        <div id="customer-dropdown" class="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg z-10 mt-1 hidden max-h-60 overflow-y-auto">
+                            <div id="customer-options">
+                                </div>
+                        </div>
+                    </div>
+                    
+                    <table class="w-full" id="selected-customers-table">
+                        <thead>
+                            <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                <th class="py-2 px-2">Tên cư dân</th>
+                                <th class="py-2 px-2">Số điện thoại</th>
+                                <th class="py-2 px-2">Đại diện</th>
+                                <th class="py-2 px-2">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="selected-customers-display">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-blue-600">3. Giá thuê & tiền cọc</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="contract-rent-price" class="block mb-2 text-sm font-medium">Giá thuê (VNĐ/tháng)</label>
+                            <input type="text" id="contract-rent-price" class="w-full p-2.5 border rounded-lg bg-gray-50 money-input" placeholder="Ví dụ: 3.500.000" required>
+                        </div>
+                        <div>
+                            <label for="contract-deposit" class="block mb-2 text-sm font-medium">Tiền cọc (VNĐ)</label>
+                            <input type="text" id="contract-deposit" class="w-full p-2.5 border rounded-lg bg-gray-50 money-input" placeholder="Ví dụ: 7.000.000" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-md font-semibold text-blue-600">4. Phí dịch vụ</h4>
+                        <button type="button" id="add-contract-service-btn" class="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors" title="Thêm phí dịch vụ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="contract-services-list" class="space-y-3">
+                        </div>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" id="cancel-contract-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu Hợp đồng</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="quick-customer-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Thêm khách hàng mới</h3>
+                <button id="close-quick-customer-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="quick-customer-form" class="p-4 space-y-4">
+                <div>
+                    <label for="quick-customer-name" class="block mb-2 text-sm font-medium">Họ tên</label>
+                    <input type="text" id="quick-customer-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập họ tên khách hàng" required>
+                </div>
+                <div>
+                    <label for="quick-customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
+                    <input type="tel" id="quick-customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
+                </div>
+                <div class="pt-2 flex justify-end gap-3">
+                    <button type="button" id="cancel-quick-customer-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700">Thêm & Chọn</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="customer-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="customer-modal-title">Thêm Khách hàng</h3>
+                <button id="close-customer-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="customer-form" class="p-5 space-y-4">
+                <input type="hidden" id="customer-id">
+                <div>
+                    <label for="customer-name" class="block mb-2 text-sm font-medium">Họ tên</label>
+                    <input type="text" id="customer-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập họ tên khách hàng" required>
+                </div>
+                <div>
+                    <label for="customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
+                    <input type="tel" id="customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" id="cancel-customer-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="import-customers-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Nhập dữ liệu Khách hàng</h3>
+                <button id="close-import-customers-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">1. TẢI FILE DỮ LIỆU MẪU</h4>
+                    <p class="text-sm text-gray-600 mb-3">File yêu cầu định dạng excel - <span class="text-green-600 font-medium cursor-pointer" id="download-customers-template-link">↓ Tải file mẫu tại đây</span></p>
+                </div>
+                
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">2. UPLOAD DỮ LIỆU</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <p class="text-gray-500 mb-2">Kéo thả file ở đây</p>
+                        <p class="text-gray-400 text-sm mb-4">Hoặc</p>
+                        <label class="inline-block">
+                            <input type="file" id="import-customers-file" accept=".xlsx,.xls" class="hidden">
+                            <span class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg cursor-pointer">Chọn File</span>
+                        </label>
+                        <p id="import-customers-file-name" class="text-sm text-gray-600 mt-3"></p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-import-customers-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="button" id="submit-import-customers-btn" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Nhập dữ liệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="bill-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 max-h-screen overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="bill-modal-title">Tạo Hóa đơn Tiền Nhà</h3>
+                <button id="close-bill-modal" class="text-gray-500 hover:text-gray-800 text-3xl font-bold leading-none">&times;</button>
+            </div>
+            <form id="bill-form" class="p-5 space-y-6">
+                <input type="hidden" id="bill-id">
+                
+                <div class="border rounded-lg p-4 bg-gray-50">
+                    <h4 class="text-md font-semibold mb-4 text-blue-600">1. Thông tin chung</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label for="bill-building" class="block mb-2 text-sm font-medium">Tòa nhà</label>
+                            <select id="bill-building" class="w-full p-2.5 border rounded-lg bg-white" required>
+                                <option value="">-- Chọn tòa nhà --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bill-room" class="block mb-2 text-sm font-medium">Phòng</label>
+                            <select id="bill-room" class="w-full p-2.5 border rounded-lg bg-white" required>
+                                <option value="">-- Chọn phòng --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bill-customer" class="block mb-2 text-sm font-medium">Khách hàng</label>
+                            <input type="text" id="bill-customer" class="w-full p-2.5 border rounded-lg bg-gray-100" readonly>
+                            <input type="hidden" id="bill-customer-id">
+                        </div>
+                        <div>
+                            <label for="bill-period" class="block mb-2 text-sm font-medium">Kỳ thanh toán</label>
+                            <select id="bill-period" class="w-full p-2.5 border rounded-lg bg-white" required>
+                                <option value="">-- Chọn tháng --</option>
+                                <option value="1">Tháng 1</option>
+                                <option value="2">Tháng 2</option>
+                                <option value="3">Tháng 3</option>
+                                <option value="4">Tháng 4</option>
+                                <option value="5">Tháng 5</option>
+                                <option value="6">Tháng 6</option>
+                                <option value="7">Tháng 7</option>
+                                <option value="8">Tháng 8</option>
+                                <option value="9">Tháng 9</option>
+                                <option value="10">Tháng 10</option>
+                                <option value="11">Tháng 11</option>
+                                <option value="12">Tháng 12</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bill-date" class="block mb-2 text-sm font-medium">Ngày lập Hóa đơn</label>
+                            <div class="relative">
+                                <input type="text" id="bill-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50" 
+                                       pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 04-11-2025)">
+                                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="bill-due-date" class="block mb-2 text-sm font-medium">Hạn thanh toán</label>
+                            <input type="number" id="bill-due-date" class="w-full p-2.5 border rounded-lg bg-white" value="3" min="1" max="31" required>
+                            <span class="text-xs text-gray-500">Ngày trong tháng</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded-lg p-4 bg-gray-50">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-md font-semibold text-blue-600">2. Dịch vụ & phí</h4>
+                        <button type="button" id="add-custom-service-btn" class="bg-green-500 text-white font-semibold py-1.5 px-4 rounded-lg hover:bg-green-600 text-sm">+ Thêm</button>
+                    </div>
+                    
+                    <div class="overflow-x-auto mb-4">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b text-left text-gray-600">
+                                    <th class="py-2 px-3">Dịch vụ</th>
+                                    <th class="py-2 px-3">Đơn giá</th>
+                                    <th class="py-2 px-3">Từ ngày</th>
+                                    <th class="py-2 px-3">Đến ngày</th>
+                                    <th class="py-2 px-3">Số lượng</th>
+                                    <th class="py-2 px-3">Thành tiền</th>
+                                    <th class="py-2 px-3">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bill-services-list">
+                                </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-600">Tổng thành tiền:</div>
+                            <div class="text-xl font-bold text-blue-600" id="bill-total-amount">0 VNĐ</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" id="cancel-bill-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu Hóa đơn</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="transaction-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 max-h-screen overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="transaction-modal-title">Tạo Phiếu Thu/Chi</h3>
+                <button id="close-transaction-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="transaction-form" class="p-5 space-y-6">
+                <input type="hidden" id="transaction-id">
+                
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="transaction-type" value="income" id="transaction-type-income" class="hidden peer" checked>
+                        <div class="p-4 border-2 rounded-lg text-center peer-checked:bg-green-50 peer-checked:border-green-500 hover:bg-gray-50 transition-colors">
+                            <div class="w-8 h-8 mx-auto mb-2 flex items-center justify-center bg-green-100 rounded-full">
+                                💰
+                            </div>
+                            <div class="font-semibold text-gray-700 peer-checked:text-green-600">Phiếu thu</div>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="transaction-type" value="expense" id="transaction-type-expense" class="hidden peer">
+                        <div class="p-4 border-2 rounded-lg text-center peer-checked:bg-red-50 peer-checked:border-red-500 hover:bg-gray-50 transition-colors">
+                            <div class="w-8 h-8 mx-auto mb-2 flex items-center justify-center bg-red-100 rounded-full">
+                                💸
+                            </div>
+                            <div class="font-semibold text-gray-700 peer-checked:text-red-600">Phiếu chi</div>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="border rounded-lg p-4 bg-gray-50">
+                    <h4 class="text-md font-semibold mb-4 text-green-600" id="transaction-section-title">1. THÔNG TIN CHUNG</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="transaction-building" class="block mb-2 text-sm font-medium">Tòa nhà</label>
+                            <select id="transaction-building" class="w-full p-2.5 border rounded-lg bg-white">
+                                <option value="">Tòa nhà</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="transaction-room" class="block mb-2 text-sm font-medium">Phòng</label>
+                            <select id="transaction-room" class="w-full p-2.5 border rounded-lg bg-white">
+                                <option value="">Phòng</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="transaction-customer" class="block mb-2 text-sm font-medium">Khách hàng</label>
+                            <select id="transaction-customer" class="w-full p-2.5 border rounded-lg bg-white">
+                                <option value="">Hợp đồng</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="transaction-title" class="block mb-2 text-sm font-medium" id="transaction-title-label">Tên phiếu thu <span class="text-red-500">*</span></label>
+                            <input type="text" id="transaction-title" class="w-full p-2.5 border rounded-lg bg-white" required>
+                        </div>
+                        <div>
+                            <label for="transaction-payer" class="block mb-2 text-sm font-medium" id="transaction-payer-label">Người thu <span class="text-red-500">*</span></label>
+                            <input type="text" id="transaction-payer" class="w-full p-2.5 border rounded-lg bg-white" required>
+                        </div>
+                        <div>
+                            <label for="transaction-account" class="block mb-2 text-sm font-medium">Số quỹ <span class="text-red-500">*</span></label>
+                            <select id="transaction-account" class="w-full p-2.5 border rounded-lg bg-white" required>
+                                <option value="">Số quỹ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="transaction-date" class="block mb-2 text-sm font-medium" id="transaction-date-label">Ngày thực thu <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <input type="text" id="transaction-date" class="w-full p-2.5 pr-10 border rounded-lg bg-white" 
+                                       pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)">
+                                <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded-lg p-4 bg-gray-50">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-md font-semibold text-green-600">2. HẠNG MỤC</h4>
+                        <button type="button" id="add-transaction-item-btn" class="bg-green-500 text-white font-semibold py-1.5 px-4 rounded-lg hover:bg-green-600 text-sm">+ Thêm</button>
+                    </div>
+                    
+                    <div class="overflow-x-auto mb-4">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b text-left text-gray-600">
+                                    <th class="py-3 px-4 font-medium">Hạng mục</th>
+                                    <th class="py-3 px-4 font-medium">Số tiền</th>
+                                    <th class="py-3 px-4 font-medium text-center">Xóa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transaction-items-list">
+                                <tr class="text-center text-gray-400">
+                                    <td colspan="3" class="py-6">Không có bản ghi nào!</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" id="cancel-transaction-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700" id="save-transaction-btn">Lưu Phiếu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 id="task-modal-title" class="text-lg font-semibold">Thêm Công việc</h3>
+                <button id="close-task-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <form id="task-form" class="p-6">
+                <input type="hidden" id="task-id">
+                
+                <div class="mb-4">
+                    <label class="block mb-2 text-sm font-medium text-gray-700">Tên công việc</label>
+                    <input type="text" id="task-title" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block mb-2 text-sm font-medium text-gray-700">Tòa nhà</label>
+                        <select id="task-building" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                            <option value="">Chọn tòa nhà</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-2 text-sm font-medium text-gray-700">Phòng</label>
+                        <input type="text" id="task-room" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block mb-2 text-sm font-medium text-gray-700">Người báo sự cố</label>
+                    <input type="text" id="task-reporter" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-task-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="select-transaction-category-modal" class="fixed inset-0 flex items-center justify-center p-4 hidden modal-backdrop" style="z-index: 999999 !important; position: fixed !important;">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl modal-content transform scale-95 max-h-screen overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Chọn hạng mục</h3>
+                <button id="close-select-transaction-category-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-5">
+                <div class="mb-4">
+                    <button type="button" id="add-new-transaction-category-btn" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600">Thêm</button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b text-left text-gray-600">
+                                <th class="py-3 px-3">
+                                    <input type="checkbox" id="select-all-categories" class="w-4 h-4 cursor-pointer">
+                                </th>
+                                <th class="py-3 px-3">Tên hạng mục</th>
+                                <th class="py-3 px-3">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transaction-categories-list">
+                            </tbody>
+                    </table>
+                </div>
+                
+                <div class="pt-4 flex justify-end">
+                    <button type="button" id="close-select-category-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="bill-detail-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 max-h-[95vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center no-print">
+                <h3 class="text-lg font-semibold">Chi tiết Hóa đơn</h3>
+                <div class="flex items-center gap-2">
+                     <button id="print-bill-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 text-sm">🖨️ In hóa đơn</button>
+                    <button id="close-bill-detail-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                </div>
+            </div>
+            <div class="p-8 overflow-y-auto" id="bill-detail-printable">
+                <div class="border-2 border-gray-800 p-6">
+                    <div class="text-center mb-8">
+                        <h2 id="bill-detail-title" class="text-3xl font-bold">Hóa Đơn Tiền Nhà</h2>
+                    </div>
+
+                <div class="mb-8 p-4 bg-gray-50 rounded-lg">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p><span class="text-gray-600">Phòng:</span> <span id="bill-detail-room" class="font-bold ml-2"></span></p>
+                            <p><span class="text-gray-600">Khách hàng:</span> <span id="bill-detail-customer-name" class="font-bold ml-2"></span></p>
+                            <p><span class="text-gray-600">Địa chỉ:</span> <span id="bill-detail-address" class="font-bold ml-2"></span></p>
+                        </div>
+                        <div class="text-right">
+                            <p><span class="text-gray-600">Số hóa đơn:</span> <span id="bill-detail-number" class="font-bold ml-2"></span></p>
+                            <p><span class="text-gray-600">Ngày:</span> <span id="bill-detail-date" class="font-bold ml-2"></span></p>
+                            <p><span class="text-gray-600">Hạn cuối:</span> <span id="bill-detail-due-date" class="font-bold ml-2"></span></p>
+                        </div>
+                    </div>
+                </div>
+
+                    <div class="mb-8">
+                        <table class="w-full border-2 border-gray-800">
+                            <thead class="bg-green-600 text-white">
+                                <tr>
+                                    <th class="py-2 px-3 text-left font-semibold border border-gray-800">STT</th>
+                                    <th class="py-2 px-3 text-left font-semibold border border-gray-800">Nội dung</th>
+                                    <th class="py-2 px-3 text-center font-semibold border border-gray-800">Đơn giá (VNĐ)</th>
+                                    <th class="py-2 px-3 text-center font-semibold border border-gray-800">Số lượng</th>
+                                    <th class="py-2 px-3 text-right font-semibold border border-gray-800">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bill-detail-services-table">
+                                </tbody>
+                        </table>
+                    </div>                    <div>
+                        <div class="flex justify-between items-end">
+                            <div class="w-32 h-32">
+                               <img id="bill-detail-qr" src="" alt="" class="w-full h-full object-contain"/>
+                            </div>
+                            <div class="text-right space-y-2">
+                             <div class="flex justify-between">
+                                <span>Tổng cộng:</span>
+                                <span id="bill-detail-subtotal" class="font-medium"></span>
+                            </div>
+                             <div class="flex justify-between">
+                                <span>Đã thanh toán:</span>
+                                <span id="bill-detail-paid" class="font-medium">0 VNĐ</span>
+                            </div>
+                            <div class="border-t my-2"></div>
+                             <div class="flex justify-between items-center text-base">
+                                    <span class="font-bold text-red-600">Còn lại:</span>
+                                    <span id="bill-detail-due-amount" class="font-bold text-red-600 ml-4"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-bills-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Nhập dữ liệu Hóa đơn</h3>
+                <button id="close-import-bills-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">1. TẢI FILE DỮ LIỆU MẪU</h4>
+                    <div class="grid grid-cols-3 gap-4 mb-3">
+                        <div>
+                            <label class="block mb-2 text-sm font-medium text-gray-700">Chọn tháng (*)</label>
+                            <select id="import-bill-month" class="w-full p-2.5 border rounded-lg bg-gray-50" required>
+                                <option value="">-- Chọn tháng --</option>
+                                <option value="1">Tháng 1</option>
+                                <option value="2">Tháng 2</option>
+                                <option value="3">Tháng 3</option>
+                                <option value="4">Tháng 4</option>
+                                <option value="5">Tháng 5</option>
+                                <option value="6">Tháng 6</option>
+                                <option value="7">Tháng 7</option>
+                                <option value="8">Tháng 8</option>
+                                <option value="9">Tháng 9</option>
+                                <option value="10">Tháng 10</option>
+                                <option value="11">Tháng 11</option>
+                                <option value="12">Tháng 12</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-2 text-sm font-medium text-gray-700">Chọn năm (*)</label>
+                            <select id="import-bill-year" class="w-full p-2.5 border rounded-lg bg-gray-50" required>
+                                <option value="">-- Chọn năm --</option>
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026">2026</option>
+                                <option value="2027">2027</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block mb-2 text-sm font-medium text-gray-700">Chọn tòa nhà (*)</label>
+                            <select id="import-bill-building" class="w-full p-2.5 border rounded-lg bg-gray-50" required>
+                                <option value="">-- Chọn tòa nhà --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">Chỉ cần chọn để tải file mẫu. Khi import, hệ thống sẽ tự đọc thông tin từ file Excel.</p>
+                    <p class="text-sm text-gray-600 mb-3">File yêu cầu định dạng excel - <span class="text-green-600 font-medium cursor-pointer" id="download-bill-template-link">↓ Tải file mẫu tại đây</span></p>
+                </div>
+                
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">2. UPLOAD DỮ LIỆU</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <p class="text-gray-500 mb-2">Kéo thả file ở đây</p>
+                        <p class="text-gray-400 text-sm mb-4">Hoặc</p>
+                        <label class="inline-block">
+                            <input type="file" id="import-bills-file" accept=".xlsx,.xls" class="hidden">
+                            <span class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg cursor-pointer">Chọn File</span>
+                        </label>
+                        <p id="import-bills-file-name" class="text-sm text-gray-600 mt-3"></p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-import-bills-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="button" id="submit-import-bills-btn" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Nhập dữ liệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-green-500 text-white py-3 px-5 rounded-lg shadow-xl hidden transform translate-y-16 transition-transform duration-300">
+        <p id="toast-message"></p>
+    </div>
+
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center hidden">
+        <div class="text-white text-xl">Đang kết nối tới Firebase...</div>
+    </div>
+
+    <div id="rooms-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="rooms-modal-title">Danh sách phòng</h3>
+                <button id="close-rooms-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <div class="p-6">
+                <div id="rooms-modal-content" class="grid grid-cols-4 gap-2">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Thêm Loại Thu/Chi Mới -->
+    <div id="add-transaction-category-modal" class="fixed inset-0 flex items-center justify-center p-4 hidden modal-backdrop" style="z-index: 1000000 !important;">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Thêm Loại Thu/Chi Mới</h3>
+                <button id="close-add-category-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <form id="add-transaction-category-form" class="p-6">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Mã <span class="text-red-500">*</span></label>
+                    <input type="text" id="new-category-code" class="w-full p-2 border border-gray-300 rounded-md" placeholder="VD: LTC001" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tên hạng mục <span class="text-red-500">*</span></label>
+                    <input type="text" id="new-category-name" class="w-full p-2 border border-gray-300 rounded-md" placeholder="VD: Tiền thuê nhà" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Loại <span class="text-red-500">*</span></label>
+                    <select id="new-category-type" class="w-full p-2 border border-gray-300 rounded-md" required>
+                        <option value="">Chọn loại</option>
+                        <option value="Thu">Thu</option>
+                        <option value="Chi">Chi</option>
+                    </select>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
+                    <textarea id="new-category-description" class="w-full p-2 border border-gray-300 rounded-md" rows="3" placeholder="Mô tả chi tiết (tùy chọn)"></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancel-add-category-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Thêm/Sửa Hạng mục Thu Chi -->
+    <div id="transaction-category-management-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="transaction-category-management-modal-title">Hạng mục Thu Chi</h3>
+                <button id="close-transaction-category-management-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <form id="transaction-category-management-form" class="p-6">
+                <input type="hidden" id="transaction-category-management-id">
+                
+                <div class="mb-4">
+                    <label for="transaction-category-management-name" class="block mb-2 text-sm font-medium">Tên hạng mục *</label>
+                    <input type="text" id="transaction-category-management-name" 
+                           class="w-full p-2 border border-gray-300 rounded-lg" 
+                           placeholder="Ví dụ: Tiền nhà, Tiền điện, Tiền nước..." required>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancel-transaction-category-management" 
+                            class="px-4 py-2 text-gray-600 hover:text-gray-800">Hủy</button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Thêm/Sửa Sổ quỹ -->
+    <div id="account-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="account-modal-title">Tài khoản ngân hàng</h3>
+                <button id="close-account-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <form id="account-form" class="p-6">
+                <input type="hidden" id="account-id">
+                
+                <div class="mb-4">
+                    <label for="account-bank" class="block mb-2 text-sm font-medium">Ngân hàng</label>
+                    <select id="account-bank" class="w-full p-2.5 border rounded-lg bg-white" onchange="toggleCashFields()">
+                        <option value="">Chọn ngân hàng</option>
+                        <option value="VietcomBank">Vietcombank - Ngân hàng TMCP Ngoại thương Việt Nam</option>
+                        <option value="VietinBank">VietinBank - Ngân hàng TMCP Công thương Việt Nam</option>
+                        <option value="BIDV">BIDV - Ngân hàng TMCP Đầu tư và Phát triển Việt Nam</option>
+                        <option value="Agribank">Agribank - Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam</option>
+                        <option value="ACB">ACB - Ngân hàng TMCP Á Châu</option>
+                        <option value="Techcombank">Techcombank - Ngân hàng TMCP Kỹ thương Việt Nam</option>
+                        <option value="MB Bank">MBBank - Ngân hàng TMCP Quân đội</option>
+                        <option value="TPBank">TPBank - Ngân hàng TMCP Tiên Phong</option>
+                        <option value="Sacombank">Sacombank - Ngân hàng TMCP Sài Gòn Thương tín</option>
+                        <option value="VPBank">VPBank - Ngân hàng TMCP Việt Nam Thịnh vượng</option>
+                        <option value="HDBank">HDBank - Ngân hàng TMCP Phát triển Thành phố Hồ Chí Minh</option>
+                        <option value="OCB">OCB - Ngân hàng TMCP Phương Đông</option>
+                        <option value="MSB">MSB - Ngân hàng TMCP Hàng Hải</option>
+                        <option value="SHB">SHB - Ngân hàng TMCP Sài Gòn - Hà Nội</option>
+                        <option value="SeABank">SeABank - Ngân hàng TMCP Đông Nam Á</option>
+                        <option value="VIB">VIB - Ngân hàng TMCP Quốc tế Việt Nam</option>
+                        <option value="LienVietPostBank">LienVietPostBank - Ngân hàng TMCP Bưu điện Liên Việt</option>
+                        <option value="Eximbank">Eximbank - Ngân hàng TMCP Xuất Nhập khẩu Việt Nam</option>
+                        <option value="NCB">NCB - Ngân hàng TMCP Quốc Dân</option>
+                        <option value="VietBank">VietBank - Ngân hàng TMCP Việt Nam Thương Tín</option>
+                        <option value="BacABank">BacABank - Ngân hàng TMCP Bắc Á</option>
+                        <option value="KienLongBank">Kienlongbank - Ngân hàng TMCP Kiên Long</option>
+                        <option value="Nam A Bank">Nam A Bank - Ngân hàng TMCP Nam Á</option>
+                        <option value="OCB">OceanBank - Ngân hàng Thương mại TNHH MTV Đại Dương</option>
+                        <option value="PG Bank">PG Bank - Ngân hàng TMCP Xăng dầu Petrolimex</option>
+                        <option value="Cake">CAKE - Ngân hàng số CAKE by VPBank</option>
+                        <option value="Timo">Timo - Ngân hàng số Timo by VPBank</option>
+                        <option value="Ubank">Ubank - Ngân hàng số Ubank by VPBank</option>
+                        <option value="Cash">Tiền mặt</option>
+                    </select>
+                </div>
+
+                <div class="mb-4" id="account-holder-field">
+                    <label for="account-holder" class="block mb-2 text-sm font-medium">Họ và tên (Tiếng Việt không dấu)</label>
+                    <input type="text" id="account-holder" class="w-full p-2.5 border rounded-lg bg-white" placeholder="NGUYEN VAN A">
+                </div>
+
+                <div class="mb-4" id="account-number-field">
+                    <label for="account-number" class="block mb-2 text-sm font-medium">Số tài khoản</label>
+                    <input type="text" id="account-number" class="w-full p-2.5 border rounded-lg bg-white" placeholder="1234567890">
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" id="cancel-account-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="submit" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Hoàn tất</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Global function để xử lý khi chọn ngân hàng
+        function toggleCashFields() {
+            const bankSelect = document.getElementById('account-bank');
+            const holderField = document.getElementById('account-holder-field');
+            const numberField = document.getElementById('account-number-field');
+            
+            if (bankSelect.value === 'Cash') {
+                // Ẩn các trường khi chọn tiền mặt
+                holderField.style.display = 'none';
+                numberField.style.display = 'none';
+                // Clear values
+                document.getElementById('account-holder').value = '';
+                document.getElementById('account-number').value = '';
+            } else {
+                // Hiện lại khi chọn ngân hàng khác
+                holderField.style.display = 'block';
+                numberField.style.display = 'block';
+            }
+        }
+    </script>
+
+    <!-- Modal Import Phiếu Thu Chi -->
+    <div id="import-transactions-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Nhập dữ liệu</h3>
+                <button id="close-import-transactions-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">1. TẢI FILE DỮ LIỆU MẪU</h4>
+                    <p class="text-sm text-gray-600 mb-3">File yêu cầu định dạng excel - <span class="text-green-600 font-medium cursor-pointer" id="download-transaction-template-btn">↓ Tải file mẫu tại đây</span></p>
+                </div>
+                
+                <div class="border rounded-lg p-4">
+                    <h4 class="text-md font-semibold mb-4 text-green-700">2. UPLOAD DỮ LIỆU</h4>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                        <p class="text-gray-500 mb-2">Kéo thả file ở đây</p>
+                        <p class="text-gray-400 text-sm mb-4">Hoặc</p>
+                        <label class="inline-block">
+                            <input type="file" id="import-transactions-file" accept=".xlsx,.xls,.csv" class="hidden">
+                            <span class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg cursor-pointer">Chọn File</span>
+                        </label>
+                        <p id="import-transactions-file-name" class="text-sm text-gray-600 mt-3"></p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-import-transactions" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="button" id="confirm-import-transactions" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Nhập dữ liệu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript cho dropdown thông báo -->
+    <script>
+        // Hàm toggle dropdown thông báo
+        window.toggleNotificationDropdown = function() {
+            const dropdown = document.getElementById('notification-dropdown');
+            if (!dropdown) return;
+            
+            if (dropdown.classList.contains('show')) {
+                dropdown.classList.remove('show');
+            } else {
+                dropdown.classList.add('show');
+                // Load thông báo mới nhất khi mở dropdown
+                loadNotificationDropdownContent();
+            }
+        };
+
+        // Hàm chuyển đến trang thông báo
+        window.goToNotificationsPage = function() {
+            // Đóng dropdown
+            const dropdown = document.getElementById('notification-dropdown');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+            
+            // Chuyển đến section thông báo (sẽ được xử lý bởi main.js)
+            const notificationsBtn = document.getElementById('notifications-btn');
+            if (notificationsBtn) {
+                notificationsBtn.click();
+            }
+        };
+
+        // Hàm load nội dung dropdown
+        async function loadNotificationDropdownContent() {
+            const listContainer = document.getElementById('notification-list-container');
+            if (!listContainer) return;
+            
+            // Hiển thị loading
+            listContainer.innerHTML = `
+                <div class="notification-empty">
+                    <div>Đang tải...</div>
+                </div>
+            `;
+            
+            try {
+                // Import Firebase modules
+                const { db } = await import('./js/firebase.js');
+                const { collection, query, orderBy, limit, getDocs } = await import('https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js');
+                
+                // Lấy 5 thông báo mới nhất từ collection 'adminNotifications'
+                const q = query(
+                    collection(db, 'adminNotifications'),
+                    orderBy('createdAt', 'desc'),
+                    limit(5)
+                );
+                
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) {
+                    listContainer.innerHTML = `
+                        <div class="notification-empty">
+                            <div class="notification-empty-icon">🔔</div>
+                            <div>Không có thông báo nào</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                querySnapshot.forEach(doc => {
+                    const notification = { id: doc.id, ...doc.data() };
+                    const isUnread = !notification.isRead;
+                    
+                    // Convert Firestore Timestamp to Date
+                    let notifDate = null;
+                    if (notification.createdAt && notification.createdAt.toDate) {
+                        notifDate = notification.createdAt.toDate();
+                    } else if (notification.createdAt && notification.createdAt.seconds) {
+                        notifDate = new Date(notification.createdAt.seconds * 1000);
+                    }
+                    
+                    const timeAgo = formatTimeAgo(notifDate);
+                    
+                    html += `
+                        <div class="notification-item ${isUnread ? 'unread' : ''}" onclick="markAsReadAndGo('${notification.id}')">
+                            <div class="notification-title">${notification.title || 'Thông báo'}</div>
+                            <div class="notification-message">${notification.message || ''}</div>
+                            <div class="notification-time">${timeAgo}</div>
+                        </div>
+                    `;
+                });
+
+                listContainer.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Lỗi khi load thông báo dropdown:', error);
+                listContainer.innerHTML = `
+                    <div class="notification-empty">
+                        <div>Lỗi tải thông báo: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Hàm đánh dấu đã đọc và chuyển trang
+        window.markAsReadAndGo = async function(notificationId) {
+            try {
+                // Import Firebase modules
+                const { db } = await import('./js/firebase.js');
+                const { doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js');
+                
+                // Đánh dấu đã đọc trong collection 'adminNotifications'
+                await updateDoc(doc(db, 'adminNotifications', notificationId), {
+                    isRead: true
+                });
+                
+                // Đóng dropdown và chuyển trang
+                goToNotificationsPage();
+                
+            } catch (error) {
+                console.error('Lỗi khi đánh dấu đã đọc:', error);
+                // Vẫn chuyển trang dù có lỗi
+                goToNotificationsPage();
+            }
+        };
+
+        // Hàm format thời gian
+        function formatTimeAgo(date) {
+            if (!date) return 'Vừa xong';
+            
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) return 'Vừa xong';
+            if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} phút trước`;
+            if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} giờ trước`;
+            if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} ngày trước`;
+            
+            return date.toLocaleDateString('vi-VN');
+        }
+
+        // Setup event listeners khi DOM ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Click vào button notification
+            const notificationBtn = document.getElementById('notification-btn');
+            if (notificationBtn) {
+                notificationBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleNotificationDropdown();
+                });
+            }
+            
+            // Đóng dropdown khi click bên ngoài
+            document.addEventListener('click', function(event) {
+                const dropdown = document.getElementById('notification-dropdown');
+                const button = document.getElementById('notification-btn');
+                
+                if (dropdown && button && 
+                    !dropdown.contains(event.target) && 
+                    !button.contains(event.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
+
+            // Ngăn chặn đóng dropdown khi click bên trong
+            const dropdown = document.getElementById('notification-dropdown');
+            if (dropdown) {
+                dropdown.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                });
+            }
+        });
+    </script>
+
+    <!-- CSS cho dropdown thông báo -->
+    <style>
+        /* Notification dropdown styles */
+        .notification-badge {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            min-width: 380px;
+            max-width: 400px;
+        }
+
+        .notification-dropdown.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .notification-dropdown-panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-height: 400px;
+            overflow: hidden;
+        }
+
+        .notification-dropdown-header {
+            padding: 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .notification-list-container {
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .notification-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+
+        .notification-item:hover {
+            background-color: #f9fafb;
+        }
+
+        .notification-item.unread {
+            background-color: #f0f9ff;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .notification-message {
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .notification-time {
+            color: #9ca3af;
+            font-size: 12px;
+        }
+
+        .notification-dropdown-footer {
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .view-all-btn {
+            width: 100%;
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+
+        .view-all-btn:hover {
+            background: #2563eb;
+        }
+
+        /* Badge animation */
+        .notification-count {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* Empty state */
+        .notification-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #9ca3af;
+        }
+
+        .notification-empty-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            opacity: 0.5;
+        }
+
+        /* Scrollbar styling */
+        .notification-list-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .notification-list-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        .notification-list-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .notification-list-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .notification-dropdown {
+                min-width: 320px;
+                max-width: 90vw;
+                right: -20px;
+            }
+        }
+    </style>
+
+    <script>
+        // Mobile sidebar toggle functions
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        // Close sidebar when clicking on submenu items only (mobile only)
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.innerWidth <= 768) {
+                // Only close on submenu items and non-dropdown items
+                const submenuItems = document.querySelectorAll('.sidebar-submenu-item');
+                submenuItems.forEach(item => {
+                    item.addEventListener('click', closeMobileSidebar);
+                });
+                
+                // Close on non-dropdown sidebar items
+                const sidebarItems = document.querySelectorAll('.sidebar-item:not(.dropdown-toggle)');
+                sidebarItems.forEach(item => {
+                    item.addEventListener('click', closeMobileSidebar);
+                });
+            }
+        });
+    </script>
+
+    <script type="module" src="js/main.js"></script>
+    
+</body>
+</html>

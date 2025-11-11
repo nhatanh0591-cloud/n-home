@@ -1,0 +1,2347 @@
+    // js/modules/bills.js
+
+import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
+import { getBills, getBuildings, getCustomers, getContracts, getServices, getAccounts } from '../store.js';
+import { 
+    showToast, openModal, closeModal, 
+    formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
+    importFromExcel, exportToExcel
+} from '../utils.js';
+
+// --- BIẾN CỤC BỘ CHO MODULE ---
+let billsCache_filtered = []; // Cache đã lọc
+
+// Pagination variables
+let currentPage = 1;
+const ITEMS_PER_PAGE = 50;
+
+// --- DOM ELEMENTS (Chỉ liên quan đến Hóa đơn) ---
+const billsSection = document.getElementById('bills-section');
+const billsListEl = document.getElementById('bills-list');
+
+// Stats
+const totalBillAmountEl = document.getElementById('total-bill-amount');
+const collectedAmountEl = document.getElementById('collected-amount');
+const pendingAmountEl = document.getElementById('pending-amount');
+
+// Filters
+const filterBuildingEl = document.getElementById('filter-bill-building');
+const filterRoomEl = document.getElementById('filter-bill-room');
+const filterMonthEl = document.getElementById('filter-bill-month');
+const filterStatusEl = document.getElementById('filter-bill-status');
+const searchEl = document.getElementById('bill-search');
+const selectAllCheckbox = document.getElementById('select-all-bills');
+
+// Buttons
+const bulkApproveBtn = document.getElementById('bulk-approve-bills-btn');
+const bulkUnapproveBtn = document.getElementById('bulk-unapprove-bills-btn');
+
+// Modals
+const billModal = document.getElementById('bill-modal');
+const billModalTitle = document.getElementById('bill-modal-title');
+const billForm = document.getElementById('bill-form');
+const billBuildingSelect = document.getElementById('bill-building');
+const billRoomSelect = document.getElementById('bill-room');
+const billCustomerInput = document.getElementById('bill-customer');
+const billCustomerIdInput = document.getElementById('bill-customer-id');
+const billPeriodSelect = document.getElementById('bill-period');
+const billServicesListEl = document.getElementById('bill-services-list');
+const billTotalAmountEl = document.getElementById('bill-total-amount');
+
+const billDetailModal = document.getElementById('bill-detail-modal');
+
+const importBillsModal = document.getElementById('import-bills-modal');
+const importBillMonthSelect = document.getElementById('import-bill-month');
+const importBillYearSelect = document.getElementById('import-bill-year');
+const importBillBuildingSelect = document.getElementById('import-bill-building');
+
+// --- HÀM CHÍNH ---
+
+/**
+ * Hàm khởi tạo, được gọi 1 lần duy nhất từ main.js
+ */
+export function initBills() {
+    // Lắng nghe sự kiện từ store
+    document.addEventListener('store:bills:updated', () => {
+        if (!billsSection.classList.contains('hidden')) {
+            loadBills();
+        }
+    });
+    // Tải lại khi dữ liệu liên quan thay đổi
+    document.addEventListener('store:buildings:updated', () => {
+        if (!billsSection.classList.contains('hidden')) { loadBillFilterOptions(); applyBillFilters(); }
+    });
+    document.addEventListener('store:customers:updated', () => {
+        if (!billsSection.classList.contains('hidden')) { applyBillFilters(); }
+    });
+    document.addEventListener('store:contracts:updated', () => {
+        if (!billsSection.classList.contains('hidden')) { applyBillFilters(); }
+    });
+
+    // Lắng nghe sự kiện click trên toàn trang
+    document.body.addEventListener('click', handleBodyClick);
+    
+    // Lắng nghe form
+    billForm.addEventListener('submit', handleBillFormSubmit);
+
+    // Lắng nghe bộ lọc
+    filterBuildingEl.addEventListener('change', handleBuildingFilterChange);
+    filterRoomEl.addEventListener('change', applyBillFilters);
+    filterMonthEl.addEventListener('change', applyBillFilters);
+    filterStatusEl.addEventListener('change', applyBillFilters);
+    searchEl.addEventListener('input', applyBillFilters);
+
+    // Lắng nghe select all
+    selectAllCheckbox.addEventListener('change', (e) => {
+        document.querySelectorAll('.bill-checkbox').forEach(cb => cb.checked = e.target.checked);
+        updateBulkApprovalButtons();
+    });
+    
+    // Lắng nghe các input trong modal hóa đơn
+    billBuildingSelect.addEventListener('change', handleBillBuildingChange);
+    billRoomSelect.addEventListener('change', handleBillRoomChange);
+    billPeriodSelect.addEventListener('change', handleBillRoomChange); // Chọn kỳ cũng load lại dịch vụ
+    
+    // Lắng nghe thay đổi input dịch vụ (số lượng, chỉ số, ngày)
+    billServicesListEl.addEventListener('input', handleServiceInputChange);
+    billServicesListEl.addEventListener('change', handleServiceInputChange); // Thêm change để bắt khi blur ra ngoài
+    
+    // Lắng nghe click nút xóa dịch vụ
+    billServicesListEl.addEventListener('click', handleRemoveServiceClick);
+
+    // Khởi tạo modal import
+    initImportModal();
+}
+
+/**
+ * Tải, lọc, và chuẩn bị dữ liệu hóa đơn
+ */
+export function loadBills() {
+    // Cập nhật thống kê (làm trước)
+    updateBillStats();
+    
+    // Cập nhật dropdown bộ lọc
+    loadBillFilterOptions();
+    
+    // Áp dụng bộ lọc và hiển thị
+    applyBillFilters();
+}
+
+/**
+ * Áp dụng bộ lọc và gọi hàm render
+ */
+function applyBillFilters() {
+    let bills = getBills();
+
+    const buildingFilter = filterBuildingEl.value;
+    const roomFilter = filterRoomEl.value;
+    const monthFilter = filterMonthEl.value;
+    const statusFilter = filterStatusEl.value;
+    const searchText = searchEl.value.toLowerCase();
+
+    if (buildingFilter) {
+        bills = bills.filter(bill => bill.buildingId === buildingFilter);
+    }
+    if (roomFilter) {
+        bills = bills.filter(bill => bill.room === roomFilter);
+    }
+    if (monthFilter) {
+        bills = bills.filter(bill => bill.period == monthFilter);
+    }
+    if (statusFilter) {
+        bills = bills.filter(bill => bill.status === statusFilter);
+    }
+    if (searchText) {
+        const buildings = getBuildings();
+        const customers = getCustomers();
+        bills = bills.filter(bill => {
+            const billNumber = `INV${bill.id.slice(-6).toUpperCase()}`;
+            const customer = customers.find(c => c.id === bill.customerId);
+            const building = buildings.find(b => b.id === bill.buildingId);
+            
+            return billNumber.toLowerCase().includes(searchText) ||
+                   (customer && customer.name.toLowerCase().includes(searchText)) ||
+                   (building && building.code.toLowerCase().includes(searchText)) ||
+                   bill.room.toLowerCase().includes(searchText);
+        });
+    }
+
+    billsCache_filtered = bills.sort((a, b) => (parseDateInput(b.billDate) || 0) - (parseDateInput(a.billDate) || 0));
+    
+    // Reset về trang 1 khi filter
+    currentPage = 1;
+    
+    renderBillsTable(billsCache_filtered);
+    
+    // Cập nhật thống kê theo filter
+    updateBillStats();
+}
+
+/**
+ * Hiển thị dữ liệu lên bảng với phân trang
+ */
+function renderBillsTable(bills) {
+    billsListEl.innerHTML = '';
+    
+    if (bills.length === 0) {
+        billsListEl.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500">Không tìm thấy hóa đơn nào.</td></tr>';
+        renderPagination(0, 0);
+        return;
+    }
+    
+    // Tính toán phân trang
+    const totalItems = bills.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const billsToShow = bills.slice(startIndex, endIndex);
+    
+    const buildings = getBuildings();
+    const customers = getCustomers();
+    
+    billsToShow.forEach(bill => {
+        const building = buildings.find(b => b.id === bill.buildingId);
+        const customer = customers.find(c => c.id === bill.customerId);
+        const billNumber = `INV${(bill.id || '').slice(-6).toUpperCase()}`;
+        const isApproved = bill.approved === true;
+        
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-gray-50';
+        tr.innerHTML = `
+            <td class="py-4 px-4">
+                <input type="checkbox" class="bill-checkbox w-4 h-4 cursor-pointer" data-id="${bill.id}" data-approved="${isApproved}">
+            </td>
+            <td class="py-4 px-4">
+                <div class="flex gap-3">
+                    <button data-id="${bill.id}" class="toggle-bill-approve-btn w-8 h-8 rounded flex items-center justify-center ${isApproved ? 'bg-gray-400 hover:bg-gray-500' : 'bg-green-500 hover:bg-green-600'}" title="${isApproved ? 'Bỏ duyệt' : 'Duyệt hóa đơn'}">
+                        ${isApproved ? '<svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' : '<svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
+                    </button>
+                    <button data-id="${bill.id}" class="toggle-bill-status-btn w-8 h-8 rounded flex items-center justify-center ${!isApproved ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')}" title="${!isApproved ? 'Phải duyệt hóa đơn trước khi thu tiền' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Thu tiền')}" ${!isApproved ? 'disabled' : ''}>
+                        ${bill.status === 'paid' ? '<svg class="w-5 h-5 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>' : '<svg class="w-5 h-5 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>'}
+                    </button>
+                    <button data-id="${bill.id}" class="edit-bill-btn w-8 h-8 rounded ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} flex items-center justify-center" title="${isApproved ? 'Không thể sửa hóa đơn đã duyệt' : 'Sửa'}" ${isApproved ? 'disabled' : ''}>
+                        <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                    </button>
+                    <button data-id="${bill.id}" class="delete-bill-btn w-8 h-8 rounded ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} flex items-center justify-center" title="${isApproved ? 'Không thể xóa hóa đơn đã duyệt' : 'Xóa'}" ${isApproved ? 'disabled' : ''}>
+                        <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                    </button>
+                </div>
+            </td>
+            <td class="py-4 px-4 font-medium text-blue-600 hover:text-blue-800 cursor-pointer view-bill-link" data-id="${bill.id}" title="Click để xem chi tiết">${billNumber}</td>
+            <td class="py-4 px-4">
+                <div>
+                    <div class="font-medium">${customer ? customer.name : 'N/A'}</div>
+                    <div class="text-sm text-gray-500">${building ? building.code : 'N/A'} - ${bill.room}</div>
+                </div>
+            </td>
+            <td class="py-4 px-4">Tháng ${bill.period}</td>
+            <td class="py-4 px-4">${formatDateDisplay(bill.billDate)}</td>
+            <td class="py-4 px-4">${formatMoney(bill.totalAmount)} VNĐ</td>
+            <td class="py-4 px-4">
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                    ${bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                </span>
+            </td>
+        `;
+        billsListEl.appendChild(tr);
+    });
+    
+    // Ẩn nút action theo quyền (với timeout để đảm bảo DOM đã render)
+    setTimeout(() => {
+        if (window.hideActionButtons && typeof window.hideActionButtons === 'function') {
+            window.hideActionButtons('bills');
+        }
+    }, 100);
+    
+    // Render pagination
+    renderPagination(totalItems, totalPages);
+}
+
+/**
+ * Hiển thị phân trang
+ */
+function renderPagination(totalItems, totalPages) {
+    const paginationContainer = document.getElementById('bills-pagination');
+    if (!paginationContainer) return;
+    
+    if (totalPages <= 1) {
+        paginationContainer.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = `
+        <div class="flex items-center justify-between mt-6">
+            <div class="text-sm text-gray-700">
+                Hiển thị ${((currentPage - 1) * ITEMS_PER_PAGE) + 1}-${Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} trong ${totalItems} hóa đơn
+            </div>
+            <div class="flex items-center gap-2">
+    `;
+    
+    // Previous button
+    paginationHTML += `
+        <button onclick="changePage(${currentPage - 1})" 
+                ${currentPage === 1 ? 'disabled' : ''} 
+                class="px-3 py-2 text-sm border rounded-md ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+            Trước
+        </button>
+    `;
+    
+    // Page numbers
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <button onclick="changePage(${i})" 
+                    class="px-3 py-2 text-sm border rounded-md ${i === currentPage ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+                ${i}
+            </button>
+        `;
+    }
+    
+    // Next button
+    paginationHTML += `
+        <button onclick="changePage(${currentPage + 1})" 
+                ${currentPage === totalPages ? 'disabled' : ''} 
+                class="px-3 py-2 text-sm border rounded-md ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50'}">
+            Sau
+        </button>
+    `;
+    
+    paginationHTML += '</div></div>';
+    paginationContainer.innerHTML = paginationHTML;
+}
+
+/**
+ * Thay đổi trang
+ */
+window.changePage = function(page) {
+    const totalPages = Math.ceil(billsCache_filtered.length / ITEMS_PER_PAGE);
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    renderBillsTable(billsCache_filtered);
+}
+
+/**
+ * Cập nhật thống kê
+ */
+function updateBillStats() {
+    const monthFilter = filterMonthEl.value;
+    let bills = getBills();
+    
+    if (monthFilter) {
+        bills = bills.filter(bill => bill.period == monthFilter);
+    }
+    
+    const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+    const collectedAmount = bills.filter(bill => bill.status === 'paid').reduce((sum, bill) => sum + bill.totalAmount, 0);
+    const pendingAmount = totalAmount - collectedAmount;
+    
+    totalBillAmountEl.textContent = formatMoney(totalAmount) + ' VNĐ';
+    collectedAmountEl.textContent = formatMoney(collectedAmount) + ' VNĐ';
+    pendingAmountEl.textContent = formatMoney(pendingAmount) + ' VNĐ';
+}
+
+/**
+ * Tải các dropdown bộ lọc
+ */
+function loadBillFilterOptions() {
+    const buildings = getBuildings();
+    const currentBuilding = filterBuildingEl.value;
+    
+    filterBuildingEl.innerHTML = '<option value="">Tất cả tòa nhà</option>';
+    buildings.forEach(building => {
+        filterBuildingEl.innerHTML += `<option value="${building.id}">${building.code}</option>`;
+    });
+    filterBuildingEl.value = currentBuilding;
+    
+    // Cập nhật phòng
+    handleBuildingFilterChange();
+}
+
+/**
+ * Xử lý khi thay đổi bộ lọc Tòa nhà
+ */
+function handleBuildingFilterChange() {
+    const selectedBuildingId = filterBuildingEl.value;
+    const currentRoom = filterRoomEl.value;
+    filterRoomEl.innerHTML = '<option value="">Tất cả phòng</option>';
+    
+    if (selectedBuildingId) {
+        const building = getBuildings().find(b => b.id === selectedBuildingId);
+        if (building && building.rooms) {
+            building.rooms.forEach(room => {
+                filterRoomEl.innerHTML += `<option value="${room}">${room}</option>`;
+            });
+        }
+    }
+    filterRoomEl.value = currentRoom;
+    applyBillFilters();
+}
+
+/**
+ * Xử lý sự kiện click
+ */
+async function handleBodyClick(e) {
+    const target = e.target.closest('button') || e.target;
+    const id = target.dataset.id;
+
+    // Nút "Thêm hóa đơn"
+    if (target.id === 'add-bill-btn') {
+        openBillModal();
+    }
+    // Nút "Sửa"
+    else if (target.classList.contains('edit-bill-btn')) {
+        // Kiểm tra xem hóa đơn đã duyệt chưa
+        const bill = getBills().find(b => b.id === id);
+        if (bill && bill.approved) {
+            showToast('Không thể sửa hóa đơn đã duyệt!', 'error');
+            return;
+        }
+        openBillModal({ billId: id });
+    }
+    // Nút "Xóa"
+    else if (target.classList.contains('delete-bill-btn')) {
+        // Kiểm tra xem hóa đơn đã duyệt chưa
+        const bill = getBills().find(b => b.id === id);
+        if (bill && bill.approved) {
+            showToast('Không thể xóa hóa đơn đã duyệt!', 'error');
+            return;
+        }
+        if (confirm('Bạn có chắc chắn muốn xóa hóa đơn này?')) {
+            await deleteBill(id);
+        }
+    }
+    // Nút "Duyệt/Bỏ duyệt"
+    else if (target.classList.contains('toggle-bill-approve-btn')) {
+        console.log('🖱️ Approve button clicked for bill ID:', id);
+        await toggleBillApproval(id);
+    }
+    // Nút "Thu tiền/Hủy thu"
+    else if (target.classList.contains('toggle-bill-status-btn')) {
+        // Kiểm tra xem hóa đơn đã duyệt chưa
+        const bill = getBills().find(b => b.id === id);
+        if (bill && !bill.approved) {
+            showToast('Phải duyệt hóa đơn trước khi thu tiền!', 'error');
+            return;
+        }
+        await toggleBillStatus(id);
+        
+        // Nếu modal chi tiết đang mở, reload lại để cập nhật paidAmount
+        const billDetailModal = document.getElementById('bill-detail-modal');
+        if (billDetailModal && !billDetailModal.classList.contains('hidden')) {
+            console.log('🔄 Reloading bill detail after toggle status');
+            // Đợi 500ms để Firestore cập nhật xong
+            setTimeout(() => {
+                showBillDetail(id);
+            }, 500);
+        }
+    }
+    // Link xem chi tiết
+    else if (target.classList.contains('view-bill-link')) {
+        showBillDetail(id);
+    }
+    // Nút "In"
+    else if (target.id === 'print-bill-btn') {
+        window.print();
+    }
+    // Nút "Duyệt hàng loạt"
+    else if (target.id === 'bulk-approve-bills-btn') {
+        await bulkApprove(true);
+    }
+    // Nút "Bỏ duyệt hàng loạt"
+    else if (target.id === 'bulk-unapprove-bills-btn') {
+        await bulkApprove(false);
+    }
+    // Nút "Xóa hàng loạt"
+    else if (target.id === 'bulk-delete-bills-btn') {
+        await bulkDelete();
+    }
+    // Nút "Xuất Excel"
+    else if (target.id === 'export-bills-btn') {
+        handleExport();
+    }
+    // Nút "Thêm dịch vụ tùy chỉnh"
+    else if (target.id === 'add-custom-service-btn') {
+        addCustomServiceRow();
+    }
+    // Nút "Xóa dịch vụ tùy chỉnh"
+    else if (target.classList.contains('remove-custom-service-btn')) {
+        target.closest('tr').remove();
+        calculateBillTotal();
+    }
+    // Đóng modal
+    else if (target.id === 'close-bill-modal' || target.id === 'cancel-bill-btn') {
+        closeModal(billModal);
+    }
+    else if (target.id === 'close-bill-detail-modal') {
+        closeModal(billDetailModal);
+    }
+}
+
+/**
+ * Mở modal Thêm/Sửa Hóa đơn
+ */
+function openBillModal(options = {}) {
+    const { billId } = options;
+    billForm.reset();
+    loadBillModalBuildings();
+    
+    if (billId) {
+        // Chế độ Sửa
+        billModalTitle.textContent = "Sửa Hóa đơn";
+        document.getElementById('bill-id').value = billId;
+        
+        const bill = getBills().find(b => b.id === billId);
+        if (bill) {
+            billBuildingSelect.value = bill.buildingId;
+            loadBillModalRooms(bill.buildingId);
+            billRoomSelect.value = bill.room;
+            billPeriodSelect.value = bill.period;
+            document.getElementById('bill-date').value = formatDateDisplay(bill.billDate);
+            document.getElementById('bill-due-date').value = bill.dueDate || 3;
+
+            const customer = getCustomers().find(c => c.id === bill.customerId);
+            if (customer) {
+                billCustomerInput.value = customer.name;
+                billCustomerIdInput.value = customer.id;
+            }
+            
+            // Tải lại dịch vụ đã lưu
+            console.log('Editing bill - services data:', bill.services);
+            
+            // Trước khi render services, cần load building services để có đầy đủ thông tin
+            const building = getBuildings().find(b => b.id === bill.buildingId);
+            if (building && building.services) {
+                // Merge dữ liệu từ building.services với bill.services
+                const mergedServices = (bill.services || []).map(billService => {
+                    const buildingService = building.services.find(bs => bs.id === billService.serviceId);
+                    // GIỮ NGUYÊN tất cả dữ liệu từ billService, chỉ bổ sung thiếu từ buildingService
+                    return {
+                        ...billService, // Giữ nguyên TẤT CẢ: quantity, fromDate, toDate, oldReading, newReading, amount, v.v.
+                        // CHỈ bổ sung nếu thiếu
+                        unitPrice: billService.unitPrice ?? (buildingService ? buildingService.price : 0),
+                        unit: billService.unit || (buildingService ? buildingService.unit : ''),
+                        serviceId: billService.serviceId || (buildingService ? buildingService.id : ''),
+                        type: billService.type || (buildingService ? buildingService.type : 'service')
+                    };
+                });
+                renderSavedBillServices(mergedServices);
+            } else {
+                renderSavedBillServices(bill.services || []);
+            }
+        }
+    } else {
+        // Chế độ Thêm mới
+        billModalTitle.textContent = "Tạo Hóa đơn";
+        document.getElementById('bill-id').value = '';
+        document.getElementById('bill-date').value = formatDateDisplay(new Date());
+        billRoomSelect.innerHTML = '<option value="">-- Chọn phòng --</option>';
+        clearBillServices();
+    }
+    
+    openModal(billModal);
+}
+
+/**
+ * Xử lý submit form Thêm/Sửa Hóa đơn
+ */
+async function handleBillFormSubmit(e) {
+    e.preventDefault();
+    
+    const billId = document.getElementById('bill-id').value;
+    const buildingId = billBuildingSelect.value;
+    const room = billRoomSelect.value;
+    const customerId = billCustomerIdInput.value;
+    const period = billPeriodSelect.value;
+    const billDate = document.getElementById('bill-date').value;
+    const dueDate = parseInt(document.getElementById('bill-due-date').value) || 3;
+    
+    if (!buildingId || !room || !customerId || !period || !billDate) {
+        return showToast('Vui lòng điền đầy đủ thông tin!', 'error');
+    }
+    
+    const totalAmount = parseFormattedNumber(billTotalAmountEl.textContent);
+    if (totalAmount <= 0) {
+        return showToast('Tổng tiền phải lớn hơn 0!', 'error');
+    }
+    
+    const services = [];
+    document.querySelectorAll('#bill-services-list tr').forEach(row => {
+        const serviceNameEl = row.querySelector('td:first-child');
+        const serviceName = serviceNameEl ? serviceNameEl.textContent : 'Unknown Service';
+        const totalText = row.querySelector('.service-total').textContent;
+        const amount = parseFormattedNumber(totalText);
+        
+        console.log('Processing service row:', {
+            serviceName,
+            totalText,
+            amount,
+            unitPrice: parseFloat(row.dataset.price) || 0,
+            rowDataset: row.dataset,
+            rowHtml: row.outerHTML.substring(0, 200) + '...'
+        });
+        const [fromDateEl, toDateEl] = row.querySelectorAll('input[type="text"]');
+        
+        const unitPrice = parseFloat(row.dataset.price) || parseFormattedNumber(row.querySelector('.custom-service-price')?.value) || 0;
+        
+        // Format ngày không bị ảnh hưởng timezone
+        let formattedFromDate = null;
+        let formattedToDate = null;
+        if (fromDateEl && fromDateEl.value) {
+            const fromDateObj = parseDateInput(fromDateEl.value);
+            if (fromDateObj) {
+                formattedFromDate = `${fromDateObj.getFullYear()}-${String(fromDateObj.getMonth() + 1).padStart(2, '0')}-${String(fromDateObj.getDate()).padStart(2, '0')}`;
+            }
+        }
+        if (toDateEl && toDateEl.value) {
+            const toDateObj = parseDateInput(toDateEl.value);
+            if (toDateObj) {
+                formattedToDate = `${toDateObj.getFullYear()}-${String(toDateObj.getMonth() + 1).padStart(2, '0')}-${String(toDateObj.getDate()).padStart(2, '0')}`;
+            }
+        }
+        
+        const serviceDetail = {
+            serviceName,
+            amount,
+            fromDate: formattedFromDate,
+            toDate: formattedToDate,
+            type: row.dataset.type || 'custom',
+            serviceId: row.dataset.serviceId || null,
+            unitPrice: unitPrice,
+            unit: row.dataset.unit || '',
+        };
+        
+        console.log('Service detail being saved:', serviceDetail);
+
+        if (serviceDetail.type === 'electric' || serviceDetail.type === 'water_meter') {
+            serviceDetail.oldReading = parseInt(row.querySelector('.electric-old-reading').value) || 0;
+            serviceDetail.newReading = parseInt(row.querySelector('.electric-new-reading').value) || 0;
+            serviceDetail.quantity = serviceDetail.newReading - serviceDetail.oldReading;
+        } else {
+            serviceDetail.quantity = parseInt(row.querySelector('.service-quantity')?.value) || 1;
+            
+            // Đặc biệt với tiền nhà, đảm bảo unitPrice đúng
+            if (serviceDetail.type === 'rent' && serviceDetail.quantity > 0) {
+                serviceDetail.unitPrice = serviceDetail.amount / serviceDetail.quantity;
+            }
+        }
+        
+        services.push(serviceDetail);
+    });
+
+    try {
+        console.log('Bill form data:', {
+            buildingId, room, customerId, period, 
+            billDate, dueDate, services, totalAmount
+        });
+        
+        // Format ngày về YYYY-MM-DD mà không bị ảnh hưởng timezone
+        const billDateObj = parseDateInput(billDate);
+        const formattedBillDate = `${billDateObj.getFullYear()}-${String(billDateObj.getMonth() + 1).padStart(2, '0')}-${String(billDateObj.getDate()).padStart(2, '0')}`;
+        
+        const billData = {
+            buildingId, room, customerId, period, 
+            billDate: formattedBillDate, 
+            dueDate,
+            services,
+            totalAmount,
+            updatedAt: serverTimestamp()
+        };
+        
+        console.log('Final bill data:', billData);
+
+        if (billId) {
+            // Sửa
+            await setDoc(doc(db, 'bills', billId), billData, { merge: true });
+            showToast('Cập nhật Hóa đơn thành công!');
+        } else {
+            // Thêm mới
+            billData.id = generateId(); // Tạo ID ở client
+            billData.status = 'unpaid';
+            billData.approved = false;
+            billData.paidAmount = 0; // ĐẶT RÕ RÀNG = 0 KHI TẠO MỚI
+            billData.createdAt = serverTimestamp();
+            await setDoc(doc(db, 'bills', billData.id), billData);
+            showToast('Tạo Hóa đơn thành công!');
+        }
+        
+        closeModal(billModal);
+        // Store listener sẽ tự động cập nhật
+    } catch (error) {
+        showToast('Lỗi lưu hóa đơn: ' + error.message, 'error');
+    }
+}
+
+// ... (Các hàm khác: deleteBill, toggleBillApproval, toggleBillStatus, bulkApprove, bulkDelete, ... )
+// ... (Các hàm modal: showBillDetail, loadBillModalBuildings, loadBillModalRooms, ...)
+// ... (Các hàm tính toán dịch vụ: loadBillServices, addCustomServiceRow, calculateBillTotal, ...)
+// ... (Các hàm import/export: initImportModal, downloadBillTemplate, handleImportSubmit, ...)
+
+// --- HÀM XỬ LÝ LOGIC ---
+
+async function deleteBill(billId) {
+    try {
+        await deleteDoc(doc(db, 'bills', billId));
+        showToast('Đã xóa hóa đơn thành công!');
+        // Store listener tự động cập nhật
+    } catch (error) {
+        showToast('Lỗi xóa hóa đơn: ' + error.message, 'error');
+    }
+}
+
+async function toggleBillApproval(billId) {
+    console.log('🔄 toggleBillApproval called with billId:', billId);
+    const bill = getBills().find(b => b.id === billId);
+    if (!bill) {
+        console.error('❌ Bill not found:', billId);
+        return;
+    }
+    console.log('📋 Found bill:', bill.id, 'current approved status:', bill.approved);
+    
+    try {
+        const newApproved = !bill.approved;
+        console.log('🔄 Changing approved status to:', newApproved);
+        await setDoc(doc(db, 'bills', billId), {
+            approved: newApproved,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        // Tạo thông báo admin khi duyệt hóa đơn
+        if (newApproved) {
+            console.log('✅ Bill approved! Creating admin notification...');
+            const building = getBuildings().find(b => b.id === bill.buildingId);
+            const customer = getCustomers().find(c => c.id === bill.customerId);
+            console.log('🏢 Building found:', building?.code, '👤 Customer found:', customer?.name);
+            
+            if (customer && building) {
+                // Tính năm từ ngày lập hóa đơn
+                const billYear = new Date(bill.billDate).getFullYear();
+                
+                const adminNotificationData = {
+                    type: 'bill_approved',
+                    buildingId: bill.buildingId,
+                    room: bill.room,
+                    customerId: bill.customerId,
+                    billId: bill.id,
+                    title: 'Thông báo hóa đơn',
+                    message: `Hóa đơn tháng ${bill.period}-${billYear} cho phòng ${building.code}-${bill.room} đã được duyệt`,
+                    customerMessage: `Bạn có hóa đơn tiền nhà tháng ${bill.period}-${billYear} cần thanh toán. Vui lòng kiểm tra và thanh toán đúng hạn.`,
+                    amount: bill.totalAmount,
+                    isRead: true, // Thông báo từ web gửi app không cần đánh dấu chưa đọc
+                    createdAt: serverTimestamp()
+                };
+
+                console.log('📤 Sending admin notification data:', adminNotificationData);
+                console.log('🔑 Key data for matching - BuildingId:', bill.buildingId, 'Room:', bill.room);
+                await addDoc(collection(db, 'adminNotifications'), adminNotificationData);
+                console.log('✅ Đã tạo thông báo admin cho phòng:', building.code + '-' + bill.room);
+            } else {
+                console.log('❌ Missing customer or building data:', { customer: !!customer, building: !!building });
+            }
+        } else {
+            // Bỏ duyệt hóa đơn - XÓA thông báo duyệt cũ thay vì tạo thông báo mới
+            console.log('❌ Bill unapproved! Deleting old approved notification...');
+            
+            try {
+                // Tìm và xóa thông báo duyệt cũ cho billId này
+                const notificationsQuery = query(
+                    collection(db, 'adminNotifications'), 
+                    where('billId', '==', bill.id),
+                    where('type', '==', 'bill_approved')
+                );
+                const notificationsSnapshot = await getDocs(notificationsQuery);
+                
+                const deletePromises = notificationsSnapshot.docs.map(doc => 
+                    deleteDoc(doc.ref)
+                );
+                
+                if (deletePromises.length > 0) {
+                    await Promise.all(deletePromises);
+                    console.log(`✅ Đã xóa ${deletePromises.length} thông báo duyệt cũ cho bill ${bill.id}`);
+                } else {
+                    console.log('ℹ️ Không tìm thấy thông báo duyệt cũ để xóa');
+                }
+                
+            } catch (error) {
+                console.error('❌ Lỗi khi xóa thông báo cũ:', error);
+            }
+        }
+        
+        showToast(newApproved ? 'Đã duyệt hóa đơn!' : 'Đã bỏ duyệt hóa đơn!');
+        // Store listener tự động cập nhật
+    } catch (error) {
+        showToast('Lỗi: ' + error.message, 'error');
+    }
+}
+
+async function toggleBillStatus(billId) {
+    const bill = getBills().find(b => b.id === billId);
+    if (!bill) return;
+
+    try {
+        const newStatus = bill.status === 'paid' ? 'unpaid' : 'paid';
+        let message = '';
+
+        if (newStatus === 'paid') {
+            // Chuyển sang "Đã thanh toán" -> Tạo phiếu thu với tách hạng mục
+            const building = getBuildings().find(b => b.id === bill.buildingId);
+            const customer = getCustomers().find(c => c.id === bill.customerId);
+            
+            // Tạo các items theo hạng mục VỚI CATEGORY ID THỰC
+            const items = await createTransactionItemsFromBillWithRealCategories(bill);
+            
+            // LẤY ACCOUNT TỪ TÒA NHÀ (đã gán sẵn trong tòa nhà)
+            const accountId = building?.accountId || '';
+            
+            if (!accountId) {
+                showToast('Tòa nhà chưa có sổ quỹ! Vui lòng gán sổ quỹ cho tòa nhà trước.', 'error');
+                return;
+            }
+            
+            const transactionCode = `PT${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}`;
+            const transactionData = {
+                type: 'income',
+                code: transactionCode,
+                buildingId: bill.buildingId,
+                room: bill.room,
+                customerId: bill.customerId,
+                billId: bill.id,
+                accountId: accountId, // LẤY TỪ TÒA NHÀ
+                title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
+                payer: customer?.name || 'Khách hàng',
+                date: new Date().toISOString().split('T')[0],
+                items: items,
+                approved: true,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            };
+            await addDoc(collection(db, 'transactions'), transactionData);
+            
+            // 💰 CẬP NHẬT PAIDAMOUNT VÀO BILL
+            const totalPaid = bill.totalAmount; // Thanh toán đủ
+            await setDoc(doc(db, 'bills', billId), {
+                status: newStatus,
+                paidAmount: totalPaid,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            
+            message = 'Đã thu tiền và tạo phiếu thu!';
+            
+            // 🔔 GỬI THÔNG BÁO ĐẨY KHI THANH TOÁN THÀNH CÔNG
+            if (customer && building) {
+                const billYear = new Date(bill.billDate).getFullYear();
+                const { sendPushNotification } = await import('../utils.js');
+                await sendPushNotification(
+                    customer.id,
+                    '✅ Thanh toán thành công',
+                    `Cảm ơn bạn đã thanh toán hóa đơn tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(bill.totalAmount)}đ`,
+                    {
+                        type: 'payment_confirmed',
+                        billId: bill.id,
+                        buildingCode: building.code,
+                        room: bill.room,
+                        amount: bill.totalAmount
+                    }
+                );
+                
+                // 📋 TẠO THÔNG BÁO CHO WEB ADMIN KHI THU TIỀN THÀNH CÔNG
+                console.log('📋 Tạo thông báo web admin - đã thu tiền từ khách hàng');
+                const adminNotificationData = {
+                    type: 'payment_collected',
+                    buildingId: bill.buildingId,
+                    room: bill.room,
+                    customerId: bill.customerId,
+                    billId: bill.id,
+                    title: 'Thu tiền thành công',
+                    message: `Đã thu tiền từ khách hàng ${customer.name} - Phòng ${building.code}-${bill.room} - Tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(bill.totalAmount)}đ`,
+                    customerMessage: `Đã thu tiền từ khách hàng ${customer.name}`,
+                    amount: bill.totalAmount,
+                    isRead: false, // CHƯA ĐỌC để admin chú ý
+                    createdAt: serverTimestamp()
+                };
+
+                console.log('📤 Gửi thông báo thu tiền cho web admin:', adminNotificationData);
+                await addDoc(collection(db, 'adminNotifications'), adminNotificationData);
+                console.log('✅ Đã tạo thông báo web admin - thu tiền từ:', customer.name);
+            }
+        } else {
+            // Chuyển sang "Chưa thanh toán" -> Xóa phiếu thu liên quan
+            console.log(`🗑️ Hủy thanh toán - xóa transaction cho bill ${billId}`);
+            const q = query(collection(db, 'transactions'), where('billId', '==', billId));
+            const querySnapshot = await getDocs(q);
+            
+            console.log(`🗑️ Tìm thấy ${querySnapshot.docs.length} transaction để xóa`);
+            for (const docSnapshot of querySnapshot.docs) {
+                await deleteDoc(doc(db, 'transactions', docSnapshot.id));
+                console.log(`✅ Đã xóa transaction: ${docSnapshot.id}`);
+            }
+            
+            // 🗑️ XÓA THÔNG BÁO WEB ADMIN KHI HỦY THU TIỀN
+            console.log(`🗑️ Hủy thanh toán - xóa thông báo web admin cho bill ${billId}`);
+            const adminNotifQuery = query(
+                collection(db, 'adminNotifications'),
+                where('billId', '==', billId),
+                where('type', '==', 'payment_collected')
+            );
+            
+            const adminNotifSnapshot = await getDocs(adminNotifQuery);
+            console.log(`🗑️ Tìm thấy ${adminNotifSnapshot.docs.length} thông báo web admin để xóa`);
+            
+            for (const notifDoc of adminNotifSnapshot.docs) {
+                await deleteDoc(doc(db, 'adminNotifications', notifDoc.id));
+                console.log(`✅ Đã xóa thông báo web admin: ${notifDoc.id}`);
+            }
+            
+            // 💰 ĐẶT LẠI PAIDAMOUNT VỀ 0
+            await setDoc(doc(db, 'bills', billId), {
+                status: newStatus,
+                paidAmount: 0,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            
+            // App sẽ tự động xóa thông báo payment thông qua transaction listener
+            message = 'Đã hủy thanh toán và xóa phiếu thu!';
+        }
+
+        showToast(message);
+        // Store listener sẽ tự động cập nhật
+    } catch (error) {
+        showToast('Lỗi cập nhật: ' + error.message, 'error');
+    }
+}
+
+async function bulkApprove(approve) {
+    const selected = getSelectedBillIds(b => b.approved !== approve); // Chỉ chọn HĐ chưa đúng trạng thái
+    if (selected.length === 0) return;
+
+    if (!confirm(`Bạn có chắc muốn ${approve ? 'duyệt' : 'bỏ duyệt'} ${selected.length} hóa đơn đã chọn?`)) return;
+
+    try {
+        for (const billId of selected) {
+            await setDoc(doc(db, 'bills', billId), {
+                approved: approve,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            // Tạo thông báo admin khi duyệt hóa đơn hàng loạt
+            if (approve) {
+                const bill = getBills().find(b => b.id === billId);
+                if (bill) {
+                    const building = getBuildings().find(b => b.id === bill.buildingId);
+                    const customer = getCustomers().find(c => c.id === bill.customerId);
+                    
+                    if (customer && building) {
+                        // Tính năm từ ngày lập hóa đơn
+                        const billYear = new Date(bill.billDate).getFullYear();
+                        
+                        const adminNotificationData = {
+                            type: 'bill_approved',
+                            buildingId: bill.buildingId,
+                            room: bill.room,
+                            customerId: bill.customerId,
+                            billId: bill.id,
+                            title: 'Thông báo hóa đơn',
+                            message: `Hóa đơn tháng ${bill.period}-${billYear} cho phòng ${building.code}-${bill.room} đã được duyệt`,
+                            customerMessage: `Bạn có hóa đơn tiền nhà tháng ${bill.period}-${billYear} cần thanh toán. Vui lòng kiểm tra và thanh toán đúng hạn.`,
+                            amount: bill.totalAmount,
+                            isRead: true, // Thông báo từ web gửi app không cần đánh dấu chưa đọc
+                            createdAt: serverTimestamp()
+                        };
+
+                        await addDoc(collection(db, 'adminNotifications'), adminNotificationData);
+                        console.log('Đã tạo thông báo admin cho phòng:', building.code + '-' + bill.room);
+                    }
+                }
+            }
+        }
+        
+        // Reset trạng thái checkbox và ẩn nút hàng loạt
+        resetBulkSelection();
+        
+        showToast(`Đã ${approve ? 'duyệt' : 'bỏ duyệt'} ${selected.length} hóa đơn!`);
+        // Store listener tự động cập nhật
+    } catch (error) {
+        showToast('Lỗi: ' + error.message, 'error');
+    }
+}
+
+async function bulkDelete() {
+    const selected = getSelectedBillIds();
+    if (selected.length === 0) return showToast('Vui lòng chọn ít nhất một hóa đơn để xóa', 'error');
+    
+    if (!confirm(`Bạn có chắc muốn xóa ${selected.length} hóa đơn đã chọn?`)) return;
+
+    try {
+        for (const billId of selected) {
+            await deleteDoc(doc(db, 'bills', billId));
+        }
+        
+        // Reset trạng thái checkbox và ẩn nút hàng loạt
+        resetBulkSelection();
+        
+        showToast(`Đã xóa ${selected.length} hóa đơn thành công!`);
+        // Store listener tự động cập nhật
+    } catch (error) {
+        showToast('Lỗi xóa hóa đơn: ' + error.message, 'error');
+    }
+}
+
+function getSelectedBillIds(filterFunc = null) {
+    let checkboxes = document.querySelectorAll('.bill-checkbox:checked');
+    let bills = Array.from(checkboxes).map(cb => ({ id: cb.dataset.id, approved: cb.dataset.approved === 'true' }));
+    
+    if (filterFunc) {
+        bills = bills.filter(filterFunc);
+    }
+    
+    return bills.map(b => b.id);
+}
+
+function resetBulkSelection() {
+    // Bỏ chọn tất cả checkbox
+    const selectAllCheckbox = document.getElementById('select-all-bills');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    // Bỏ chọn tất cả checkbox con
+    const billCheckboxes = document.querySelectorAll('.bill-checkbox');
+    billCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Ẩn các nút hàng loạt
+    const bulkApproveBtn = document.getElementById('bulk-approve-bills-btn');
+    const bulkUnapproveBtn = document.getElementById('bulk-unapprove-bills-btn');
+    
+    if (bulkApproveBtn) bulkApproveBtn.classList.add('hidden');
+    if (bulkUnapproveBtn) bulkUnapproveBtn.classList.add('hidden');
+}
+
+function updateBulkApprovalButtons() {
+    const checkedBoxes = document.querySelectorAll('.bill-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        bulkApproveBtn.classList.add('hidden');
+        bulkUnapproveBtn.classList.add('hidden');
+        return;
+    }
+    
+    const states = Array.from(checkedBoxes).map(cb => cb.dataset.approved === 'true');
+    const allApproved = states.every(s => s === true);
+    const allUnapproved = states.every(s => s === false);
+
+    bulkApproveBtn.classList.toggle('hidden', !allUnapproved);
+    bulkUnapproveBtn.classList.toggle('hidden', !allApproved);
+}
+
+// --- HÀM MODAL HÓA ĐƠN ---
+
+function loadBillModalBuildings() {
+    const buildings = getBuildings();
+    billBuildingSelect.innerHTML = '<option value="">-- Chọn tòa nhà --</option>';
+    buildings.forEach(building => {
+        billBuildingSelect.innerHTML += `<option value="${building.id}">${building.code}</option>`;
+    });
+}
+
+function loadBillModalRooms(buildingId) {
+    const building = getBuildings().find(b => b.id === buildingId);
+    console.log('Building found:', building);
+    console.log('Building rooms:', building ? building.rooms : 'No building');
+    
+    billRoomSelect.innerHTML = '<option value="">-- Chọn phòng --</option>';
+    if (building && building.rooms) {
+        building.rooms.forEach(room => {
+            console.log('Adding room option:', room);
+            billRoomSelect.innerHTML += `<option value="${room}">${room}</option>`;
+        });
+    }
+}
+
+function handleBillBuildingChange() {
+    const buildingId = billBuildingSelect.value;
+    
+    loadBillModalRooms(buildingId);
+    billCustomerInput.value = '';
+    billCustomerIdInput.value = '';
+    clearBillServices();
+}
+
+function handleBillRoomChange() {
+    const buildingId = billBuildingSelect.value;
+    const room = billRoomSelect.value;
+    
+    if (buildingId && room) {
+        const contracts = getContracts();
+        console.log('All contracts:', contracts);
+        console.log('Looking for:', { buildingId, room });
+        
+        // Debug: xem tất cả buildingId và room của hợp đồng
+        contracts.forEach((c, i) => {
+            console.log(`Contract ${i}:`, { 
+                buildingId: c.buildingId, 
+                room: c.room, 
+                representativeId: c.representativeId,
+                status: c.status 
+            });
+        });
+        
+        // Normalize room name để khớp với contract data
+        // VD: G01 -> G1, G02 -> G2, nhưng giữ nguyên số như 101, 201
+        function normalizeRoomName(roomName) {
+            // Nếu room bắt đầu bằng chữ và có số 0 đầu -> bỏ số 0
+            // VD: G01 -> G1, A02 -> A2
+            if (/^[A-Za-z]\d+$/.test(roomName) && roomName.match(/^[A-Za-z]0(\d+)$/)) {
+                return roomName.replace(/^([A-Za-z])0+/, '$1');
+            }
+            return roomName;
+        }
+        
+        const normalizedRoom = normalizeRoomName(room);
+        console.log(`Normalized room: ${room} -> ${normalizedRoom}`);
+        
+        // Tìm hợp đồng bất kỳ trước (không cần active) - thử cả room gốc và normalized
+        let contract = contracts.find(c => 
+            c.buildingId === buildingId && 
+            (c.room === room || c.room === normalizedRoom)
+        );
+        
+        console.log('Found any contract:', contract);
+        
+        // Nếu có thì kiểm tra status
+        if (contract) {
+            const status = getContractStatus(contract);
+            console.log('Contract status:', status);
+            if (status !== 'active') {
+                console.log('Contract not active, using dummy contract');
+                contract = null; // Không dùng hợp đồng không active
+            }
+        }
+        
+        const building = getBuildings().find(b => b.id === buildingId);
+        
+        if (contract && building) {
+            // Có hợp đồng active
+            const customer = getCustomers().find(c => c.id === contract.representativeId);
+            billCustomerInput.value = customer ? customer.name : 'Không tìm thấy khách hàng';
+            billCustomerIdInput.value = customer ? customer.id : '';
+            loadBillServices(contract, building);
+        } else if (building) {
+            // Không có hợp đồng active nhưng vẫn hiển thị dịch vụ
+            billCustomerInput.value = 'Chưa có hợp đồng';
+            billCustomerIdInput.value = '';
+            // Tạo contract giả với rent = 0
+            const dummyContract = { 
+                rentPrice: 0, 
+                serviceDetails: [],
+                room: room,
+                buildingId: buildingId
+            };
+            loadBillServices(dummyContract, building);
+        }
+        return;
+    }
+    
+    billCustomerInput.value = '';
+    billCustomerIdInput.value = '';
+    clearBillServices();
+}
+
+function loadBillServices(contract, building) {
+    const listEl = billServicesListEl;
+    listEl.innerHTML = '';
+    
+    console.log('Loading services with contract:', {
+        rentPrice: contract?.rentPrice,
+        room: contract?.room,
+        buildingId: contract?.buildingId,
+        hasContract: !!contract
+    });
+    
+    if (!building || !building.services || building.services.length === 0) {
+        listEl.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Tòa nhà chưa có dịch vụ nào</td></tr>';
+        return;
+    }
+
+    // Không cần bắt buộc chọn period - sẽ dùng tháng hiện tại nếu chưa chọn
+    const selectedPeriod = billPeriodSelect.value || (new Date().getMonth() + 1).toString();
+    
+    // Find previous month bill to get old readings
+    const currentMonth = parseInt(selectedPeriod);
+    const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const previousBill = getBills().find(b => 
+        b.buildingId === building.id && 
+        b.room === contract.room && 
+        b.period == previousMonth
+    );
+    
+    const year = new Date().getFullYear();
+    const monthNumber = parseInt(selectedPeriod); // 1-12
+    
+    // Create dates in local timezone to avoid timezone issues
+    const firstDayOfMonth = new Date(year, monthNumber - 1, 1); // month - 1 for 0-based index
+    const lastDayOfMonth = new Date(year, monthNumber, 0); // month + 0 gives last day of previous month = last day of current month
+    
+    // Format as YYYY-MM-DD without timezone conversion
+    const formatDateLocal = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+    
+    const firstDay = formatDateLocal(firstDayOfMonth);
+    const lastDay = formatDateLocal(lastDayOfMonth);
+    
+    // Add rent row first
+    const rentRow = document.createElement('tr');
+    rentRow.className = 'border-b';
+    rentRow.dataset.price = contract.rentPrice || 0;
+    rentRow.dataset.type = 'rent';
+    rentRow.dataset.unit = 'tháng';
+    rentRow.innerHTML = `
+        <td class="py-2 px-3 font-medium">Tiền nhà</td>
+        <td class="py-2 px-3">${formatMoney(contract.rentPrice || 0)}/tháng</td>
+        <td class="py-2 px-3">
+            <input type="text" value="${formatDateDisplay(firstDay)}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" class="w-28 text-xs p-1 border rounded date-input" title="Định dạng: dd-mm-yyyy">
+        </td>
+        <td class="py-2 px-3">
+            <input type="text" value="${formatDateDisplay(lastDay)}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" class="w-28 text-xs p-1 border rounded date-input" title="Định dạng: dd-mm-yyyy">
+        </td>
+        <td class="py-2 px-3"><span class="text-sm text-gray-600 quantity-display">${lastDayOfMonth.getDate()} ngày</span></td>
+        <td class="py-2 px-3 font-bold text-blue-600 service-total">${formatMoney(contract.rentPrice || 0)} VNĐ</td>
+        <td class="py-2 px-3"></td>
+    `;
+    listEl.appendChild(rentRow);
+    
+    if (building.services && building.services.length > 0) {
+        // Get service details from contract
+        const serviceDetails = contract.serviceDetails || [];
+        
+        // Sort services: electric -> water -> other services
+        const sortedServices = [...building.services].sort((a, b) => {
+            const getOrder = (service) => {
+                if (service.name && service.name.toLowerCase().includes('điện')) return 1;
+                if (service.name && service.name.toLowerCase().includes('nước')) return 2;
+                return 3; // other services
+            };
+            
+            return getOrder(a) - getOrder(b);
+        });
+
+        sortedServices.forEach(buildingService => {
+            // buildingService already has {id, name, price, unit}
+            if (buildingService) {
+                // Get detail from contract (quantity or initialReading)
+                const detail = serviceDetails.find(d => d.serviceId === buildingService.id);
+                let initialReading = detail?.initialReading || 0;
+                let quantity = detail?.quantity || 1;
+                
+                // Check if this is electric or water meter service
+                const isElectric = buildingService.name && buildingService.name.toLowerCase().includes('điện');
+                const isWaterMeter = buildingService.name && buildingService.name.toLowerCase().includes('nước') && 
+                                   (buildingService.unit === 'm³' || buildingService.unit === 'khối' || buildingService.unit.toLowerCase().includes('m3'));
+                
+                // If there's a previous bill, get old reading or quantity from it
+                if (previousBill && previousBill.services) {
+                    if (isElectric || isWaterMeter) {
+                        const prevService = previousBill.services.find(s => 
+                            s.serviceId === buildingService.id || 
+                            (isElectric && (s.type === 'electric' || s.serviceName?.toLowerCase().includes('điện'))) ||
+                            (isWaterMeter && s.serviceName?.toLowerCase().includes('nước'))
+                        );
+                        if (prevService) {
+                            if (prevService.newReading !== undefined) {
+                                initialReading = prevService.newReading;
+                            } else if (prevService.quantity !== undefined) {
+                                initialReading = prevService.quantity;
+                            }
+                        }
+                    } else {
+                        // For other services, get quantity from previous bill
+                        const prevService = previousBill.services.find(s => s.serviceId === buildingService.id);
+                        if (prevService && prevService.quantity !== undefined) {
+                            quantity = prevService.quantity;
+                        }
+                    }
+                }
+                
+                const serviceRow = document.createElement('tr');
+                serviceRow.className = 'border-b';
+                serviceRow.dataset.price = buildingService.price;
+                serviceRow.dataset.serviceId = buildingService.id;
+                serviceRow.dataset.unit = buildingService.unit;
+                serviceRow.dataset.type = isElectric ? 'electric' : (isWaterMeter ? 'water_meter' : 'service');
+                
+                if (isElectric || isWaterMeter) {
+                    // For electric/water meter: old reading, new reading input
+                    serviceRow.innerHTML = `
+                        <td class="py-2 px-3 font-medium">${buildingService.name}</td>
+                        <td class="py-2 px-3">${formatMoney(buildingService.price)}/${buildingService.unit}</td>
+                        <td class="py-2 px-3">
+                            <input type="number" value="${initialReading}" class="w-20 text-xs p-1 border rounded electric-old-reading" readonly placeholder="Số cũ">
+                        </td>
+                        <td class="py-2 px-3">
+                            <input type="number" class="w-20 text-xs p-1 border rounded electric-new-reading" data-service-id="${buildingService.id}" data-price="${buildingService.price}" placeholder="Số mới">
+                        </td>
+                        <td class="py-2 px-3 text-gray-400">-</td>
+                        <td class="py-2 px-3 font-bold text-blue-600 service-total">0 VNĐ</td>
+                        <td class="py-2 px-3">
+                            <button type="button" class="remove-service-btn text-red-600 hover:text-red-800 p-1 rounded">
+                                <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </td>
+                    `;
+                } else {
+                    // For other services: date range, quantity from contract
+                    const totalAmount = buildingService.price * quantity;
+                    // Also set dataset for other services
+                    serviceRow.dataset.price = buildingService.price;
+                    serviceRow.dataset.serviceId = buildingService.id;
+                    serviceRow.dataset.unit = buildingService.unit;
+                    serviceRow.dataset.type = 'service';
+                    serviceRow.innerHTML = `
+                        <td class="py-2 px-3 font-medium">${buildingService.name}</td>
+                        <td class="py-2 px-3">${formatMoney(buildingService.price)}/${buildingService.unit}</td>
+                        <td class="py-2 px-3">
+                            <input type="text" value="${formatDateDisplay(firstDay)}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" class="w-28 text-xs p-1 border rounded date-input" title="Định dạng: dd-mm-yyyy">
+                        </td>
+                        <td class="py-2 px-3">
+                            <input type="text" value="${formatDateDisplay(lastDay)}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" class="w-28 text-xs p-1 border rounded date-input" title="Định dạng: dd-mm-yyyy">
+                        </td>
+                        <td class="py-2 px-3">
+                            <input type="number" value="${quantity}" class="w-20 text-xs p-1 border rounded service-quantity" data-service-id="${buildingService.id}" data-price="${buildingService.price}">
+                        </td>
+                        <td class="py-2 px-3 font-bold text-blue-600 service-total">${formatMoney(totalAmount)} VNĐ</td>
+                        <td class="py-2 px-3">
+                            <button type="button" class="remove-service-btn text-red-600 hover:text-red-800 p-1 rounded">
+                                <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </td>
+                    `;
+                }
+                listEl.appendChild(serviceRow);
+            }
+        });
+    }
+    
+    // ĐẢM BẢO TÍNH TOÁN ĐÚNG SAU KHI RENDER XONG
+    calculateBillTotal();
+}
+
+function renderSavedBillServices(services) {
+    console.log('Rendering saved services:', services);
+    billServicesListEl.innerHTML = '';
+    services.forEach(item => {
+        console.log('Adding service with quantity:', item.serviceName, item.quantity, item);
+        addServiceRow(item);
+    });
+    calculateBillTotal();
+}
+
+function addServiceRow(item) {
+    const row = document.createElement('tr');
+    row.className = 'border-b';
+    row.dataset.type = item.type;
+    row.dataset.serviceId = item.serviceId || '';
+    row.dataset.price = item.unitPrice || 0;
+    row.dataset.unit = item.unit || '';
+
+    let rowHTML = `
+        <td class="py-2 px-3 font-medium service-name">${item.serviceName}</td>
+        <td class="py-2 px-3">${formatMoney(item.unitPrice)}/${item.unit}</td>
+    `;
+
+    if (item.type === 'rent' || (item.type === 'service' && !item.oldReading)) {
+        // Dịch vụ có ngày (Tiền nhà, Internet,...)
+        rowHTML += `
+            <td class="py-2 px-3">
+                <input type="text" value="${item.fromDate ? formatDateDisplay(item.fromDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input">
+            </td>
+            <td class="py-2 px-3">
+                <input type="text" value="${item.toDate ? formatDateDisplay(item.toDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input">
+            </td>
+            <td class="py-2 px-3">
+                ${item.type === 'rent' ? `<span class="text-sm text-gray-600 quantity-display">${item.quantityDisplay || '...'}</span>` : 
+                `<input type="number" value="${item.quantity !== undefined && item.quantity !== null ? item.quantity : 1}" class="w-20 text-xs p-1 border rounded service-quantity">`}
+            </td>
+        `;
+    } else if (item.type === 'electric' || item.type === 'water_meter') {
+        // Dịch vụ có đồng hồ (Điện, Nước khối)
+        rowHTML += `
+            <td class="py-2 px-3">
+                <input type="number" value="${item.oldReading || 0}" class="w-20 text-xs p-1 border rounded electric-old-reading" readonly>
+            </td>
+            <td class="py-2 px-3">
+                <input type="number" value="${item.newReading || ''}" class="w-20 text-xs p-1 border rounded electric-new-reading" data-service-id="${item.serviceId || ''}" data-price="${item.unitPrice || 0}" placeholder="Số mới">
+            </td>
+            <td class="py-2 px-3 text-gray-400">-</td>
+        `;
+    } else { // Dịch vụ tùy chỉnh
+        row.dataset.type = 'custom';
+        row.classList.add('bg-yellow-50');
+        rowHTML = `
+            <td class="py-2 px-3"><input type="text" value="${item.serviceName}" class="w-full text-xs p-1 border rounded font-medium service-name" placeholder="Tên phí"></td>
+            <td class="py-2 px-3"><input type="text" value="${formatMoney(item.unitPrice)}" class="w-20 text-xs p-1 border rounded custom-service-price money-input"></td>
+            <td class="py-2 px-3"><input type="text" value="${item.fromDate ? formatDateDisplay(item.fromDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input" placeholder="dd-mm-yyyy" title="Định dạng: dd-mm-yyyy"></td>
+            <td class="py-2 px-3"><input type="text" value="${item.toDate ? formatDateDisplay(item.toDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input" placeholder="dd-mm-yyyy" title="Định dạng: dd-mm-yyyy"></td>
+            <td class="py-2 px-3"><input type="number" value="${item.quantity !== undefined && item.quantity !== null ? item.quantity : 1}" class="w-20 text-xs p-1 border rounded service-quantity"></td>
+        `;
+    }
+
+    rowHTML += `
+        <td class="py-2 px-3 font-bold text-blue-600 service-total">${formatMoney(item.amount)} VNĐ</td>
+        <td class="py-2 px-3">
+            <button type="button" class="remove-service-btn text-red-600 hover:text-red-800 p-1 rounded">
+                <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </button>
+        </td>
+    `;
+    
+    row.innerHTML = rowHTML;
+    billServicesListEl.appendChild(row);
+}
+
+function addCustomServiceRow() {
+    addServiceRow({
+        serviceName: '', type: 'custom',
+        unitPrice: 0, unit: 'lần',
+        fromDate: null, toDate: null,
+        quantity: 1, amount: 0
+    });
+}
+
+function clearBillServices() {
+    billServicesListEl.innerHTML = '';
+    calculateBillTotal();
+}
+
+function calculateBillTotal() {
+    let total = 0;
+    document.querySelectorAll('#bill-services-list tr').forEach(row => {
+        const totalEl = row.querySelector('.service-total');
+        total += parseFormattedNumber(totalEl.textContent);
+    });
+    billTotalAmountEl.textContent = formatMoney(total) + ' VNĐ';
+}
+
+function handleRemoveServiceClick(e) {
+    const target = e.target;
+    if (target.closest('.remove-service-btn')) {
+        const row = target.closest('tr');
+        if (row && confirm('Bạn có chắc muốn xóa dịch vụ này?')) {
+            row.remove();
+            calculateBillTotal();
+        }
+    }
+}
+
+function handleServiceInputChange(e) {
+    const target = e.target;
+    const row = target.closest('tr');
+    if (!row) return;
+
+    const rowType = row.dataset.type;
+    const unitPrice = parseFormattedNumber(row.querySelector('.custom-service-price')?.value) || parseFloat(row.dataset.price) || 0;
+    let quantity = 1;
+    let total = 0;
+
+    console.log('Service input change:', {
+        targetClass: target.className,
+        rowType: rowType,
+        unitPrice: unitPrice
+    });
+
+    if (target.classList.contains('electric-new-reading')) {
+        // Dịch vụ điện/nước có đồng hồ
+        const oldReading = parseInt(row.querySelector('.electric-old-reading').value) || 0;
+        const newReading = parseInt(target.value) || 0;
+        quantity = Math.max(0, newReading - oldReading);
+        total = quantity * unitPrice;
+        
+        console.log('Electric calculation:', {
+            oldReading,
+            newReading,
+            quantity,
+            unitPrice,
+            total
+        });
+    } else if (target.classList.contains('date-input')) {
+        // Tiền nhà hoặc thay đổi ngày - tính theo số ngày
+        const fromDateInput = row.querySelectorAll('input[type="text"]')[0];
+        const toDateInput = row.querySelectorAll('input[type="text"]')[1];
+        
+        if (fromDateInput && toDateInput && fromDateInput.value && toDateInput.value) {
+            const fromDate = parseDateInput(fromDateInput.value);
+            const toDate = parseDateInput(toDateInput.value);
+            
+            if (fromDate && toDate) {
+                const daysDiff = Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1; // +1 để tính cả ngày cuối
+                quantity = Math.max(0, daysDiff);
+                
+                // Với tiền nhà, tính theo tháng (30 ngày)
+                if (rowType === 'rent') {
+                    total = (quantity / 30) * unitPrice;
+                    
+                    // Cập nhật hiển thị số ngày
+                    const quantityDisplay = row.querySelector('.quantity-display');
+                    if (quantityDisplay) {
+                        quantityDisplay.textContent = `${quantity} ngày`;
+                    }
+                } else {
+                    // Dịch vụ khác theo số lượng
+                    const quantityInput = row.querySelector('.service-quantity');
+                    if (quantityInput) {
+                        quantity = parseInt(quantityInput.value) || 1;
+                    }
+                    total = quantity * unitPrice;
+                }
+                
+                console.log('Date-based calculation:', {
+                    fromDate: fromDateInput.value,
+                    toDate: toDateInput.value,
+                    daysDiff,
+                    quantity,
+                    unitPrice,
+                    total,
+                    type: rowType
+                });
+            } else {
+                // Nếu ngày không hợp lệ, dùng quantity input
+                const quantityInput = row.querySelector('.service-quantity');
+                quantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+                total = quantity * unitPrice;
+            }
+        } else {
+            // Không có ngày, dùng quantity input
+            const quantityInput = row.querySelector('.service-quantity');
+            quantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+            total = quantity * unitPrice;
+        }
+    } else if (target.classList.contains('service-quantity') || target.classList.contains('custom-service-price')) {
+        // Thay đổi số lượng trực tiếp
+        quantity = parseInt(row.querySelector('.service-quantity')?.value) || 1;
+        total = quantity * unitPrice;
+    } else {
+        // Fallback
+        const quantityInput = row.querySelector('.service-quantity');
+        quantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+        total = quantity * unitPrice;
+    }
+    
+    row.querySelector('.service-total').textContent = formatMoney(total) + ' VNĐ';
+    calculateBillTotal();
+}
+
+// --- HÀM MODAL CHI TIẾT HÓA ĐƠN ---
+
+async function showBillDetail(billId) {
+    const bill = getBills().find(b => b.id === billId);
+    if (!bill) {
+        console.error('Bill not found:', billId);
+        return;
+    }
+    
+    console.log('Showing bill detail:', bill);
+
+    const building = getBuildings().find(b => b.id === bill.buildingId);
+    const customer = getCustomers().find(c => c.id === bill.customerId);
+    const contract = getContracts().find(c => c.buildingId === bill.buildingId && c.room === bill.room); // Tìm HĐ bất kỳ
+    
+    const setEl = (id, text) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = text || 'N/A';
+        } else {
+            console.error('Element not found:', id);
+        }
+    };
+    
+    setEl('bill-detail-number', billNumber(bill));
+    setEl('bill-detail-date', formatDateDisplay(bill.billDate));
+    
+    let dueDate = 'N/A';
+    if(contract) {
+        const billYear = parseDateInput(bill.billDate).getFullYear();
+        dueDate = `${String(contract.paymentDay).padStart(2, '0')}-${String(bill.period).padStart(2, '0')}-${billYear}`;
+    }
+    setEl('bill-detail-due-date', dueDate);
+
+    setEl('bill-detail-room', bill.room);
+    setEl('bill-detail-customer-name', customer ? customer.name : 'N/A');
+    setEl('bill-detail-address', building ? building.address : 'N/A');
+    
+    const billYear = parseDateInput(bill.createdAt?.toDate() || bill.billDate).getFullYear();
+    setEl('bill-detail-title', `Hóa Đơn Tiền Nhà Tháng ${String(bill.period).padStart(2, '0')}-${billYear}`);
+
+    const tableBody = document.getElementById('bill-detail-services-table');
+    tableBody.innerHTML = '';
+    (bill.services || []).forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.className = 'border-b';
+        
+        let content = item.serviceName;
+        let unitPrice = item.unitPrice || 0;
+        let quantity = item.quantity;
+        
+        // Fix unitPrice cho từng loại service
+        if (item.type === 'electric' || item.type === 'water_meter') {
+            content += `<br><span class="text-xs text-gray-500">(SC: ${item.oldReading} - SM: ${item.newReading})</span>`;
+        } else if (item.type === 'rent') {
+            quantity = item.quantityDisplay || 1;
+            // Với tiền nhà, nếu unitPrice bằng 0 thì tính từ amount/quantity
+            if (unitPrice === 0 && item.amount && quantity > 0) {
+                unitPrice = item.amount / quantity;
+            }
+            // Thêm khoảng thời gian cho tiền nhà
+            const billDate = parseDateInput(bill.billDate);
+            const startDay = 1;
+            const endDay = new Date(billDate.getFullYear(), billDate.getMonth() + 1, 0).getDate(); // Ngày cuối tháng
+            content += `<br><span class="text-xs text-gray-500">(Từ ngày ${startDay}-${String(bill.period).padStart(2, '0')} đến ${endDay}-${String(bill.period).padStart(2, '0')})</span>`;
+        }
+        
+        unitPrice = formatMoney(unitPrice);
+
+        row.innerHTML = `
+            <td class="py-2 px-3 border border-gray-800">${index + 1}</td>
+            <td class="py-2 px-3 border border-gray-800">${content}</td>
+            <td class="py-2 px-3 text-center border border-gray-800">${unitPrice}</td>
+            <td class="py-2 px-3 text-center border border-gray-800">${quantity}</td>
+            <td class="py-2 px-3 text-right font-medium border border-gray-800">${formatMoney(item.amount)} VNĐ</td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    // 💰 TÍNH TOÁN THANH TOÁN THỰC TẾ TỪ TRANSACTIONS
+    // Lấy tất cả transactions liên kết với billId này
+    const { getTransactions } = await import('../store.js');
+    const allTransactions = getTransactions();
+    const relatedTransactions = allTransactions.filter(t => 
+        t.billId === billId && t.type === 'income' && t.approved
+    );
+    
+    // Ưu tiên dùng paidAmount từ bill (đã được cập nhật khi thu tiền)
+    // Chỉ tính lại từ transactions nếu bill.paidAmount không tồn tại
+    let paidAmount = 0;
+    if (bill.paidAmount !== undefined && bill.paidAmount !== null) {
+        // Dùng paidAmount từ bill (đã được set khi thu tiền)
+        paidAmount = bill.paidAmount;
+        console.log('💰 Using paidAmount from bill:', paidAmount);
+    } else if (relatedTransactions.length > 0) {
+        // Fallback: Tính từ transactions (cho các bill cũ không có paidAmount)
+        paidAmount = relatedTransactions.reduce((sum, transaction) => {
+            const transactionTotal = transaction.items?.reduce((itemSum, item) => itemSum + (item.amount || 0), 0) || 0;
+            return sum + transactionTotal;
+        }, 0);
+        console.log('💰 Calculated paidAmount from transactions:', paidAmount);
+    }
+    
+    // Số tiền còn lại
+    const remainingAmount = bill.totalAmount - paidAmount;
+    
+    console.log('💰 Payment calculation:', {
+        billId,
+        totalAmount: bill.totalAmount,
+        paidAmount,
+        remainingAmount,
+        relatedTransactions: relatedTransactions.length
+    });
+    
+    setEl('bill-detail-subtotal', formatMoney(bill.totalAmount) + ' VNĐ');
+    setEl('bill-detail-paid', formatMoney(paidAmount) + ' VNĐ'); // Đã thanh toán
+    setEl('bill-detail-due-amount', formatMoney(remainingAmount) + ' VNĐ'); // Còn lại
+    
+    // Tạo QR - Dùng tài khoản được gán cho tòa nhà
+    // Nội dung: Tên khách hàng + "CHUYEN KHOAN" (giống chuyển khoản bình thường)
+    let qrContent = 'CHUYEN KHOAN';
+    if (customer && customer.name) {
+        // Chuyển tên thành chữ hoa, bỏ dấu để phù hợp với format ngân hàng
+        const customerName = customer.name
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Bỏ dấu tiếng Việt
+            .replace(/Đ/g, 'D')
+            .replace(/đ/g, 'd');
+        qrContent = `${customerName} CHUYEN KHOAN`;
+    }
+    const qrImg = document.getElementById('bill-detail-qr');
+    
+    // Lấy thông tin tài khoản từ tòa nhà
+    let qrUrl = '';
+    let usingAssignedAccount = false;
+    
+    if (building && building.accountId) {
+        const accounts = getAccounts();
+        if (accounts && accounts.length > 0) {
+            const assignedAccount = accounts.find(acc => acc.id === building.accountId);
+            
+            if (assignedAccount) {
+                console.log('🔍 DEBUG assigned account:', assignedAccount);
+                
+                if (assignedAccount.bank === 'Cash') {
+                    // Tiền mặt - chỉ ẩn QR thôi, không hiện gì thêm
+                    qrImg.style.display = 'none';
+                    
+                    // Ẩn luôn thông báo nếu có
+                    const cashDiv = document.getElementById('cash-payment-notice');
+                    if (cashDiv) {
+                        cashDiv.style.display = 'none';
+                    }
+                    
+                    console.log('💵 Tiền mặt - ẩn QR code');
+                    // KHÔNG return ở đây để modal vẫn mở được
+                } else if (assignedAccount.accountNumber) {
+                    // Reset - ẩn thông báo tiền mặt, hiện lại QR
+                    const cashDiv = document.getElementById('cash-payment-notice');
+                    if (cashDiv) cashDiv.style.display = 'none';
+                    qrImg.style.display = 'block';
+                    
+                    // Có tài khoản ngân hàng được gán
+                    const BANK_ID_MAP = {
+                        'VietcomBank': '970436',
+                        'BIDV': '970418', 
+                        'VietinBank': '970415',
+                        'Agribank': '970405',
+                        'ACB': '970416',
+                        'Techcombank': '970407',
+                        'MBBank': '970422',
+                        'TPBank': '970423',
+                        'Sacombank': '970403',
+                        'HDBank': '970437',
+                        'VPBank': '970432',
+                        'SHB': '970443',
+                        'Eximbank': '970431',
+                        'MSB': '970426',
+                        'OCB': '970448',
+                        'Nam A Bank': '970428'  // Nam A Bank
+                    };
+                    let bankId = BANK_ID_MAP[assignedAccount.bank] || assignedAccount.bankId || '970416';
+                    
+                    const accountNo = assignedAccount.accountNumber;
+                    const accountName = assignedAccount.accountHolder || 'KHACH HANG';
+                    
+                    console.log('🏦 QR Info:', { bank: assignedAccount.bank, bankId, accountNo, accountName });
+                    
+                    qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-qr_only.jpg?amount=${bill.totalAmount}&addInfo=${encodeURIComponent(qrContent)}&accountName=${encodeURIComponent(accountName)}`;
+                    usingAssignedAccount = true;
+                    
+                    console.log('✅ Using assigned account:', assignedAccount.bank, accountNo, 'BankID:', bankId);
+                }
+            }
+        }
+    }
+    
+    // Chỉ hiển thị QR nếu có URL (không phải tiền mặt)
+    if (qrUrl) {
+        qrImg.src = qrUrl;
+    } else if (!building || !building.accountId) {
+        // Chỉ báo lỗi khi thực sự chưa có tài khoản gì cả
+        console.error('❌ KHÔNG CÓ TÀI KHOẢN ĐƯỢC GÁN CHO TÒA NHÀ!');
+        qrImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2ZmMDAwMCIvPjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1zaXplPSIxNCI+Q2h1YSBnYW4gdGFpIGtob2FuPC90ZXh0Pjwvc3ZnPg==';
+    }
+
+    openModal(billDetailModal);
+}
+
+// --- HÀM IMPORT/EXPORT ---
+
+function initImportModal() {
+    document.getElementById('import-bills-btn').addEventListener('click', () => {
+        const buildings = getBuildings();
+        importBillBuildingSelect.innerHTML = '<option value="">-- Chọn tòa nhà --</option>';
+        buildings.forEach(building => {
+            importBillBuildingSelect.innerHTML += `<option value="${building.id}">${building.code}</option>`;
+        });
+        importBillMonthSelect.value = '';
+        importBillYearSelect.value = new Date().getFullYear().toString(); // Mặc định là năm hiện tại
+        document.getElementById('import-bills-file-name').textContent = '';
+        document.getElementById('import-bills-file').value = '';
+        openModal(importBillsModal);
+    });
+
+    document.getElementById('close-import-bills-modal').addEventListener('click', () => closeModal(importBillsModal));
+    document.getElementById('cancel-import-bills-btn').addEventListener('click', () => closeModal(importBillsModal));
+    document.getElementById('download-bill-template-link').addEventListener('click', () => {
+        const month = importBillMonthSelect.value;
+        const year = importBillYearSelect.value;
+        const buildingId = importBillBuildingSelect.value;
+        
+        if (!month || !year || !buildingId) {
+            showToast('Vui lòng chọn đầy đủ tháng, năm và tòa nhà trước!', 'error');
+            return;
+        }
+        
+        window.downloadBillTemplate(buildingId, month, year);
+    });
+    document.getElementById('import-bills-file').addEventListener('change', (e) => {
+        document.getElementById('import-bills-file-name').textContent = e.target.files[0] ? `Đã chọn: ${e.target.files[0].name}` : '';
+    });
+    document.getElementById('submit-import-bills-btn').addEventListener('click', handleImportSubmit);
+}
+
+function downloadBillTemplate(buildingId, month, year) {
+    // Nếu gọi từ event listener thì lấy từ select
+    if (!buildingId) {
+        month = parseInt(importBillMonthSelect.value);
+        year = parseInt(importBillYearSelect.value);
+        buildingId = importBillBuildingSelect.value;
+    }
+    
+    if (!month || !year || !buildingId) {
+        return showToast('Vui lòng chọn đầy đủ tháng, năm và tòa nhà trước!', 'error');
+    }
+    
+    month = parseInt(month);
+    year = parseInt(year);
+    
+    const building = getBuildings().find(b => b.id === buildingId);
+    if (!building) return;
+
+    const contracts = getContracts().filter(c => c.buildingId === buildingId && getContractStatus(c) === 'active');
+    if (contracts.length === 0) return showToast('Không có hợp đồng nào đang hoạt động cho tòa nhà này!', 'warning');
+
+    const customers = getCustomers();
+    const services = building.services || [];
+    
+    // Tạo header động dựa trên các dịch vụ của tòa nhà
+    const header = ['Mã tòa nhà', 'Phòng', 'Khách hàng', 'Ngày lập HĐ', 'Hạn thanh toán'];
+    
+    // Phân loại dịch vụ
+    const electricService = services.find(s => s.name.toLowerCase().includes('điện'));
+    const waterMeterServices = services.filter(s => 
+        s.name.toLowerCase().includes('nước') && (s.unit === 'm³' || s.unit === 'khối')
+    );
+    const quantityServices = services.filter(s => {
+        const isElectric = s.name.toLowerCase().includes('điện');
+        const isWaterMeter = s.name.toLowerCase().includes('nước') && (s.unit === 'm³' || s.unit === 'khối');
+        return !isElectric && !isWaterMeter;
+    });
+    
+    // Thêm cột điện
+    if (electricService) {
+        header.push('Số điện cũ', 'Số điện mới');
+    }
+    
+    // Thêm cột nước đồng hồ
+    waterMeterServices.forEach(service => {
+        header.push(`Số ${service.name.toLowerCase()} cũ`, `Số ${service.name.toLowerCase()} mới`);
+    });
+    
+    // Thêm các dịch vụ tính theo số lượng
+    quantityServices.forEach(service => {
+        header.push(`${service.name} (${service.unit})`);
+    });
+    
+    // Không thêm cột ghi chú
+    
+    const templateData = [header];
+    
+    const firstDay = `01-${String(month).padStart(2, '0')}-${year}`;
+
+        // Tạo dữ liệu cho từng phòng
+    contracts.forEach(contract => {
+        const customer = customers.find(c => c.id === contract.representativeId);
+        const prevBill = findPreviousBill(building.id, contract.room, month, year);
+        
+        // Tạo ngày lập HĐ (ngày đầu tháng)
+        const billDateFormatted = `01-${String(month).padStart(2, '0')}-${year}`;
+        
+        // Tạo hạn thanh toán (ngày thanh toán từ hợp đồng)
+        const dueDay = contract.paymentDay || 5;
+        const dueDateFormatted = `${String(dueDay).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
+        
+        const row = [
+            building.code,
+            contract.room,
+            customer ? customer.name : '',
+            billDateFormatted,
+            dueDateFormatted
+        ];
+        
+        // Xử lý số điện cũ
+        if (electricService) {
+            let oldElectric = 0;
+            if (prevBill && prevBill.services) {
+                // Lấy số điện mới từ hóa đơn tháng trước
+                const electricServiceBill = prevBill.services.find(s => 
+                    s.type === 'electric' || 
+                    (s.serviceName && s.serviceName.toLowerCase().includes('điện'))
+                );
+                oldElectric = electricServiceBill?.newReading || 0;
+            } else {
+                // Nếu không có hóa đơn tháng trước, lấy số điện ban đầu từ hợp đồng
+                const electricDetail = contract.serviceDetails?.find(d => {
+                    const service = services.find(s => s.id === d.serviceId);
+                    return service && service.name.toLowerCase().includes('điện');
+                });
+                oldElectric = electricDetail?.initialReading || 0;
+            }
+            row.push(oldElectric, ''); // Số điện cũ, số điện mới để trống
+        }
+        
+        // Xử lý số nước đồng hồ
+        waterMeterServices.forEach(waterService => {
+            let oldWater = 0;
+            if (prevBill && prevBill.services) {
+                // Lấy số nước mới từ hóa đơn tháng trước
+                const waterServiceBill = prevBill.services.find(s => 
+                    s.type === 'water_meter' || 
+                    (s.serviceName && s.serviceName.toLowerCase().includes(waterService.name.toLowerCase()) && s.newReading !== undefined)
+                );
+                oldWater = waterServiceBill?.newReading || 0;
+            } else {
+                // Nếu không có hóa đơn tháng trước, lấy số nước ban đầu từ hợp đồng
+                const waterDetail = contract.serviceDetails?.find(d => d.serviceId === waterService.id);
+                oldWater = waterDetail?.initialReading || 0;
+            }
+            row.push(oldWater, ''); // Số nước cũ, số nước mới để trống
+        });
+        
+        // Xử lý các dịch vụ tính theo số lượng
+        quantityServices.forEach(service => {
+            const detail = contract.serviceDetails?.find(d => d.serviceId === service.id);
+            row.push(detail?.quantity || ''); // Để trống để người dùng nhập
+        });
+        
+        templateData.push(row);
+    });
+
+    const timestamp = new Date().getTime();
+    exportToExcel(templateData, `Mau_Hoa_Don_Thang_${month}_Nam_${year}_${building.code}_${timestamp}`);
+    showToast(`Đã tải file mẫu hoàn chỉnh cho tháng ${month}/${year}! (${contracts.length} phòng với ${services.length} dịch vụ)`);
+}
+
+async function handleImportSubmit() {
+    const file = document.getElementById('import-bills-file').files[0];
+    
+    if (!file) return showToast('Vui lòng chọn file Excel!', 'error');
+    
+    try {
+        showToast('Đang đọc file...', 'info');
+        const data = await importFromExcel(file);
+        if (!data || data.length === 0) return showToast('File Excel không có dữ liệu!', 'error');
+
+        let successCount = 0, errorCount = 0;
+        const buildings = getBuildings();
+        
+        // Lọc bỏ các dòng không hợp lệ
+        const filteredData = data.filter(row => 
+            row['Mã tòa nhà'] && 
+            row['Phòng'] && 
+            row['Ngày lập HĐ'] &&
+            !row['Mã tòa nhà'].toString().includes('---')
+        );
+        
+        for (const row of filteredData) {
+            try {
+                const buildingCode = row['Mã tòa nhà'];
+                const room = row['Phòng']?.toString();
+                const customerName = row['Khách hàng'];
+                const billDateStr = row['Ngày lập HĐ'];
+                const dueDateStr = row['Hạn thanh toán'];
+                
+                // Tìm tòa nhà theo mã
+                const building = buildings.find(b => b.code === buildingCode);
+                if (!building) {
+                    console.log(`Không tìm thấy tòa nhà với mã: ${buildingCode}`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Tìm hợp đồng
+                const contract = getContracts().find(c => 
+                    c.buildingId === building.id && c.room === room && getContractStatus(c) === 'active'
+                );
+                if (!contract) { 
+                    console.log(`Không tìm thấy hợp đồng cho phòng ${room}`);
+                    errorCount++; 
+                    continue; 
+                }
+
+                // Xử lý ngày tháng từ file
+                let billDateObj, month, year, billDate, dueDate;
+                
+                // Parse ngày lập HĐ
+                billDateObj = parseDateInput(billDateStr);
+                
+                if (billDateObj && !isNaN(billDateObj.getTime())) {
+                    month = billDateObj.getMonth() + 1;
+                    year = billDateObj.getFullYear();
+                    // Sử dụng local date thay vì ISO để tránh lỗi múi giờ
+                    const localYear = billDateObj.getFullYear();
+                    const localMonth = String(billDateObj.getMonth() + 1).padStart(2, '0');
+                    const localDay = String(billDateObj.getDate()).padStart(2, '0');
+                    billDate = `${localYear}-${localMonth}-${localDay}`;
+                } else {
+                    console.error('Invalid bill date, using current date');
+                    const currentDate = new Date();
+                    month = currentDate.getMonth() + 1;
+                    year = currentDate.getFullYear();
+                    const localYear = currentDate.getFullYear();
+                    const localMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+                    const localDay = String(currentDate.getDate()).padStart(2, '0');
+                    billDate = `${localYear}-${localMonth}-${localDay}`;
+                }
+                
+                // Parse hạn thanh toán
+                const dueDateObj = parseDateInput(dueDateStr);
+                
+                if (dueDateObj && !isNaN(dueDateObj.getTime())) {
+                    dueDate = dueDateObj.getDate();
+                } else {
+                    dueDate = contract.paymentDay || 5;
+                }
+
+                const services = building.services || [];
+                
+                const billServices = [];
+                let totalAmount = 0;
+
+                // 1. Tiền nhà (luôn có)
+                billServices.push({
+                    serviceName: 'Tiền nhà', 
+                    type: 'rent',
+                    unitPrice: contract.rentPrice, 
+                    unit: 'tháng',
+                    quantity: 1, 
+                    amount: contract.rentPrice,
+                    ...getMonthDateRangeISO(month, year)
+                });
+                totalAmount += contract.rentPrice;
+
+                // 2. Xử lý dịch vụ điện
+                const electricService = services.find(s => s.name.toLowerCase().includes('điện'));
+                if (electricService) {
+                    const oldElectric = parseFloat(row['Số điện cũ']) || 0;
+                    const newElectric = parseFloat(row['Số điện mới']) || 0;
+                    if (newElectric >= oldElectric && newElectric > 0) {
+                        const quantity = newElectric - oldElectric;
+                        const amount = quantity * electricService.price;
+                        billServices.push({
+                            serviceName: electricService.name, 
+                            type: 'electric',
+                            serviceId: electricService.id, 
+                            unitPrice: electricService.price, 
+                            unit: electricService.unit,
+                            oldReading: oldElectric, 
+                            newReading: newElectric, 
+                            quantity, 
+                            amount
+                        });
+                        totalAmount += amount;
+                    }
+                }
+
+                // 3. Xử lý các dịch vụ tính theo số lượng
+                const quantityServices = services.filter(s => {
+                    const isElectric = s.name.toLowerCase().includes('điện');
+                    return !isElectric;
+                });
+                
+                quantityServices.forEach(service => {
+                    const serviceCol = `${service.name} (${service.unit})`;
+                    const quantity = parseFloat(row[serviceCol]) || 0;
+                    if (quantity > 0) {
+                        const amount = quantity * service.price;
+                        billServices.push({
+                            serviceName: service.name, 
+                            type: 'service',
+                            serviceId: service.id, 
+                            unitPrice: service.price, 
+                            unit: service.unit,
+                            quantity, 
+                            amount, 
+                            ...getMonthDateRangeISO(month, year)
+                        });
+                        totalAmount += amount;
+                    }
+                });
+
+                const billData = {
+                    id: generateId(),
+                    buildingId: building.id,
+                    room,
+                    customerId: contract.representativeId,
+                    period: month,
+                    year: year,
+                    billDate,
+                    dueDate: dueDate,
+                    services: billServices, 
+                    totalAmount,
+                    status: 'unpaid', 
+                    approved: false,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                };
+                
+                await setDoc(doc(db, 'bills', billData.id), billData);
+                successCount++;
+            } catch (err) {
+                console.error('Lỗi import hóa đơn:', err);
+                errorCount++;
+            }
+        }
+        
+        closeModal(importBillsModal);
+        showToast(`Nhập thành công ${successCount} hóa đơn!${errorCount > 0 ? ` (${errorCount} lỗi)` : ''}`, 
+                  successCount > 0 ? 'success' : 'error');
+        
+        // Làm mới danh sách hóa đơn
+        loadBills();
+        
+    } catch (error) {
+        console.error('Lỗi nhập dữ liệu:', error);
+        showToast('Lỗi nhập dữ liệu: ' + error.message, 'error');
+    }
+}
+
+
+// --- HÀM TIỆN ÍCH CỦA MODULE ---
+
+function billNumber(bill) {
+    return `INV${(bill.id || '').slice(-6).toUpperCase()}`;
+}
+
+function findPreviousBill(buildingId, room, currentPeriod, currentYear = null) {
+    if (!currentYear) currentYear = new Date().getFullYear();
+    
+    const currentMonth = parseInt(currentPeriod);
+    let previousMonth, previousYear;
+    
+    if (currentMonth === 1) {
+        previousMonth = 12;
+        previousYear = currentYear - 1;
+    } else {
+        previousMonth = currentMonth - 1;
+        previousYear = currentYear;
+    }
+    
+    // Tìm hóa đơn tháng trước với cả tháng và năm
+    return getBills().find(b => 
+        b.buildingId === buildingId && 
+        b.room === room && 
+        parseInt(b.period) === previousMonth &&
+        (parseInt(b.year) === previousYear || (!b.year && previousYear === new Date().getFullYear()))
+    );
+}
+
+function getMonthDateRange(period, year = null) {
+    if (!year) year = new Date().getFullYear();
+    const month = parseInt(period) - 1;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    return [firstDay, lastDay];
+}
+
+function getMonthDateRangeISO(period, year = null) {
+    const [firstDay, lastDay] = getMonthDateRange(period, year);
+    
+    // Sử dụng local date thay vì ISO để tránh lỗi múi giờ
+    const fromYear = firstDay.getFullYear();
+    const fromMonth = String(firstDay.getMonth() + 1).padStart(2, '0');
+    const fromDay = String(firstDay.getDate()).padStart(2, '0');
+    
+    const toYear = lastDay.getFullYear();
+    const toMonth = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const toDay = String(lastDay.getDate()).padStart(2, '0');
+    
+    return {
+        fromDate: `${fromYear}-${fromMonth}-${fromDay}`,
+        toDate: `${toYear}-${toMonth}-${toDay}`
+    };
+}
+
+function getContractStatus(contract) {
+    if (contract.status === 'terminated') return 'terminated';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const endDate = parseDateInput(contract.endDate);
+    if (!endDate) return 'terminated';
+    endDate.setHours(0, 0, 0, 0);
+    return (endDate >= today) ? 'active' : 'expired';
+}
+
+/**
+ * Xử lý xuất Excel
+ */
+function handleExport() {
+    const selected = getSelectedBills();
+    const billsToExport = selected.length > 0 ? selected : billsCache_filtered;
+    
+    if (billsToExport.length === 0) {
+        showToast('Không có hóa đơn nào để xuất!', 'error');
+        return;
+    }
+    
+    const buildings = getBuildings();
+    const customers = getCustomers();
+    
+    const data = billsToExport.map(bill => {
+        const building = buildings.find(b => b.id === bill.buildingId);
+        const customer = customers.find(c => c.id === bill.customerId);
+        return {
+            'Mã HĐ': `INV${bill.id.slice(-6).toUpperCase()}`,
+            'Khách hàng': customer ? customer.name : 'N/A',
+            'Tòa nhà': building ? building.code : 'N/A',
+            'Phòng': bill.room,
+            'Kỳ': `Tháng ${bill.period}`,
+            'Ngày lập': formatDateDisplay(bill.billDate),
+            'Tổng tiền': formatMoney(bill.totalAmount),
+            'Trạng thái': bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán',
+            'Duyệt': bill.approved ? 'Đã duyệt' : 'Chưa duyệt'
+        };
+    });
+    
+    exportToExcel(data, 'Danh_sach_hoa_don');
+    showToast(`Đã xuất ${billsToExport.length} hóa đơn!`);
+}
+
+/**
+ * Lấy danh sách hóa đơn đã chọn
+ */
+function getSelectedBills() {
+    const checkedBoxes = document.querySelectorAll('.bill-checkbox:checked');
+    return Array.from(checkedBoxes).map(cb => {
+        const billId = cb.dataset.id;
+        return billsCache_filtered.find(b => b.id === billId);
+    }).filter(Boolean);
+}
+
+// Hàm generateId (dùng cho billId)
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Tạo các items transaction từ hóa đơn với phân loại hạng mục
+ */
+/**
+ * Tạo transaction items từ bill với category ID thực từ database
+ */
+async function createTransactionItemsFromBillWithRealCategories(bill) {
+    // Load categories từ Firebase
+    const categoriesSnapshot = await getDocs(query(collection(db, 'transactionCategories'), orderBy('createdAt', 'desc')));
+    const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Tìm categories theo tên
+    const findCategoryId = (name) => {
+        console.log('[FIND CATEGORY] Đang tìm:', name);
+        console.log('[FIND CATEGORY] Danh sách categories:', categories.map(c => c.name));
+        const cat = categories.find(c => c.name === name);
+        console.log('[FIND CATEGORY] Tìm thấy:', cat);
+        return cat ? cat.id : '';
+    };
+    
+    const items = [];
+    let totalMainAmount = 0; // Tổng tiền hóa đơn chính (không bao gồm điện/nước)
+    
+    if (bill.services && bill.services.length > 0) {
+        bill.services.forEach(service => {
+            const serviceName = service.name || '';
+            
+            // Phân loại theo tên service
+            if (serviceName.toLowerCase().includes('điện')) {
+                items.push({
+                    name: `Tiền điện (${service.name})`,
+                    amount: service.amount || 0,
+                    categoryId: findCategoryId('Tiền điện')
+                });
+            } else if (serviceName.toLowerCase().includes('nước')) {
+                items.push({
+                    name: `Tiền nước (${service.name})`,
+                    amount: service.amount || 0,
+                    categoryId: findCategoryId('Tiền nước')
+                });
+            } else {
+                // Các dịch vụ khác gộp vào tiền hóa đơn
+                totalMainAmount += service.amount || 0;
+            }
+        });
+    }
+    
+    // Thêm item cho tiền hóa đơn
+    if (totalMainAmount > 0) {
+        items.unshift({
+            name: 'Tiền hóa đơn',
+            amount: totalMainAmount,
+            categoryId: findCategoryId('Tiền hóa đơn')
+        });
+    }
+    
+    // Nếu không có services hoặc tổng = 0, tạo 1 item mặc định
+    if (items.length === 0) {
+        items.push({
+            name: 'Tiền hóa đơn',
+            amount: bill.totalAmount || 0,
+            categoryId: findCategoryId('Tiền hóa đơn')
+        });
+    }
+    
+    return items;
+}
+
+/**
+ * HÀM CŨ - GIỮ LẠI ĐỂ TƯƠNG THÍCH
+ */
+function createTransactionItemsFromBill(bill) {
+    const items = [];
+    let totalMainAmount = 0;
+    
+    if (bill.services && bill.services.length > 0) {
+        bill.services.forEach(service => {
+            const serviceName = service.name || '';
+            let categoryId = 'tien-hoa-don';
+            
+            if (serviceName.toLowerCase().includes('điện')) {
+                categoryId = 'tien-dien';
+                items.push({
+                    name: `Tiền điện (${service.name})`,
+                    amount: service.amount || 0,
+                    categoryId: categoryId
+                });
+            } else if (serviceName.toLowerCase().includes('nước')) {
+                categoryId = 'tien-nuoc';
+                items.push({
+                    name: `Tiền nước (${service.name})`,
+                    amount: service.amount || 0,
+                    categoryId: categoryId
+                });
+            } else {
+                totalMainAmount += service.amount || 0;
+            }
+        });
+    }
+    
+    if (totalMainAmount > 0) {
+        items.unshift({
+            name: 'Tiền thuê + phí dịch vụ',
+            amount: totalMainAmount,
+            categoryId: 'tien-hoa-don'
+        });
+    }
+    
+    if (items.length === 0) {
+        items.push({
+            name: 'Thu tiền hóa đơn',
+            amount: bill.totalAmount || 0,
+            categoryId: 'tien-hoa-don'
+        });
+    }
+    
+    return items;
+}
+
+// Export hàm để có thể gọi từ event listener
+window.downloadBillTemplate = downloadBillTemplate;
