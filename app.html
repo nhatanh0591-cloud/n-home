@@ -143,19 +143,28 @@
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
+        
+        /* Đảm bảo không có khoảng trống dưới màn hình */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow-x: hidden;
+        }
         .bottom-nav {
             position: fixed;
             bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 0;
+            right: 0;
+            margin: 0 auto;
             background: white;
             border-top: 1px solid #e5e7eb;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
             z-index: 100;
             width: 100%;
             max-width: 400px;
-            border-radius: 20px 20px 0 0;
             padding: 4px 0;
+            padding-bottom: max(4px, env(safe-area-inset-bottom));
         }
         .nav-item {
             flex: 1;
