@@ -1179,6 +1179,26 @@
             return translations[currentLanguage]?.[key] || translations.vi[key] || key;
         }
 
+        // Show PWA login info
+        function showPWALoginInfo() {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="text-blue-500 text-xl">ℹ️</div>
+                    <div>
+                        <div class="font-semibold">App đã được cài đặt!</div>
+                        <div class="text-sm mt-1">Để xem hóa đơn, bạn cần đăng nhập lại bằng số điện thoại của mình.</div>
+                    </div>
+                </div>
+            `;
+            toast.className = 'fixed bottom-5 right-5 bg-blue-500 text-white py-3 px-5 rounded-lg shadow-xl transform translate-y-0 transition-transform duration-300 max-w-sm';
+            toast.style.display = 'block';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 5000);
+        }
+
         function switchLanguage(lang) {
             console.log('🌐 Switching language to:', lang);
             currentLanguage = lang;
@@ -1462,6 +1482,11 @@
                         updateAppInteractionState(); // Enable interaction nếu đã đăng nhập
                         return;
                     }
+                }
+                
+                // Show PWA info if needed
+                if (isPWA() && !savedPhone) {
+                    showPWALoginInfo();
                 }
                 
                 showLogin();
@@ -3259,6 +3284,15 @@
                 }
 
                 localStorage.setItem('userPhone', phone);
+                
+                // Create PWA sync URL for sharing login state
+                if (!isPWA()) {
+                    const syncUrl = `${window.location.origin}${window.location.pathname}?phone=${encodeURIComponent(phone)}&customer=${encodeURIComponent(JSON.stringify(customer))}`;
+                    console.log('🔗 PWA Sync URL created:', syncUrl);
+                    // Store for potential PWA install
+                    localStorage.setItem('pwaSyncUrl', syncUrl);
+                }
+                
                 requestNotificationPermission();
                 await showHome(customer);
                 updateAppInteractionState(); // Enable interaction sau khi login
@@ -3412,8 +3446,52 @@
             }
         }
 
+        // Check if running as PWA
+        function isPWA() {
+            return window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || 
+                   window.navigator.standalone === true;
+        }
+
+        // PWA localStorage sync mechanism
+        function syncPWAData() {
+            if (isPWA()) {
+                console.log('🔄 PWA detected - checking for data sync');
+                
+                // Check URL parameters for data from browser
+                const urlParams = new URLSearchParams(window.location.search);
+                const phoneParam = urlParams.get('phone');
+                const customerParam = urlParams.get('customer');
+                
+                if (phoneParam) {
+                    console.log('📱 Syncing phone data from URL param:', phoneParam);
+                    localStorage.setItem('userPhone', phoneParam);
+                }
+                
+                if (customerParam) {
+                    try {
+                        const customerData = JSON.parse(decodeURIComponent(customerParam));
+                        console.log('👤 Syncing customer data from URL param');
+                        localStorage.setItem(`userData_${customerData.id}`, JSON.stringify({
+                            data: customerData,
+                            timestamp: Date.now()
+                        }));
+                    } catch (error) {
+                        console.error('❌ Error parsing customer data:', error);
+                    }
+                }
+                
+                // Clean URL after sync
+                if (phoneParam || customerParam) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+        }
+
         // Setup event listeners
         document.addEventListener('DOMContentLoaded', () => {
+            // Sync PWA data first
+            syncPWAData();
+            
             document.getElementById('login-btn').addEventListener('click', handleLogin);
             document.getElementById('phone-input').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') handleLogin();
