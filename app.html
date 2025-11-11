@@ -249,6 +249,22 @@
             overflow: hidden;
         }
         
+        /* Disable scroll and interaction when not logged in */
+        .no-scroll {
+            overflow: hidden !important;
+            touch-action: none !important;
+        }
+        
+        .disabled-interaction {
+            pointer-events: none !important;
+            user-select: none !important;
+        }
+        
+        .disabled-interaction .content-wrapper {
+            overflow: hidden !important;
+            height: 100vh !important;
+        }
+        
         #qr-payment-screen .content-wrapper {
             height: 100vh;
             padding-bottom: 80px;
@@ -463,7 +479,7 @@
                 <div class="text-center text-white mb-10">
                     <img src="/icon-nen-xanh.jpg" alt="N-Home Logo" class="w-16 h-16 rounded-full mx-auto mb-4">
                     <h1 class="text-2xl font-bold mb-2">N-Home</h1>
-                    <p class="text-white text-opacity-80">Xem hóa đơn và thông tin thuê trọ</p>
+                    <p class="text-white text-opacity-80">Kiểm Soát Chi Phí và Thông Tin Thuê Nhà</p>
                 </div>
 
                 <div class="card">
@@ -1443,14 +1459,17 @@
                     const customer = await loadCustomerData(savedPhone);
                     if (customer) {
                         await showHome(customer);
+                        updateAppInteractionState(); // Enable interaction nếu đã đăng nhập
                         return;
                     }
                 }
                 
                 showLogin();
+                updateAppInteractionState(); // Disable interaction nếu chưa đăng nhập
             } catch (error) {
                 console.error('Init error:', error);
                 showLogin();
+                updateAppInteractionState(); // Disable interaction khi có lỗi
             } finally {
                 document.getElementById('loading-screen').classList.add('hidden');
             }
@@ -1505,8 +1524,14 @@
                 const servicesSnapshot = await getDocs(collection(db, 'services'));
                 services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
-                // Load buildings CHỈ KHI CẦN (từ bills)
-                const buildingIds = [...new Set(bills.map(b => b.buildingId))];
+                // Load buildings từ cả bills và contracts
+                const buildingIdsFromBills = bills.map(b => b.buildingId).filter(id => id);
+                const buildingIdsFromContracts = contracts.map(c => c.buildingId).filter(id => id);
+                const buildingIds = [...new Set([...buildingIdsFromBills, ...buildingIdsFromContracts])];
+                
+                console.log('🏢 Building IDs to load:', buildingIds);
+                console.log('📋 Contracts:', contracts.map(c => ({ id: c.id, buildingId: c.buildingId })));
+                
                 if (buildingIds.length > 0) {
                     const buildingsPromises = buildingIds.map(id => 
                         getDocs(query(collection(db, 'buildings'), where('__name__', '==', id)))
@@ -1515,8 +1540,10 @@
                     buildings = buildingsResults.flatMap(snap => 
                         snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
                     );
+                    console.log('🏢 Loaded buildings:', buildings.map(b => ({ id: b.id, address: b.address })));
                 } else {
                     buildings = [];
+                    console.log('⚠️ No building IDs found in contracts or bills');
                 }
                 
                 // Lưu cache
@@ -2013,6 +2040,11 @@
             if (contracts.length > 0) {
                 const contract = contracts[0];
                 const building = buildings.find(b => b.id === contract.buildingId);
+                
+                // Debug mapping
+                console.log('🔍 Contract buildingId:', contract.buildingId);
+                console.log('🏢 Available buildings:', buildings.map(b => ({ id: b.id, address: b.address })));
+                console.log('🎯 Found building:', building);
                 
                 buildingInfo.innerHTML = `
                     <div class="space-y-2">
@@ -3229,6 +3261,7 @@
                 localStorage.setItem('userPhone', phone);
                 requestNotificationPermission();
                 await showHome(customer);
+                updateAppInteractionState(); // Enable interaction sau khi login
             } catch (error) {
                 console.error('Login error:', error);
                 alert('Đăng nhập thất bại. Vui lòng thử lại.');
@@ -3242,6 +3275,7 @@
             localStorage.removeItem('userPhone');
             currentUser = null;
             bills = [];
+            updateAppInteractionState(); // Disable interaction khi logout
             showLogin();
             location.reload();
         };
@@ -3275,6 +3309,17 @@
         
         // Bottom Navigation
         window.switchTab = function(tab) {
+            // Kiểm tra đăng nhập - chỉ cho phép tab home nếu chưa đăng nhập
+            if (!currentUser && tab !== 'home') {
+                console.log('❌ Chưa đăng nhập, chặn chuyển tab:', tab);
+                // Giữ active state cho home tab
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                document.querySelector('.nav-item[onclick="switchTab(\'home\')"]')?.classList.add('active');
+                return;
+            }
+            
             // Remove active class from all nav items
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
@@ -3333,6 +3378,39 @@
                     break;
             }
         };
+
+        // Function to control app interaction based on login status
+        function updateAppInteractionState() {
+            const homeScreen = document.getElementById('home-screen');
+            const bottomNav = document.querySelector('.bottom-nav');
+            const body = document.body;
+            
+            if (!currentUser) {
+                // Chưa đăng nhập - disable scroll và interaction
+                console.log('🔒 Chưa đăng nhập - disable interaction');
+                body.classList.add('no-scroll');
+                homeScreen?.classList.add('disabled-interaction');
+                
+                // Disable tất cả nav items except home
+                document.querySelectorAll('.nav-item').forEach((item, index) => {
+                    if (index !== 0) { // home is first item (index 0)
+                        item.style.opacity = '0.5';
+                        item.style.pointerEvents = 'none';
+                    }
+                });
+            } else {
+                // Đã đăng nhập - enable lại tất cả
+                console.log('🔓 Đã đăng nhập - enable interaction');
+                body.classList.remove('no-scroll');
+                homeScreen?.classList.remove('disabled-interaction');
+                
+                // Enable tất cả nav items
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.style.opacity = '1';
+                    item.style.pointerEvents = 'auto';
+                });
+            }
+        }
 
         // Setup event listeners
         document.addEventListener('DOMContentLoaded', () => {
