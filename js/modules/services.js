@@ -382,11 +382,32 @@ async function handleBulkDelete() {
         for (const service of selected) {
             await deleteDoc(doc(db, 'services', service.id));
         }
+        
+        // Reset trạng thái checkbox sau khi xóa thành công
+        resetBulkSelection();
+        
         showToast(`Đã xóa ${selected.length} dịch vụ thành công!`);
         // Store listener sẽ tự động cập nhật
     } catch (error) {
         showToast('Lỗi xóa dịch vụ: ' + error.message, 'error');
     }
+}
+
+/**
+ * Reset trạng thái bulk selection
+ */
+function resetBulkSelection() {
+    // Bỏ chọn checkbox "select all"
+    const selectAllCheckbox = document.getElementById('select-all-services');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    // Bỏ chọn tất cả checkbox con
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    serviceCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
 }
 
 /**

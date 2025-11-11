@@ -49,6 +49,19 @@ export function initTransactionCategories() {
         console.error('Add button not found!');
     }
     
+    // Gắn trực tiếp event cho bulk delete button
+    const bulkDeleteBtn = document.getElementById('bulk-delete-transaction-categories-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.addEventListener('click', (e) => {
+            console.log('Direct bulk delete button click!');
+            e.preventDefault();
+            e.stopPropagation();
+            bulkDeleteCategories();
+        });
+    } else {
+        console.error('Bulk delete button not found!');
+    }
+    
     // Modal events
     [closeModalBtn, cancelBtn].forEach(btn => {
         btn?.addEventListener('click', () => closeModal(modal));
@@ -195,7 +208,8 @@ function handleBodyClick(e) {
     } else if (e.target.closest('.delete-transaction-category-btn')) {
         const id = e.target.closest('.delete-transaction-category-btn').dataset.id;
         deleteCategory(id);
-    } else if (e.target.id === 'bulk-delete-transaction-categories-btn') {
+    } else if (e.target.id === 'bulk-delete-transaction-categories-btn' || e.target.closest('#bulk-delete-transaction-categories-btn')) {
+        console.log('Bulk delete button clicked!');
         bulkDeleteCategories();
     }
 }
@@ -312,12 +326,33 @@ async function bulkDeleteCategories() {
     
     try {
         await Promise.all(selectedIds.map(id => deleteDoc(doc(db, 'transactionCategories', id))));
+        
+        // Reset trạng thái checkbox sau khi xóa thành công
+        resetBulkSelection();
+        
         showToast(`Xóa thành công ${selectedIds.length} hạng mục`, 'success');
         loadTransactionCategoriesData();
     } catch (error) {
         console.error('Error bulk deleting categories:', error);
         showToast('Lỗi xóa hạng mục: ' + error.message, 'error');
     }
+}
+
+/**
+ * Reset trạng thái bulk selection
+ */
+function resetBulkSelection() {
+    // Bỏ chọn checkbox "select all"
+    const selectAllCheckbox = document.getElementById('select-all-transaction-categories');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    // Bỏ chọn tất cả checkbox con
+    const categoryCheckboxes = document.querySelectorAll('.transaction-category-checkbox');
+    categoryCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
 }
 
 /**

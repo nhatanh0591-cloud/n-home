@@ -733,12 +733,33 @@ async function handleBulkDelete() {
             for (const cb of checkedBoxes) {
                 await deleteDoc(doc(db, 'contracts', cb.dataset.id));
             }
+            
+            // Reset trạng thái checkbox sau khi xóa thành công
+            resetBulkSelection();
+            
             showToast(`Đã xóa ${checkedBoxes.length} hợp đồng thành công!`);
             // Store listener tự động cập nhật
         } catch (error) {
             showToast('Lỗi xóa hợp đồng: ' + error.message, 'error');
         }
     }
+}
+
+/**
+ * Reset trạng thái bulk selection
+ */
+function resetBulkSelection() {
+    // Bỏ chọn checkbox "select all"
+    const selectAllCheckbox = document.getElementById('select-all-contracts');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    // Bỏ chọn tất cả checkbox con
+    const contractCheckboxes = document.querySelectorAll('.contract-checkbox');
+    contractCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
 }
 
 /**

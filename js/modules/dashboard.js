@@ -50,12 +50,12 @@ export function loadDashboardData() {
     const contracts = getContracts();
     const customers = getCustomers();
     
-    // Nếu store chưa có dữ liệu, hiển thị loading và chờ store ready
-    if (!buildings || buildings.length === 0) {
-        console.log('Dashboard: Store chưa ready, hiển thị loading...');
+    // Nếu store chưa khởi tạo (return null/undefined), hiển thị loading
+    if (buildings === null || buildings === undefined) {
+        console.log('Dashboard: Store chưa khởi tạo, hiển thị loading...');
         renderLoadingDashboard();
         
-        // Lắng nghe store ready event
+        // Lắng nghe store ready event với timeout
         const handleStoreReady = () => {
             console.log('Dashboard: Store ready! Loading data now...');
             loadDashboardDataWithStats();
@@ -63,10 +63,19 @@ export function loadDashboardData() {
         };
         
         document.addEventListener('store:ready', handleStoreReady);
+        
+        // Fallback: Nếu sau 5 giây vẫn không có event, load dashboard với dữ liệu rỗng
+        setTimeout(() => {
+            console.log('Dashboard: Timeout, loading with empty data...');
+            document.removeEventListener('store:ready', handleStoreReady);
+            loadDashboardDataWithStats();
+        }, 5000);
+        
         return;
     }
     
-    // Store đã ready, load ngay
+    // Store đã ready (có thể rỗng hoặc có dữ liệu), load ngay
+    console.log('Dashboard: Store ready, loading with data...');
     loadDashboardDataWithStats();
 }
 

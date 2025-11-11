@@ -525,11 +525,32 @@ async function handleBulkDelete() {
         for (const building of selected) {
             await deleteDoc(doc(db, 'buildings', building.id));
         }
+        
+        // Reset trạng thái checkbox sau khi xóa thành công
+        resetBulkSelection();
+        
         showToast(`Đã xóa ${selected.length} tòa nhà thành công!`);
         // Store listener sẽ tự động cập nhật UI
     } catch (error) {
         showToast('Lỗi xóa tòa nhà: ' + error.message, 'error');
     }
+}
+
+/**
+ * Reset trạng thái bulk selection
+ */
+function resetBulkSelection() {
+    // Bỏ chọn checkbox "select all"
+    const selectAllCheckbox = document.getElementById('select-all-buildings');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+    
+    // Bỏ chọn tất cả checkbox con
+    const buildingCheckboxes = document.querySelectorAll('.building-checkbox');
+    buildingCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
 }
 
 /**
