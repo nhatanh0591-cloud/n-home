@@ -597,12 +597,9 @@ export function hideActionButtons(module) {
         
         // Xử lý các nút import/export theo module
         if (module === 'bills') {
-            // Hóa đơn: GIỮ nút import, ẨN nút export và nút tải file mẫu riêng
+            // Hóa đơn: GIỮ nút import, ẨN nút export
             const exportBtn = document.getElementById('export-bills-btn');
             if (exportBtn) exportBtn.style.display = 'none';
-            
-            const downloadTemplateBtn = document.getElementById('download-bills-template-btn');
-            if (downloadTemplateBtn) downloadTemplateBtn.style.display = 'none';
             
             // GIỮ NGUYÊN nút import - không ẩn gì cả!
             const importBtn = document.getElementById('import-bills-btn');
@@ -610,6 +607,29 @@ export function hideActionButtons(module) {
                 importBtn.style.display = 'flex'; // Đảm bảo hiển thị
                 importBtn.style.visibility = 'visible';
             }
+            
+            // Ẩn phần upload trong modal import bills bằng CSS
+            const styleElement = document.createElement('style');
+            styleElement.id = 'hide-upload-for-viewer';
+            styleElement.textContent = `
+                #import-bills-modal .border-dashed,
+                #import-bills-file,
+                #submit-import-bills-btn,
+                #cancel-import-bills-btn {
+                    display: none !important;
+                }
+            `;
+            document.head.appendChild(styleElement);
+            
+            // Ẩn heading "UPLOAD DỮ LIỆU" bằng JavaScript
+            setTimeout(() => {
+                const headings = document.querySelectorAll('#import-bills-modal h4');
+                headings.forEach(h => {
+                    if (h.textContent.includes('UPLOAD')) {
+                        h.style.display = 'none';
+                    }
+                });
+            }, 500);
             
         } else {
             // Các module khác: ẩn tất cả nút import/export 

@@ -1,7 +1,7 @@
 // js/modules/accounts.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, orderBy, getDocs } from '../firebase.js';
-import { showToast, openModal, closeModal } from '../utils.js';
+import { showToast, openModal, closeModal, showConfirm } from '../utils.js';
 
 // --- MAPPING NGÂN HÀNG VÀ MÃ BIN ---
 const BANK_ID_MAP = {
@@ -164,7 +164,8 @@ async function handleBodyClick(e) {
     }
     // Nút "Xóa"
     else if (target.classList.contains('delete-account-btn')) {
-        if (confirm('Bạn có chắc muốn xóa sổ quỹ này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa sổ quỹ này?', 'Xác nhận xóa');
+        if (confirmed) {
             await deleteAccount(id);
         }
     }
@@ -287,7 +288,8 @@ async function bulkDeleteAccounts() {
         return;
     }
     
-    if (!confirm(`Bạn có chắc muốn xóa ${selectedCheckboxes.length} sổ quỹ đã chọn?`)) {
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedCheckboxes.length} sổ quỹ đã chọn?`, 'Xác nhận xóa');
+    if (!confirmed) {
         return;
     }
     

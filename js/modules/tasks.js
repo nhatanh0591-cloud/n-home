@@ -22,7 +22,8 @@ import {
 import { 
     showToast, 
     closeModal,
-    parseDateInput
+    parseDateInput,
+    showConfirm
 } from '../utils.js';
 
 // Cache và biến global
@@ -30,7 +31,7 @@ let tasksCache = [];
 let buildingsCache = [];
 
 // Pagination variables
-const ITEMS_PER_PAGE = 50;
+const ITEMS_PER_PAGE = 20;
 let currentTasksPage = 1;
 
 // DOM Elements
@@ -426,6 +427,20 @@ function updateStats() {
 }
 
 /**
+ * Update statistics với data đã filter
+ */
+function updateStatsWithFiltered(filteredTasks) {
+    const total = filteredTasks.length;
+    const newTasks = filteredTasks.filter(t => t.status === 'pending').length;
+    const completed = filteredTasks.filter(t => t.status === 'completed').length;
+    
+    if (totalTasksEl) totalTasksEl.textContent = total;
+    if (newTasksEl) newTasksEl.textContent = newTasks;
+    if (pendingTasksEl) pendingTasksEl.textContent = 0; // Không dùng nữa
+    if (completedTasksEl) completedTasksEl.textContent = completed;
+}
+
+/**
  * Open task modal for add/edit
  */
 function openTaskModal(taskData = null) {
@@ -502,7 +517,8 @@ window.editTask = function(taskId) {
  * Delete task - global function
  */
 window.deleteTask = async function(taskId) {
-    if (!confirm('Bạn có chắc chắn muốn xóa công việc này?')) return;
+    const confirmed = await showConfirm('Bạn có chắc chắn muốn xóa công việc này?', 'Xác nhận xóa');
+    if (!confirmed) return;
     
     try {
         // 1. Xóa task
@@ -623,6 +639,10 @@ function filterTasks() {
     currentTasksPage = 1;
     
     renderTasks(filtered);
+    
+    // Cập nhật thống kê theo data đã lọc
+    updateStatsWithFiltered(filtered);
+    
     return filtered;
 }
 
@@ -650,7 +670,8 @@ async function handleBulkDeleteTasks() {
         return;
     }
     
-    if (!confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} công việc đã chọn?`)) return;
+    const confirmed = await showConfirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} công việc đã chọn?`, 'Xác nhận xóa');
+    if (!confirmed) return;
     
     try {
         // 1. Xóa tasks

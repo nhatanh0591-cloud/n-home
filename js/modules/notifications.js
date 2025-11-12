@@ -2,14 +2,14 @@
 
 import { db, collection, query, where, getDocs, orderBy, onSnapshot, addDoc, setDoc, doc, deleteDoc, serverTimestamp } from '../firebase.js';
 import { getCustomers, getTasks } from '../store.js';
-import { showToast, formatDate, formatTime } from '../utils.js';
+import { showToast, formatDate, formatTime, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let notificationsCache = [];
 let notificationsCache_filtered = [];
 
 // Pagination variables
-const ITEMS_PER_PAGE = 50;
+const ITEMS_PER_PAGE = 20;
 let currentNotificationsPage = 1;
 
 // --- DOM ELEMENTS ---
@@ -63,6 +63,73 @@ export function loadNotifications() {
 }
 
 /**
+ * Populate dropdown loại thông báo dựa trên dữ liệu thực tế
+ */
+function populateNotificationTypeFilter() {
+    if (!typeFilterEl) return;
+
+    // Lấy tất cả các loại thông báo duy nhất từ cache
+    const uniqueTypes = [...new Set(notificationsCache.map(n => n.type))].filter(type => type);
+    
+    // 🎯 Sử dụng tiêu đề thực tế từ database để mapping
+    const typeDisplayNames = {};
+    
+    // Tạo mapping từ dữ liệu thực tế
+    notificationsCache.forEach(notification => {
+        if (notification.type && notification.title) {
+            // Lấy phần đầu của title làm tên loại (trước dấu "-" hoặc toàn bộ nếu ngắn)
+            let displayName = notification.title;
+            
+            // Trích xuất tên loại từ title
+            if (notification.title.includes('Thu tiền')) {
+                displayName = 'Thu tiền thành công';
+            } else if (notification.title.includes('Thông báo hóa đơn')) {
+                displayName = 'Thông báo hóa đơn';
+            } else if (notification.title.includes('Sự cố')) {
+                displayName = 'Sự cố/Công việc';
+            } else {
+                // Lấy 3-4 từ đầu của title
+                const words = notification.title.split(' ');
+                displayName = words.slice(0, Math.min(3, words.length)).join(' ');
+            }
+            
+            typeDisplayNames[notification.type] = displayName;
+        }
+    });
+    
+    // Fallback mapping cho những loại chưa có
+    const fallbackNames = {
+        'payment_collected': 'Thu tiền thành công',
+        'bill_approved': 'Thông báo hóa đơn',
+        'new_task': 'Sự cố mới', 
+        'task_completed': 'Sự cố hoàn thành',
+        'bill_created': 'Hóa đơn mới',
+        'bill_overdue': 'Hóa đơn quá hạn',
+        'system': 'Hệ thống',
+        'maintenance': 'Bảo trì',
+        'reminder': 'Nhắc nhở'
+    };
+
+    // Lưu giá trị hiện tại
+    const currentValue = typeFilterEl.value;
+
+    // Xóa các option hiện tại (trừ "Tất cả loại")
+    typeFilterEl.innerHTML = '<option value="all">Tất cả loại</option>';
+
+    // Thêm các loại từ dữ liệu thực tế
+    uniqueTypes.sort().forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        // Ưu tiên tên từ dữ liệu thực tế, fallback về mapping mặc định
+        option.textContent = typeDisplayNames[type] || fallbackNames[type] || type;
+        typeFilterEl.appendChild(option);
+    });
+
+    // Khôi phục giá trị đã chọn (nếu còn tồn tại)
+    typeFilterEl.value = currentValue;
+}
+
+/**
  * Setup real-time listeners để nhận thông báo từ app khách hàng
  */
 function setupRealtimeListeners() {
@@ -80,6 +147,9 @@ function setupRealtimeListeners() {
         // Cập nhật cache
         notificationsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
+        // 🔄 Cập nhật dropdown loại thông báo
+        populateNotificationTypeFilter();
+        
         // Cập nhật badge ngay lập tức
         updateNotificationBadge();
         
@@ -88,7 +158,7 @@ function setupRealtimeListeners() {
         if (notificationsSection && !notificationsSection.classList.contains('hidden')) {
             // Re-apply filters và render lại table
             refreshNotificationsFromCache();
-            console.log('� Real-time updated notifications table');
+            console.log('🔄 Real-time updated notifications table');
         }
         
         console.log(`🔔 Total notifications: ${notificationsCache.length}, Unread: ${notificationsCache.filter(n => !n.isRead).length}`);
@@ -181,6 +251,9 @@ async function applyNotificationFilters() {
         const q = query(collection(db, 'adminNotifications'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
         notificationsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // 🔄 Cập nhật dropdown loại thông báo
+        populateNotificationTypeFilter();
 
         // Lấy giá trị bộ lọc
         const type = typeFilterEl?.value || 'all';
@@ -400,7 +473,8 @@ window.goToTask = function(taskId) {
  * Xóa thông báo
  */
 window.deleteNotification = async function(notificationId) {
-    if (!confirm('Bạn có chắc muốn xóa thông báo này?')) return;
+    const confirmed = await showConfirm('Bạn có chắc muốn xóa thông báo này?', 'Xác nhận xóa');
+    if (!confirmed) return;
     
     try {
         await deleteDoc(doc(db, 'adminNotifications', notificationId));
@@ -423,7 +497,8 @@ async function bulkDeleteNotifications() {
         return;
     }
 
-    if (!confirm(`Bạn có chắc muốn xóa ${selected.length} thông báo đã chọn?`)) return;
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selected.length} thông báo đã chọn?`, 'Xác nhận xóa');
+    if (!confirmed) return;
 
     try {
         for (const id of selected) {

@@ -59,6 +59,18 @@ button[id*="close-"]:hover {
 .status-pending { background-color: #fff3cd; color: #856404; }
 .dropdown-arrow {
     transition: transform 0.3s ease;
+    margin-left: auto; /* Đẩy arrow về phía bên phải */
+    padding-left: 6px; /* Tạo khoảng cách với text */
+    flex-shrink: 0; /* Không cho arrow bị co lại */
+}
+
+/* Dropdown toggle button styling */
+.dropdown-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px; /* Tăng gap lên để arrow cách xa text hơn */
+    white-space: nowrap; /* Không cho text xuống dòng */
 }
 .dropdown-content {
     display: none;
@@ -212,7 +224,7 @@ input[type="date"]:hover::-webkit-calendar-picker-indicator {
 
 /* Sidebar styles */
 .sidebar {
-    width: 256px;
+    width: 220px;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     flex-shrink: 0;

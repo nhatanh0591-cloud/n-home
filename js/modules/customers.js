@@ -2,11 +2,11 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
 import { getCustomers, getContracts, getBuildings } from '../store.js';
-import { showToast, openModal, closeModal, exportToExcel, importFromExcel } from '../utils.js';
+import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentCustomerPage = 1;
-const customersPerPage = 50;
+const customersPerPage = 20;
 let customersCache_filtered = []; // Cache đã lọc để phân trang
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Khách hàng) ---
@@ -108,50 +108,61 @@ export function loadCustomers() {
     const contracts = getContracts();
     const buildings = getBuildings();
 
-    // Xây dựng thông tin khách hàng với chi tiết hợp đồng
-    const customersWithInfo = allCustomers.map(customer => {
+    // Tạo danh sách customer với thông tin chi tiết cho từng phòng
+    const customersWithInfo = [];
+    
+    allCustomers.forEach(customer => {
         const customerContracts = contracts.filter(c => 
             c.customers && Array.isArray(c.customers) && c.customers.includes(customer.id)
         );
         
-        let status = 'no_contract';
-        let buildingId = '';
-        let buildingName = '';
-        let roomName = '';
-
-        if (customerContracts.length > 0) {
-            // Tìm hợp đồng đang hoạt động
-            const activeContract = customerContracts.find(c => {
-                if (c.status === 'terminated') return false;
-                const today = new Date(); today.setHours(0, 0, 0, 0);
-                const endDate = parseDateInput(c.endDate);
-                if (!endDate) return false;
-                endDate.setHours(0, 0, 0, 0);
-                return endDate >= today;
+        if (customerContracts.length === 0) {
+            // Customer chưa có hợp đồng nào
+            customersWithInfo.push({ 
+                ...customer, 
+                status: 'no_contract', 
+                buildingId: '', 
+                buildingName: '', 
+                roomName: '' 
             });
+        } else {
+            // Tạo một record cho mỗi hợp đồng
+            customerContracts.forEach(contract => {
+                let status = 'no_contract';
+                let buildingId = contract.buildingId || '';
+                let buildingName = '';
+                let roomName = contract.room || '';
 
-            if (activeContract) {
-                status = 'active'; // Đang ở
-                buildingId = activeContract.buildingId;
-                const building = buildings.find(b => b.id === activeContract.buildingId);
-                buildingName = building ? building.code : '';
-                roomName = activeContract.room || '';
-            } else {
-                status = 'moved'; // Đã chuyển đi
-                const recentContract = [...customerContracts].sort((a, b) => 
-                    parseDateInput(b.endDate) - parseDateInput(a.endDate)
-                )[0];
-                
-                if (recentContract) {
-                    buildingId = recentContract.buildingId;
-                    const building = buildings.find(b => b.id === recentContract.buildingId);
-                    buildingName = building ? building.code : '';
-                    roomName = recentContract.room || '';
+                // Kiểm tra trạng thái hợp đồng
+                if (contract.status === 'terminated') {
+                    status = 'moved';
+                } else {
+                    const today = new Date(); 
+                    today.setHours(0, 0, 0, 0);
+                    const endDate = parseDateInput(contract.endDate);
+                    if (endDate) {
+                        endDate.setHours(0, 0, 0, 0);
+                        status = endDate >= today ? 'active' : 'moved';
+                    }
                 }
-            }
+
+                // Tìm thông tin tòa nhà
+                const building = buildings.find(b => b.id === buildingId);
+                buildingName = building ? building.code : '';
+
+                // Thêm một record riêng cho hợp đồng này
+                customersWithInfo.push({
+                    ...customer,
+                    contractId: contract.id, // Thêm ID hợp đồng để phân biệt
+                    id: `${customer.id}_${contract.id}`, // ID unique cho mỗi record
+                    originalCustomerId: customer.id, // Giữ lại ID customer gốc
+                    status,
+                    buildingId,
+                    buildingName,
+                    roomName
+                });
+            });
         }
-        
-        return { ...customer, status, buildingId, buildingName, roomName };
     });
 
     // Áp dụng bộ lọc
@@ -169,8 +180,9 @@ export function loadCustomers() {
         return true;
     });
 
-    // Cập nhật thống kê
-    updateCustomerStats(allCustomers.length, customersWithInfo);
+    // Cập nhật thống kê dựa trên data đã lọc
+    const uniqueCustomers = new Set(customersCache_filtered.map(c => c.originalCustomerId || c.id)).size;
+    updateCustomerStats(uniqueCustomers, customersCache_filtered);
     
     // Cập nhật dropdown bộ lọc
     updateCustomerFilterOptions(customersWithInfo, buildings);
@@ -210,14 +222,14 @@ function renderCustomersPage() {
         tr.className = 'border-b hover:bg-gray-50';
         tr.innerHTML = `
             <td class="py-4 px-4">
-                <input type="checkbox" class="customer-checkbox w-4 h-4 cursor-pointer" data-id="${customer.id}">
+                <input type="checkbox" class="customer-checkbox w-4 h-4 cursor-pointer" data-id="${customer.originalCustomerId || customer.id}">
             </td>
             <td class="py-4 px-4">
                 <div class="flex gap-3">
-                    <button data-id="${customer.id}" class="edit-customer-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
+                    <button data-id="${customer.originalCustomerId || customer.id}" class="edit-customer-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                     </button>
-                    <button data-id="${customer.id}" class="delete-customer-btn w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
+                    <button data-id="${customer.originalCustomerId || customer.id}" class="delete-customer-btn w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
                     </button>
                 </div>
@@ -333,7 +345,8 @@ async function handleBodyClick(e) {
     }
     // Nút "Xóa"
     else if (target.classList.contains('delete-customer-btn')) {
-        if (confirm('Bạn có chắc muốn xóa khách hàng này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa khách hàng này?', 'Xác nhận xóa');
+        if (confirmed) {
             try {
                 await deleteDoc(doc(db, 'customers', id));
                 showToast('Xóa khách hàng thành công!');
@@ -405,12 +418,16 @@ async function handleBulkDelete() {
         return;
     }
     
-    if (confirm(`Bạn có chắc muốn xóa ${checkedBoxes.length} khách hàng đã chọn?`)) {
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${checkedBoxes.length} khách hàng đã chọn?`, 'Xác nhận xóa');
+    if (confirmed) {
         try {
-            for (const cb of checkedBoxes) {
-                await deleteDoc(doc(db, 'customers', cb.dataset.id));
+            // Lấy danh sách ID unique để tránh xóa trùng
+            const uniqueIds = [...new Set(Array.from(checkedBoxes).map(cb => cb.dataset.id))];
+            
+            for (const id of uniqueIds) {
+                await deleteDoc(doc(db, 'customers', id));
             }
-            showToast(`Đã xóa ${checkedBoxes.length} khách hàng thành công!`);
+            showToast(`Đã xóa ${uniqueIds.length} khách hàng thành công!`);
             
             // Reset tất cả checkbox sau khi xóa thành công
             document.querySelectorAll('.customer-checkbox').forEach(cb => cb.checked = false);

@@ -5,7 +5,7 @@ import { getTransactions, getBuildings, getCustomers, getContracts, getAccounts 
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    exportToExcel, formatFileSize, importFromExcel
+    exportToExcel, formatFileSize, importFromExcel, showConfirm
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -16,7 +16,7 @@ let skipSortAfterEdit = false; // Flag để không sort sau khi edit
 
 // Pagination variables
 let currentPage = 1;
-const ITEMS_PER_PAGE = 50;
+const ITEMS_PER_PAGE = 20;
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Thu Chi) ---
 const transactionsSection = document.getElementById('transactions-section');
@@ -162,7 +162,6 @@ export function initTransactions() {
  * Tải, lọc, và chuẩn bị dữ liệu thu chi
  */
 export function loadTransactions() {
-    updateTransactionStats();
     loadTransactionFilters();
     applyTransactionFilters();
 }
@@ -214,7 +213,7 @@ function applyTransactionFilters() {
         if (building && t.buildingId !== building) return false;
         if (room && t.room !== room) return false;
         if (type && t.type !== type) return false;
-        if (account && t.account !== account) return false;
+        if (account && t.accountId !== account) return false; // ✅ SỬA: t.accountId thay vì t.account
         if (approval) {
             if (approval === 'approved' && !t.approved) return false;
             if (approval === 'pending' && t.approved) return false;
@@ -236,9 +235,13 @@ function applyTransactionFilters() {
         return true;
     });
     
-    // Sắp xếp (chỉ khi không phải sau edit)
+    // Sắp xếp theo thời gian tạo phiếu (chỉ khi không phải sau edit)
     if (!skipSortAfterEdit) {
-        transactionsCache_filtered.sort((a, b) => (parseDateInput(b.date) || 0) - (parseDateInput(a.date) || 0));
+        transactionsCache_filtered.sort((a, b) => {
+            const aTime = a.createdAt?.seconds ? a.createdAt.seconds : 0;
+            const bTime = b.createdAt?.seconds ? b.createdAt.seconds : 0;
+            return bTime - aTime; // Phiếu tạo sau hiện trước (mới nhất ở đầu)
+        });
         // Reset to first page when filter changes (chỉ khi sort lại)
         currentPage = 1;
     }
@@ -564,7 +567,8 @@ async function handleBodyClick(e) {
         if (transaction && transaction.approved) {
             return showToast('Không thể xóa phiếu đã duyệt!', 'error');
         }
-        if (confirm('Bạn có chắc muốn xóa phiếu này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa phiếu này?', 'Xác nhận xóa');
+        if (confirmed) {
             await deleteTransaction(id);
         }
     }
@@ -626,7 +630,8 @@ async function handleBodyClick(e) {
     }
     // Nút "Xóa" loại thu chi
     else if (target.classList.contains('delete-category-btn')) {
-        if (confirm('Bạn có chắc muốn xóa loại thu chi này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa loại thu chi này?', 'Xác nhận xóa');
+        if (confirmed) {
             await deleteDoc(doc(db, 'transactionCategories', id));
             showToast('Đã xóa loại thu chi!');
             loadTransactionCategories(); // Tải lại
@@ -1015,7 +1020,8 @@ async function bulkDelete() {
         return showToast(`Không thể xóa ${approvedTransactions.length} phiếu đã duyệt! Vui lòng bỏ duyệt trước.`, 'error');
     }
 
-    if (confirm(`Bạn có chắc muốn xóa ${selected.length} phiếu đã chọn?`)) {
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selected.length} phiếu đã chọn?`, 'Xác nhận xóa');
+    if (confirmed) {
         for (const id of selected) {
             await deleteTransaction(id); // Gọi hàm xóa lẻ để xử lý logic billId
         }
@@ -1331,7 +1337,8 @@ async function bulkApproveTransactions(approve) {
         return;
     }
 
-    if (!confirm(`Bạn có chắc muốn ${approve ? 'duyệt' : 'bỏ duyệt'} ${selected.length} phiếu đã chọn?`)) return;
+    const confirmed = await showConfirm(`Bạn có chắc muốn ${approve ? 'duyệt' : 'bỏ duyệt'} ${selected.length} phiếu đã chọn?`, `Xác nhận ${approve ? 'duyệt' : 'bỏ duyệt'}`);
+    if (!confirmed) return;
 
     try {
         for (const transactionId of selected) {

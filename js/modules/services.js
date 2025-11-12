@@ -2,7 +2,7 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
 import { getServices, getBuildings } from '../store.js';
-import { showToast, openModal, closeModal, formatNumber, parseFormattedNumber } from '../utils.js';
+import { showToast, openModal, closeModal, formatNumber, parseFormattedNumber, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let isCreatingServiceFromBuilding = false;
@@ -49,7 +49,12 @@ export function initServices() {
     
     // Lắng nghe sự kiện cho form
     serviceForm.addEventListener('submit', handleServiceFormSubmit);
-
+    
+    // Đồng bộ dữ liệu dịch vụ và tòa nhà khi store sẵn sàng
+    document.addEventListener('store:ready', () => {
+        syncServiceBuildingData();
+    });
+    
     // Tự động format số tiền khi nhập
     const servicePriceInput = document.getElementById('service-price');
     servicePriceInput.addEventListener('input', (e) => {
@@ -70,10 +75,61 @@ export function initServices() {
         document.querySelectorAll('.service-checkbox').forEach(cb => cb.checked = e.target.checked);
     });
 
+    // Nút chọn tất cả/bỏ chọn tòa nhà trong modal dịch vụ
+    document.getElementById('select-all-buildings-btn')?.addEventListener('click', () => {
+        document.querySelectorAll('#building-checkboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+    });
+    
+    document.getElementById('deselect-all-buildings-btn')?.addEventListener('click', () => {
+        document.querySelectorAll('#building-checkboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
+    });
+
     // Lắng nghe yêu cầu mở modal từ các module khác (ví dụ: buildings.js)
     document.addEventListener('request:openServiceModal', (e) => {
         openServiceModal(e.detail || {});
     });
+}
+
+/**
+ * Đồng bộ dữ liệu dịch vụ và tòa nhà - chạy 1 lần khi khởi động
+ */
+async function syncServiceBuildingData() {
+    try {
+        const services = getServices();
+        const buildings = getBuildings();
+        
+        for (const service of services) {
+            if (service.buildings && service.buildings.length > 0) {
+                // Cập nhật dịch vụ vào tòa nhà nếu chưa có
+                for (const buildingId of service.buildings) {
+                    const building = buildings.find(b => b.id === buildingId);
+                    if (building) {
+                        const currentServices = building.services || [];
+                        const existingService = currentServices.find(s => s.id === service.id);
+                        
+                        if (!existingService) {
+                            // Thêm dịch vụ vào tòa nhà
+                            const serviceToAdd = {
+                                id: service.id,
+                                name: service.name,
+                                price: service.price,
+                                unit: service.unit
+                            };
+                            currentServices.push(serviceToAdd);
+                            
+                            await setDoc(doc(db, 'buildings', buildingId), {
+                                services: currentServices,
+                                updatedAt: serverTimestamp()
+                            }, { merge: true });
+                        }
+                    }
+                }
+            }
+        }
+        console.log('Đồng bộ dữ liệu dịch vụ-tòa nhà hoàn thành');
+    } catch (error) {
+        console.error('Lỗi đồng bộ dữ liệu:', error);
+    }
 }
 
 /**
@@ -223,7 +279,8 @@ async function handleBodyClick(e) {
     // Nút "Xóa" dịch vụ - kiểm tra cả target và closest
     const deleteBtn = target.classList.contains('delete-service-btn') ? target : target.closest('.delete-service-btn');
     if (deleteBtn) {
-        if (confirm('Bạn có chắc muốn xóa phí dịch vụ này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa phí dịch vụ này?', 'Xác nhận xóa');
+        if (confirmed) {
             try {
                 const serviceId = deleteBtn.dataset.id;
                 await deleteDoc(doc(db, 'services', serviceId));
@@ -335,23 +392,32 @@ async function handleServiceFormSubmit(e) {
             const selectedBuildings = Array.from(document.querySelectorAll('.building-checkbox-item:checked'))
                 .map(cb => cb.value);
 
-            // Cho phép lưu dịch vụ mà không cần chọn tòa nhà
-            // Dịch vụ sẽ được gán vào tòa nhà sau qua các module khác
-
             const serviceData = {
                 ...newServiceData,
                 buildings: selectedBuildings, // Có thể là array rỗng []
                 updatedAt: serverTimestamp()
             };
 
+            let serviceId;
             if (id) {
-                // Sửa
+                // Sửa - lấy dịch vụ cũ để so sánh thay đổi tòa nhà
+                const oldService = getServices().find(s => s.id === id);
+                const oldBuildings = oldService ? oldService.buildings || [] : [];
+                
                 await setDoc(doc(db, 'services', id), serviceData, { merge: true });
+                serviceId = id;
+                
+                // Cập nhật tòa nhà: loại bỏ dịch vụ khỏi tòa nhà cũ, thêm vào tòa nhà mới
+                await updateBuildingServices(serviceId, { ...newServiceData, id: serviceId }, oldBuildings, selectedBuildings);
                 showToast('Cập nhật dịch vụ thành công!');
             } else {
                 // Thêm mới
                 serviceData.createdAt = serverTimestamp();
-                await addDoc(collection(db, 'services'), serviceData);
+                const docRef = await addDoc(collection(db, 'services'), serviceData);
+                serviceId = docRef.id;
+                
+                // Thêm dịch vụ vào các tòa nhà đã chọn
+                await updateBuildingServices(serviceId, { ...newServiceData, id: serviceId }, [], selectedBuildings);
                 showToast('Thêm dịch vụ thành công!');
             }
             // Store listener sẽ tự động cập nhật
@@ -376,10 +442,17 @@ async function handleBulkDelete() {
     }
 
     const confirmMsg = `Bạn có chắc muốn xóa ${selected.length} dịch vụ đã chọn?\n\n${selected.map(s => s.name).join(', ')}`;
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await showConfirm(confirmMsg, 'Xác nhận xóa');
+    if (!confirmed) return;
 
     try {
         for (const service of selected) {
+            // Loại bỏ dịch vụ khỏi tất cả tòa nhà trước khi xóa
+            const serviceToDelete = getServices().find(s => s.id === service.id);
+            if (serviceToDelete && serviceToDelete.buildings) {
+                await updateBuildingServices(service.id, null, serviceToDelete.buildings, []);
+            }
+            
             await deleteDoc(doc(db, 'services', service.id));
         }
         
@@ -390,6 +463,49 @@ async function handleBulkDelete() {
         // Store listener sẽ tự động cập nhật
     } catch (error) {
         showToast('Lỗi xóa dịch vụ: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Cập nhật dịch vụ trong tòa nhà khi thêm/sửa/xóa dịch vụ
+ */
+async function updateBuildingServices(serviceId, serviceData, oldBuildingIds = [], newBuildingIds = []) {
+    const buildings = getBuildings();
+    
+    // Loại bỏ dịch vụ khỏi các tòa nhà cũ
+    for (const buildingId of oldBuildingIds) {
+        if (!newBuildingIds.includes(buildingId)) {
+            const building = buildings.find(b => b.id === buildingId);
+            if (building) {
+                const updatedServices = (building.services || []).filter(s => s.id !== serviceId);
+                await setDoc(doc(db, 'buildings', buildingId), {
+                    services: updatedServices,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            }
+        }
+    }
+    
+    // Thêm/cập nhật dịch vụ vào các tòa nhà mới
+    for (const buildingId of newBuildingIds) {
+        const building = buildings.find(b => b.id === buildingId);
+        if (building) {
+            const currentServices = building.services || [];
+            const existingIndex = currentServices.findIndex(s => s.id === serviceId);
+            
+            if (existingIndex >= 0) {
+                // Cập nhật dịch vụ đã có
+                currentServices[existingIndex] = serviceData;
+            } else {
+                // Thêm dịch vụ mới
+                currentServices.push(serviceData);
+            }
+            
+            await setDoc(doc(db, 'buildings', buildingId), {
+                services: currentServices,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        }
     }
 }
 

@@ -140,8 +140,9 @@ function calculateBuildingStats() {
     const total = buildings.length;
     const active = buildings.filter(b => b.isActive !== false).length;
     const inactive = buildings.filter(b => b.isActive === false).length;
+    const totalRooms = buildings.reduce((sum, building) => sum + building.rooms.length, 0);
     
-    return { total, active, inactive };
+    return { total, active, inactive, totalRooms };
 }
 
 /**
@@ -388,10 +389,12 @@ function renderDashboard(data) {
     
     // Update building statistics
     const totalBuildings = document.getElementById('dash-total-buildings');
+    const totalRooms = document.getElementById('dash-total-rooms');
     const activeBuildings = document.getElementById('dash-active-buildings');
     const inactiveBuildings = document.getElementById('dash-inactive-buildings');
     
     if (totalBuildings) totalBuildings.textContent = buildings.total;
+    if (totalRooms) totalRooms.textContent = buildings.totalRooms;
     if (activeBuildings) activeBuildings.textContent = buildings.active;
     if (inactiveBuildings) inactiveBuildings.textContent = buildings.inactive;
     

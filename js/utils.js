@@ -408,3 +408,90 @@ export async function sendPushNotification(customerId, title, body, data = {}) {
         console.error('❌ Gửi thông báo thất bại:', apiError);
     }
 }
+
+/**
+ * Custom confirm modal đẹp hơn thay thế window.confirm()
+ */
+export function showConfirm(message, title = 'Xác nhận', okText = 'OK', cancelText = 'Hủy') {
+    return new Promise((resolve) => {
+        // Tạo modal HTML
+        const modal = document.createElement('div');
+        modal.id = 'custom-confirm-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 transform scale-95 opacity-0 transition-all duration-200">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="flex-shrink-0">
+                            <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.268 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
+                        </div>
+                    </div>
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 whitespace-pre-line">${message}</p>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button id="confirm-cancel-btn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                            ${cancelText}
+                        </button>
+                        <button id="confirm-ok-btn" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                            ${okText}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Thêm modal vào DOM
+        document.body.appendChild(modal);
+        
+        // Animation vào
+        setTimeout(() => {
+            const modalContent = modal.querySelector('.bg-white');
+            modalContent.style.transform = 'scale(1)';
+            modalContent.style.opacity = '1';
+        }, 10);
+        
+        // Event listeners
+        const okBtn = modal.querySelector('#confirm-ok-btn');
+        const cancelBtn = modal.querySelector('#confirm-cancel-btn');
+        
+        function closeModal(result) {
+            const modalContent = modal.querySelector('.bg-white');
+            modalContent.style.transform = 'scale(0.95)';
+            modalContent.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(modal);
+                resolve(result);
+            }, 200);
+        }
+        
+        okBtn.addEventListener('click', () => closeModal(true));
+        cancelBtn.addEventListener('click', () => closeModal(false));
+        
+        // Đóng khi click outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal(false);
+            }
+        });
+        
+        // Focus vào nút OK
+        setTimeout(() => {
+            okBtn.focus();
+        }, 250);
+        
+        // Handle ESC key
+        function handleEsc(e) {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', handleEsc);
+                closeModal(false);
+            }
+        }
+        document.addEventListener('keydown', handleEsc);
+    });
+}

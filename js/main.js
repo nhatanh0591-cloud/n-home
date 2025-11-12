@@ -220,11 +220,11 @@ function downloadBuildingsTemplate() {
     }
     
     const data = [
-        ['Mã', 'Tên', 'Địa chỉ', 'Danh sách phòng'],
-        ['12/5NVD', 'Tòa nhà 12/5 Nguyễn Văn Dậu', 'Số 12/5 Nguyễn Văn Dậu, Phường 6, Bình Thạnh', '101, 102, 103, 201, 202, 203, 301, 302, 303'],
-        ['360NX', 'Tòa nhà 360 Nguyễn Xiển', 'Số 360 Nguyễn Xiển, Phường Long Thạnh Mỹ, Quận 9', 'G01, G02, G03, M01, M02, M03'],
-        ['', '', '', ''],
-        ['', '', '', '']
+        ['Mã', 'Địa chỉ', 'Danh sách phòng'],
+        ['12/5NVD', 'Số 12/5 Nguyễn Văn Dậu, Phường 6, Bình Thạnh', '101, 102, 103, 201, 202, 203, 301, 302, 303'],
+        ['360NX', 'Số 360 Nguyễn Xiển, Phường Long Thạnh Mỹ, Quận 9', 'G01, G02, G03, M01, M02, M03'],
+        ['', '', ''],
+        ['', '', '']
     ];
     
     const ws = XLSX.utils.aoa_to_sheet(data);
@@ -232,7 +232,6 @@ function downloadBuildingsTemplate() {
     // Set column widths
     ws['!cols'] = [
         { wch: 12 },  // Mã
-        { wch: 30 },  // Tên
         { wch: 50 },  // Địa chỉ
         { wch: 40 }   // Danh sách phòng
     ];
@@ -301,17 +300,17 @@ function downloadContractTemplate(buildingId) {
             }
         });
         
-        // Tạo dữ liệu mẫu
+        // Tạo dữ liệu mẫu - tất cả dưới dạng string để tránh auto-format
         const buildingCode = building.code || building.id || 'DEFAULT';
-        const sampleRow1 = [buildingCode, '101', 'Nguyễn Văn A', '0901234567', '01-01-2025', '31-12-2025', 3, 3500000, 7000000, 100];
-        const sampleRow2 = [buildingCode, '102', 'Trần Thị B', '0912345678', '01-02-2025', '31-01-2026', 5, 4000000, 8000000, 150];
+        const sampleRow1 = [buildingCode, '101', 'Nguyễn Văn A', '0901234567', '01-01-2025', '31-12-2025', '3', '3.500.000', '7.000.000', '100'];
+        const sampleRow2 = [buildingCode, '102', 'Trần Thị B', '0912345678', '01-02-2025', '31-01-2026', '5', '4.000.000', '8.000.000', '150'];
         
-        // Thêm số lượng mặc định cho dịch vụ (trừ điện)
+        // Thêm số lượng mặc định cho dịch vụ (trừ điện) - dưới dạng string
         services.forEach(service => {
             const serviceName = service.name.toLowerCase();
             if (!serviceName.includes('điện')) {
-                sampleRow1.push(1);
-                sampleRow2.push(1);
+                sampleRow1.push('1');
+                sampleRow2.push('1');
             }
         });
         
@@ -326,17 +325,36 @@ function downloadContractTemplate(buildingId) {
         
         const ws = XLSX.utils.aoa_to_sheet(data);
         
+        // Mở rộng range để cover thêm nhiều hàng cho user nhập sau này (200 hàng)
+        const extendedRange = 'A1:' + XLSX.utils.encode_col(header.length - 1) + '200';
+        ws['!ref'] = extendedRange;
+        
+        // Set tất cả các cell trong range mở rộng thành TEXT format
+        const range = XLSX.utils.decode_range(extendedRange);
+        for (let row = range.s.r; row <= range.e.r; row++) {
+            for (let col = range.s.c; col <= range.e.c; col++) {
+                const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+                
+                // Tạo cell nếu chưa tồn tại
+                if (!ws[cellAddress]) {
+                    ws[cellAddress] = { t: 's', v: '' };
+                }
+                
+                // Set format TEXT cho tất cả cell (kể cả cell trống)
+                ws[cellAddress].z = '@';
+                
+                // Đảm bảo cell có data thì convert thành string
+                if (ws[cellAddress].v !== undefined && ws[cellAddress].v !== '') {
+                    ws[cellAddress].v = String(ws[cellAddress].v);
+                    ws[cellAddress].t = 's';
+                }
+            }
+        }
+        
         ws['!cols'] = [
             { wch: 15 }, { wch: 10 }, { wch: 25 }, { wch: 15 },
             { wch: 15 }, { wch: 15 }, { wch: 22 }, { wch: 15 }, { wch: 15 }
         ];
-        
-        // Format money columns
-        ['H2', 'I2', 'H3', 'I3'].forEach(cell => {
-            if (ws[cell] && typeof ws[cell].v === 'number') {
-                ws[cell].z = '#,##0';
-            }
-        });
         
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Hợp đồng');

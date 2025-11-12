@@ -5,12 +5,12 @@ import { getContracts, getBuildings, getCustomers, getServices } from '../store.
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    importFromExcel, exportToExcel 
+    importFromExcel, exportToExcel, showConfirm
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentContractPage = 1;
-const contractsPerPage = 50;
+const contractsPerPage = 20;
 let contractsCache_filtered = []; // Cache đã lọc để phân trang
 let selectedCustomers = []; // Khách hàng tạm thời cho modal
 let currentContractServices = []; // Dịch vụ tạm thời cho modal
@@ -155,13 +155,10 @@ export function loadContracts() {
         status: getContractStatus(contract)
     }));
 
-    // Cập nhật thống kê
-    updateContractStats(contractsWithStatus);
-    
     // Cập nhật dropdown bộ lọc
     updateContractFilterOptions();
     
-    // Áp dụng bộ lọc và hiển thị
+    // Áp dụng bộ lọc và hiển thị (stats sẽ được update trong đây)
     applyContractFilters(contractsWithStatus);
 }
 
@@ -202,8 +199,53 @@ function applyContractFilters(contracts = null) {
         return true;
     });
     
-    // Sắp xếp (ví dụ: theo ngày tạo)
-    contractsCache_filtered.sort((a, b) => parseDateInput(b.createdAt) - parseDateInput(a.createdAt));
+    // Sắp xếp theo phòng trước, sau đó theo ngày
+    contractsCache_filtered.sort((a, b) => {
+        // Sắp xếp theo phòng trước
+        const roomA = a.room;
+        const roomB = b.room;
+        
+        // Hàm helper để phân loại và sắp xếp phòng
+        function getRoomSortKey(room) {
+            // Rooftop luôn ở cuối cùng
+            if (room.toLowerCase().includes('rooftop')) {
+                return [9999, room];
+            }
+            
+            // Kiểm tra phòng số (101, 102, 201, 202...)
+            const numMatch = room.match(/^(\d{3})$/);
+            if (numMatch) {
+                return [parseInt(numMatch[1]), parseInt(numMatch[1])];
+            }
+            
+            // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...) 
+            // Đặt ở đầu (trước phòng 101)
+            return [0, room];
+        }
+        
+        const [categoryA, valueA] = getRoomSortKey(roomA);
+        const [categoryB, valueB] = getRoomSortKey(roomB);
+        
+        // So sánh theo category trước
+        if (categoryA !== categoryB) {
+            return categoryA - categoryB;
+        }
+        
+        // Trong cùng category, so sánh theo value
+        if (typeof valueA === 'number' && typeof valueB === 'number') {
+            const roomCompare = valueA - valueB;
+            if (roomCompare !== 0) return roomCompare;
+        } else {
+            const roomCompare = valueA.toString().localeCompare(valueB.toString());
+            if (roomCompare !== 0) return roomCompare;
+        }
+        
+        // Nếu cùng phòng, sắp xếp theo ngày tạo (mới nhất trước)
+        return parseDateInput(b.createdAt) - parseDateInput(a.createdAt);
+    });
+
+    // Cập nhật thống kê dựa trên data đã lọc
+    updateContractStats(contractsCache_filtered);
 
     // Render trang đầu tiên
     currentContractPage = 1;
@@ -393,7 +435,8 @@ async function handleBodyClick(e) {
     // Nút "Xóa" - kiểm tra cả target và closest
     const deleteBtn = target.classList.contains('delete-contract-btn') ? target : target.closest('.delete-contract-btn');
     if (deleteBtn) {
-        if (confirm('Bạn có chắc muốn xóa hợp đồng này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa hợp đồng này?', 'Xác nhận xóa');
+        if (confirmed) {
             try {
                 const contractId = deleteBtn.dataset.id;
                 await deleteDoc(doc(db, 'contracts', contractId));
@@ -409,7 +452,8 @@ async function handleBodyClick(e) {
     // Nút "Thanh lý" - kiểm tra cả target và closest
     const terminateBtn = target.classList.contains('terminate-contract-btn') ? target : target.closest('.terminate-contract-btn');
     if (terminateBtn) {
-        if (confirm('Bạn có chắc chắn muốn thanh lý hợp đồng này?')) {
+        const confirmed = await showConfirm('Bạn có chắc chắn muốn thanh lý hợp đồng này?', 'Xác nhận thanh lý');
+        if (confirmed) {
             try {
                 const contractId = terminateBtn.dataset.id;
                 await setDoc(doc(db, 'contracts', contractId), {
@@ -728,7 +772,8 @@ async function handleBulkDelete() {
         return showToast('Vui lòng chọn ít nhất một hợp đồng để xóa!', 'warning');
     }
     
-    if (confirm(`Bạn có chắc muốn xóa ${checkedBoxes.length} hợp đồng đã chọn?`)) {
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${checkedBoxes.length} hợp đồng đã chọn?`, 'Xác nhận xóa');
+    if (confirmed) {
         try {
             for (const cb of checkedBoxes) {
                 await deleteDoc(doc(db, 'contracts', cb.dataset.id));
@@ -898,17 +943,36 @@ async function handleImportSubmit() {
                 const row = jsonData[i];
                 const rowNumber = i + 2; // +2 vì Excel bắt đầu từ 1 và có header
                 
+                // Skip dòng trống hoàn toàn
+                const hasAnyData = Object.values(row).some(value => 
+                    value !== null && value !== undefined && value.toString().trim() !== ''
+                );
+                
+                if (!hasAnyData) {
+                    console.log(`Skipping empty row ${rowNumber}`);
+                    continue; // Bỏ qua dòng trống, không đếm là lỗi
+                }
+                
                 try {
-                    // Validate required fields
+                    // Validate required fields chỉ cho dòng có data
                     const missingFields = [];
-                    if (!row['Tòa nhà'] && !row['Mã tòa nhà']) missingFields.push('Tòa nhà/Mã tòa nhà');
-                    if (!row['Phòng']) missingFields.push('Phòng');
-                    if (!row['Tên khách hàng']) missingFields.push('Tên khách hàng');
-                    if (!row['SĐT khách hàng']) missingFields.push('SĐT khách hàng');
-                    if (!row['Ngày bắt đầu']) missingFields.push('Ngày bắt đầu');
-                    if (!row['Ngày kết thúc']) missingFields.push('Ngày kết thúc');
-                    if (!row['Giá thuê']) missingFields.push('Giá thuê');
-                    if (!row['Tiền cọc']) missingFields.push('Tiền cọc');
+                    const toaNha = (row['Tòa nhà'] || row['Mã tòa nhà'] || '').toString().trim();
+                    const phong = (row['Phòng'] || '').toString().trim();
+                    const tenKhach = (row['Tên khách hàng'] || '').toString().trim();
+                    const sdt = (row['SĐT khách hàng'] || '').toString().trim();
+                    const ngayBatDau = (row['Ngày bắt đầu'] || '').toString().trim();
+                    const ngayKetThuc = (row['Ngày kết thúc'] || '').toString().trim();
+                    const giaThue = (row['Giá thuê'] || '').toString().trim();
+                    const tienCoc = (row['Tiền cọc'] || '').toString().trim();
+                    
+                    if (!toaNha) missingFields.push('Tòa nhà/Mã tòa nhà');
+                    if (!phong) missingFields.push('Phòng');
+                    if (!tenKhach) missingFields.push('Tên khách hàng');
+                    if (!sdt) missingFields.push('SĐT khách hàng');
+                    if (!ngayBatDau) missingFields.push('Ngày bắt đầu');
+                    if (!ngayKetThuc) missingFields.push('Ngày kết thúc');
+                    if (!giaThue) missingFields.push('Giá thuê');
+                    if (!tienCoc) missingFields.push('Tiền cọc');
                     
                     if (missingFields.length > 0) {
                         errorDetails.push(`Dòng ${rowNumber}: Thiếu ${missingFields.join(', ')}`);
@@ -918,7 +982,7 @@ async function handleImportSubmit() {
                     
                     // Find building from Excel data
                     const buildings = getBuildings();
-                    const buildingCode = row['Tòa nhà'] || row['Mã tòa nhà'];
+                    const buildingCode = toaNha;
                     const building = buildings.find(b => b.code === buildingCode);
                     if (!building) {
                         errorDetails.push(`Dòng ${rowNumber}: Không tìm thấy tòa nhà "${buildingCode}"`);
@@ -1038,6 +1102,9 @@ async function handleImportSubmit() {
             }
             
             closeModal(importContractsModal);
+            
+            // Reload danh sách hợp đồng sau khi import
+            loadContracts();
             
             if (errorCount > 0) {
                 // Hiển thị chi tiết lỗi

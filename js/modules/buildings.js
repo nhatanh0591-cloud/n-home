@@ -2,7 +2,7 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
 import { getBuildings, getServices, getAccounts } from '../store.js';
-import { showToast, openModal, closeModal, formatNumber, formatMoney, exportToExcel } from '../utils.js';
+import { showToast, openModal, closeModal, formatNumber, formatMoney, exportToExcel, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentBuildingServices = []; // Dịch vụ tạm thời khi chỉnh sửa tòa nhà
@@ -15,6 +15,7 @@ const buildingsListEl = document.getElementById('buildings-list');
 
 // Stats
 const totalBuildingsEl = document.getElementById('total-buildings');
+const totalRoomsEl = document.getElementById('total-rooms');
 const activeBuildingsEl = document.getElementById('active-buildings');
 const inactiveBuildingsEl = document.getElementById('inactive-buildings');
 
@@ -114,8 +115,12 @@ function updateBuildingStats(buildings) {
     const totalBuildings = buildings.length;
     const activeBuildings = buildings.filter(building => building.isActive !== false).length;
     const inactiveBuildings = totalBuildings - activeBuildings;
+    
+    // Tính tổng số phòng
+    const totalRooms = buildings.reduce((sum, building) => sum + building.rooms.length, 0);
 
     totalBuildingsEl.textContent = totalBuildings;
+    totalRoomsEl.textContent = totalRooms;
     activeBuildingsEl.textContent = activeBuildings;
     inactiveBuildingsEl.textContent = inactiveBuildings;
 }
@@ -239,7 +244,8 @@ async function handleBodyClick(e) {
     }
     // Nút "Xóa" tòa nhà
     else if (target.classList.contains('delete-building-btn')) {
-        if (confirm('Bạn có chắc muốn xóa tòa nhà này?')) {
+        const confirmed = await showConfirm('Bạn có chắc muốn xóa tòa nhà này?', 'Xác nhận xóa');
+        if (confirmed) {
             try {
                 await deleteDoc(doc(db, 'buildings', id));
                 showToast('Xóa tòa nhà thành công!');
@@ -519,7 +525,8 @@ async function handleBulkDelete() {
     }
 
     const confirmMsg = `Bạn có chắc muốn xóa ${selected.length} tòa nhà đã chọn?\n\n${selected.map(b => b.code).join(', ')}`;
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await showConfirm(confirmMsg, 'Xác nhận xóa');
+    if (!confirmed) return;
 
     try {
         for (const building of selected) {
@@ -633,6 +640,11 @@ function initImportModal() {
                     
                     let imported = 0;
                     let errors = 0;
+                    let skipped = 0;
+                    
+                    // Lấy danh sách tòa nhà hiện tại để kiểm tra trùng lặp
+                    const existingBuildings = getBuildings();
+                    const existingCodes = new Set(existingBuildings.map(b => b.code.toLowerCase()));
                     
                     for (const row of rows) {
                         try {
@@ -644,6 +656,12 @@ function initImportModal() {
                             if (!code || !address) {
                                 errors++;
                                 continue;
+                            }
+                            
+                            // Kiểm tra trùng lặp mã tòa nhà
+                            if (existingCodes.has(code.toString().trim().toLowerCase())) {
+                                skipped++;
+                                continue; // Bỏ qua nếu đã tồn tại
                             }
                             
                             const rooms = roomsStr.toString().split(/[,\s]+/).map(r => r.trim()).filter(r => r);
@@ -673,7 +691,10 @@ function initImportModal() {
                     }
                     
                     closeModal(importBuildingsModal);
-                    showToast(`Nhập thành công ${imported} tòa nhà${errors > 0 ? `, ${errors} lỗi` : ''}!`);
+                    let message = `Nhập thành công ${imported} tòa nhà`;
+                    if (skipped > 0) message += `, bỏ qua ${skipped} tòa nhà đã tồn tại`;
+                    if (errors > 0) message += `, ${errors} lỗi`;
+                    showToast(message + '!');
                     // Store listener sẽ tự động cập nhật UI
                     
                 } catch (error) {

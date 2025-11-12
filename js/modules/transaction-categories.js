@@ -2,7 +2,7 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
 import { getTransactions } from '../store.js';
-import { showToast, openModal, closeModal, formatMoney } from '../utils.js';
+import { showToast, openModal, closeModal, formatMoney, showConfirm } from '../utils.js';
 
 // --- DOM ELEMENTS ---
 const transactionCategoriesSection = document.getElementById('transaction-categories-section');
@@ -29,9 +29,6 @@ let transactionCategoriesCache = [];
  * Khởi tạo module
  */
 export function initTransactionCategories() {
-    // Tạo các hạng mục mặc định khi khởi động
-    createDefaultCategories();
-    
     // Lắng nghe sự kiện
     document.body.addEventListener('click', handleBodyClick);
     form?.addEventListener('submit', handleFormSubmit);
@@ -296,7 +293,7 @@ async function deleteCategory(id) {
     const category = transactionCategoriesCache.find(c => c.id === id);
     if (!category) return;
     
-    const confirmed = confirm(`Bạn có chắc muốn xóa hạng mục "${category.name}"?\n\nLưu ý: Các phiếu thu chi đã sử dụng hạng mục này sẽ không bị ảnh hưởng.`);
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa hạng mục "${category.name}"?\n\nLưu ý: Các phiếu thu chi đã sử dụng hạng mục này sẽ không bị ảnh hưởng.`, 'Xác nhận xóa');
     if (!confirmed) return;
     
     try {
@@ -321,7 +318,7 @@ async function bulkDeleteCategories() {
         return;
     }
     
-    const confirmed = confirm(`Bạn có chắc muốn xóa ${selectedIds.length} hạng mục đã chọn?`);
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedIds.length} hạng mục đã chọn?`, 'Xác nhận xóa');
     if (!confirmed) return;
     
     try {
