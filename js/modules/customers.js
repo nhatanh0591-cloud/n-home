@@ -411,6 +411,11 @@ async function handleBulkDelete() {
                 await deleteDoc(doc(db, 'customers', cb.dataset.id));
             }
             showToast(`Đã xóa ${checkedBoxes.length} khách hàng thành công!`);
+            
+            // Reset tất cả checkbox sau khi xóa thành công
+            document.querySelectorAll('.customer-checkbox').forEach(cb => cb.checked = false);
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            
             // Store listener sẽ tự động cập nhật
         } catch (error) {
             showToast('Lỗi xóa khách hàng: ' + error.message, 'error');
