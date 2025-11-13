@@ -22,6 +22,7 @@ const nameInput = document.getElementById('transaction-category-management-name'
 
 // --- BIẾN TOÀN CỤC ---
 let transactionCategoriesCache = [];
+const selectedMobileCategoryIds = new Set();
 
 // --- HÀM CHÍNH ---
 
@@ -70,6 +71,14 @@ export function initTransactionCategories() {
             cb.checked = e.target.checked;
         });
     });
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-categories-btn')?.addEventListener('click', () => {
+        selectedMobileCategoryIds.clear();
+        document.querySelectorAll('.category-checkbox-mobile').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Bỏ chọn thành công!');
+    });
 
     // Load data when section becomes visible
     document.addEventListener('store:transactions:updated', () => {
@@ -117,9 +126,18 @@ function renderTransactionCategories() {
                 </td>
             </tr>
         `;
+        const mobileCategoriesList = document.getElementById('categories-mobile-list');
+        if (mobileCategoriesList) {
+            mobileCategoriesList.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    Chưa có hạng mục nào. Nhấn nút "+" để thêm mới.
+                </div>
+            `;
+        }
         return;
     }
 
+    // Desktop table rows
     transactionCategoriesListEl.innerHTML = transactionCategoriesCache.map(category => {        
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -144,6 +162,41 @@ function renderTransactionCategories() {
             </tr>
         `;
     }).join('');
+    
+    // Mobile cards
+    const mobileCategoriesList = document.getElementById('categories-mobile-list');
+    if (mobileCategoriesList) {
+        mobileCategoriesList.innerHTML = '';
+        transactionCategoriesCache.forEach(category => {
+            const isChecked = selectedMobileCategoryIds.has(category.id);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" 
+                        class="category-checkbox-mobile w-5 h-5 cursor-pointer" 
+                        data-id="${category.id}"
+                        ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tên hạng mục:</span>
+                    <span class="mobile-card-value font-bold text-lg">${category.name}</span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${category.id}" class="edit-transaction-category-btn bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button data-id="${category.id}" class="delete-transaction-category-btn bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileCategoriesList.appendChild(mobileCard);
+        });
+    }
 }
 
 /**
@@ -169,6 +222,15 @@ function handleBodyClick(e) {
     } else if (e.target.id === 'bulk-delete-transaction-categories-btn' || e.target.closest('#bulk-delete-transaction-categories-btn')) {
         console.log('Bulk delete button clicked!');
         bulkDeleteCategories();
+    } else if (e.target.classList.contains('category-checkbox-mobile')) {
+        // Xử lý checkbox mobile
+        const categoryId = e.target.dataset.id;
+        if (e.target.checked) {
+            selectedMobileCategoryIds.add(categoryId);
+        } else {
+            selectedMobileCategoryIds.delete(categoryId);
+        }
+        updateClearSelectionButton();
     }
 }
 
@@ -271,8 +333,14 @@ async function deleteCategory(id) {
  * Xóa nhiều hạng mục
  */
 async function bulkDeleteCategories() {
-    const selectedIds = Array.from(document.querySelectorAll('.transaction-category-checkbox:checked'))
-        .map(cb => cb.dataset.id);
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selectedIds;
+    if (selectedMobileCategoryIds.size > 0) {
+        selectedIds = Array.from(selectedMobileCategoryIds);
+    } else {
+        selectedIds = Array.from(document.querySelectorAll('.transaction-category-checkbox:checked'))
+            .map(cb => cb.dataset.id);
+    }
     
     if (selectedIds.length === 0) {
         showToast('Vui lòng chọn ít nhất một hạng mục để xóa', 'error');
@@ -286,7 +354,9 @@ async function bulkDeleteCategories() {
         await Promise.all(selectedIds.map(id => deleteDoc(doc(db, 'transactionCategories', id))));
         
         // Reset trạng thái checkbox sau khi xóa thành công
+        selectedMobileCategoryIds.clear();
         resetBulkSelection();
+        updateClearSelectionButton();
         
         showToast(`Xóa thành công ${selectedIds.length} hạng mục`, 'success');
         loadTransactionCategoriesData();
@@ -311,6 +381,20 @@ function resetBulkSelection() {
     categoryCheckboxes.forEach(checkbox => {
         checkbox.checked = false;
     });
+}
+
+/**
+ * Cập nhật trạng thái hiển thị nút bỏ chọn hàng loạt
+ */
+function updateClearSelectionButton() {
+    const clearBtn = document.getElementById('clear-selection-categories-btn');
+    if (clearBtn) {
+        if (selectedMobileCategoryIds.size >= 2) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+    }
 }
 
 /**

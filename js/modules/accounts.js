@@ -44,6 +44,7 @@ const BANK_ID_MAP = {
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let accountsCache = []; // Cache tài khoản
+const selectedMobileAccountIds = new Set();
 
 // --- DOM ELEMENTS ---
 const accountsSection = document.getElementById('accounts-section');
@@ -75,6 +76,14 @@ export function initAccounts() {
             document.querySelectorAll('.account-checkbox').forEach(cb => cb.checked = e.target.checked);
         });
     }
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-accounts-btn')?.addEventListener('click', () => {
+        selectedMobileAccountIds.clear();
+        document.querySelectorAll('.account-checkbox-mobile').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Bỏ chọn thành công!');
+    });
 }
 
 /**
@@ -103,18 +112,24 @@ function renderAccounts() {
     if (!accountsListEl) return;
     
     accountsListEl.innerHTML = '';
+    const mobileListEl = document.getElementById('accounts-mobile-list');
+    if (mobileListEl) mobileListEl.innerHTML = '';
     
     if (accountsCache.length === 0) {
         accountsListEl.innerHTML = '<tr class="text-center text-gray-400"><td colspan="6" class="py-8">Chưa có sổ quỹ nào!</td></tr>';
+        if (mobileListEl) {
+            mobileListEl.innerHTML = '<div class="text-center py-8 text-gray-500">Chưa có sổ quỹ nào!</div>';
+        }
         return;
     }
     
     accountsCache.forEach((account, index) => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50 border-b border-gray-100';
-        
         // Auto generate code if not exists
         const code = account.code || `TK${(index + 1).toString().padStart(6, '0')}`;
+        
+        // 🖥️ RENDER DESKTOP ROW
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50 border-b border-gray-100';
         
         tr.innerHTML = `
             <td class="py-3 px-4">
@@ -141,6 +156,46 @@ function renderAccounts() {
         `;
         
         accountsListEl.appendChild(tr);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileListEl) {
+            const isChecked = selectedMobileAccountIds.has(account.id);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="account-checkbox-mobile w-5 h-5 cursor-pointer" data-id="${account.id}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Mã:</span>
+                    <span class="mobile-card-value font-bold text-green-600">${code}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Ngân hàng:</span>
+                    <span class="mobile-card-value font-semibold">${account.bank || '-'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Số tài khoản:</span>
+                    <span class="mobile-card-value">${account.accountNumber || '-'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Chủ tài khoản:</span>
+                    <span class="mobile-card-value">${account.accountHolder || '-'}</span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${account.id}" class="edit-account-btn bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button data-id="${account.id}" class="delete-account-btn bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        }
     });
 }
 
@@ -176,6 +231,16 @@ async function handleBodyClick(e) {
     // Đóng modal
     else if (target.id === 'close-account-modal' || target.id === 'cancel-account-btn') {
         closeModal(accountModal);
+    }
+    // Xử lý checkbox mobile
+    else if (e.target.classList.contains('account-checkbox-mobile')) {
+        const accountId = e.target.dataset.id;
+        if (e.target.checked) {
+            selectedMobileAccountIds.add(accountId);
+        } else {
+            selectedMobileAccountIds.delete(accountId);
+        }
+        updateClearSelectionButton();
     }
 }
 
@@ -282,35 +347,58 @@ async function deleteAccount(id) {
  * Xóa nhiều sổ quỹ
  */
 async function bulkDeleteAccounts() {
-    const selectedCheckboxes = document.querySelectorAll('.account-checkbox:checked');
-    if (selectedCheckboxes.length === 0) {
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selectedIds;
+    if (selectedMobileAccountIds.size > 0) {
+        selectedIds = Array.from(selectedMobileAccountIds);
+    } else {
+        const selectedCheckboxes = document.querySelectorAll('.account-checkbox:checked');
+        selectedIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.id);
+    }
+    
+    if (selectedIds.length === 0) {
         showToast('Vui lòng chọn ít nhất một sổ quỹ để xóa!', 'error');
         return;
     }
     
-    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedCheckboxes.length} sổ quỹ đã chọn?`, 'Xác nhận xóa');
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedIds.length} sổ quỹ đã chọn?`, 'Xác nhận xóa');
     if (!confirmed) {
         return;
     }
     
     try {
-        const promises = Array.from(selectedCheckboxes).map(cb => {
-            const id = cb.dataset.id;
-            return deleteDoc(doc(db, 'accounts', id));
-        });
+        const promises = selectedIds.map(id => deleteDoc(doc(db, 'accounts', id)));
         
         await Promise.all(promises);
-        showToast(`Đã xóa ${selectedCheckboxes.length} sổ quỹ!`);
-        loadAccounts(); // Tải lại danh sách
         
-        // Bỏ chọn "select all"
+        // Reset trạng thái
+        selectedMobileAccountIds.clear();
         const selectAllCheckbox = document.getElementById('select-all-accounts');
         if (selectAllCheckbox) {
             selectAllCheckbox.checked = false;
         }
+        document.querySelectorAll('.account-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        
+        showToast(`Đã xóa ${selectedIds.length} sổ quỹ!`);
+        loadAccounts(); // Tải lại danh sách
         
     } catch (error) {
         console.error('Error bulk deleting accounts:', error);
         showToast('Lỗi khi xóa sổ quỹ: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Cập nhật trạng thái hiển thị nút bỏ chọn hàng loạt
+ */
+function updateClearSelectionButton() {
+    const clearBtn = document.getElementById('clear-selection-accounts-btn');
+    if (clearBtn) {
+        if (selectedMobileAccountIds.size >= 2) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
     }
 }

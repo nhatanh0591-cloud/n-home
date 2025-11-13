@@ -8,6 +8,7 @@ import { showToast, openModal, closeModal, formatNumber, formatMoney, exportToEx
 let currentBuildingServices = []; // Dịch vụ tạm thời khi chỉnh sửa tòa nhà
 let originalBuildingServices = []; // Sao lưu dịch vụ gốc
 let isCreatingServiceFromBuilding = false; // Cờ báo hiệu
+let selectedMobileBuildingIds = new Set(); // Checkbox mobile persistent
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Tòa nhà) ---
 const buildingsSection = document.getElementById('buildings-section');
@@ -76,6 +77,14 @@ export function initBuildings() {
     selectAllCheckbox.addEventListener('change', (e) => {
         document.querySelectorAll('.building-checkbox').forEach(cb => cb.checked = e.target.checked);
     });
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-buildings-btn')?.addEventListener('click', () => {
+        selectedMobileBuildingIds.clear();
+        document.querySelectorAll('.building-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Bỏ chọn thành công!');
+    });
 
     // Lắng nghe sự kiện cho modal import
     initImportModal();
@@ -130,6 +139,8 @@ function updateBuildingStats(buildings) {
  */
 function renderBuildingsTable(buildings) {
     buildingsListEl.innerHTML = ''; // Xóa bảng cũ
+    const mobileListEl = document.getElementById('buildings-mobile-list');
+    if (mobileListEl) mobileListEl.innerHTML = '';
 
     if (buildings.length === 0) {
         buildingsListEl.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500">Không tìm thấy tòa nhà nào.</td></tr>';
@@ -141,16 +152,20 @@ function renderBuildingsTable(buildings) {
         const accounts = getAccounts();
         const assignedAccount = building.accountId ? accounts.find(acc => acc.id === building.accountId) : null;
         let accountDisplay = '<span class="text-gray-400 text-sm">Chưa gán</span>';
+        let accountDisplayMobile = 'Chưa gán';
         
         if (assignedAccount) {
             if (assignedAccount.bank === 'Cash') {
                 accountDisplay = '<span class="text-green-600 font-medium">Tiền mặt</span>';
+                accountDisplayMobile = 'Tiền mặt';
             } else {
                 const name = assignedAccount.accountHolder || assignedAccount.accountNumber || 'Chưa rõ';
                 accountDisplay = `<div class="text-sm"><div class="font-medium">${assignedAccount.bank}</div><div class="text-gray-600">${name}</div></div>`;
+                accountDisplayMobile = `${assignedAccount.bank} - ${name}`;
             }
         }
 
+        // 🖥️ RENDER DESKTOP ROW
         const tr = document.createElement('tr');
         tr.className = 'border-b hover:bg-gray-50';
         tr.innerHTML = `
@@ -183,6 +198,60 @@ function renderBuildingsTable(buildings) {
             </td>
         `;
         buildingsListEl.appendChild(tr);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileListEl) {
+            const isChecked = selectedMobileBuildingIds.has(building.id);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="building-checkbox w-5 h-5 cursor-pointer" data-id="${building.id}" data-code="${building.code}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Mã tòa nhà:</span>
+                    <span class="mobile-card-value font-bold text-blue-600">${building.code || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Địa chỉ:</span>
+                    <span class="mobile-card-value font-medium">${building.address}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Số phòng:</span>
+                    <span class="mobile-card-value">${building.rooms.length} phòng</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Danh sách:</span>
+                    <button data-building-id="${building.id}" data-building-code="${building.code}" data-rooms='${JSON.stringify(building.rooms)}' class="view-rooms-btn text-blue-600 hover:underline font-medium text-sm">
+                        [Xem danh sách phòng]
+                    </button>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Sổ quỹ:</span>
+                    <span class="mobile-card-value text-sm">${accountDisplayMobile}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Trạng thái:</span>
+                    <span class="mobile-card-value">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold ${building.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${building.isActive !== false ? 'Hoạt động' : 'Không hoạt động'}
+                        </span>
+                    </span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${building.id}" class="edit-building-btn bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button data-id="${building.id}" class="delete-building-btn bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        }
     });
 }
 
@@ -254,6 +323,16 @@ async function handleBodyClick(e) {
                 showToast('Lỗi xóa tòa nhà: ' + error.message, 'error');
             }
         }
+    }
+    // Checkbox mobile
+    else if (target.classList.contains('building-checkbox')) {
+        const buildingId = target.dataset.id;
+        if (target.checked) {
+            selectedMobileBuildingIds.add(buildingId);
+        } else {
+            selectedMobileBuildingIds.delete(buildingId);
+        }
+        updateClearSelectionButton();
     }
     // Nút "Xem danh sách phòng"
     else if (target.classList.contains('view-rooms-btn')) {
@@ -516,8 +595,18 @@ function loadAccountsToDropdown() {
  * Xử lý Xóa nhiều
  */
 async function handleBulkDelete() {
-    const selected = Array.from(document.querySelectorAll('.building-checkbox:checked'))
-        .map(cb => ({ id: cb.dataset.id, code: cb.dataset.code }));
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selected;
+    if (selectedMobileBuildingIds.size > 0) {
+        const allBuildings = getBuildings();
+        selected = Array.from(selectedMobileBuildingIds).map(id => {
+            const building = allBuildings.find(b => b.id === id);
+            return { id, code: building?.code || 'N/A' };
+        });
+    } else {
+        selected = Array.from(document.querySelectorAll('.building-checkbox:checked'))
+            .map(cb => ({ id: cb.dataset.id, code: cb.dataset.code }));
+    }
 
     if (selected.length === 0) {
         showToast('Vui lòng chọn ít nhất 1 tòa nhà để xóa!', 'error');
@@ -534,7 +623,9 @@ async function handleBulkDelete() {
         }
         
         // Reset trạng thái checkbox sau khi xóa thành công
+        selectedMobileBuildingIds.clear();
         resetBulkSelection();
+        updateClearSelectionButton();
         
         showToast(`Đã xóa ${selected.length} tòa nhà thành công!`);
         // Store listener sẽ tự động cập nhật UI
@@ -579,6 +670,20 @@ function handleExport() {
     
     exportToExcel(data, 'Danh_sach_toa_nha');
     showToast('Đã xuất dữ liệu thành công!');
+}
+
+/**
+ * Cập nhật hiển/ẩn nút bỏ chọn hàng loạt (chỉ hiện khi chọn >= 2)
+ */
+function updateClearSelectionButton() {
+    const btn = document.getElementById('clear-selection-buildings-btn');
+    if (btn) {
+        if (selectedMobileBuildingIds.size >= 2) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
 }
 
 /**

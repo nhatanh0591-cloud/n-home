@@ -327,57 +327,21 @@ function calculateTransactionStats(month, year) {
 function calculateTaskStats(month, year) {
     const tasks = getTasks();
     
-    // Helper function để parse date
-    function parseDateInput(dateInput) {
-        if (!dateInput) return null;
-        
-        let date;
-        if (typeof dateInput === 'string') {
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-                date = new Date(dateInput + 'T00:00:00');
-            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateInput)) {
-                const [day, month, year] = dateInput.split('/');
-                date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-            } else {
-                date = new Date(dateInput);
-            }
-        } else if (dateInput.toDate) {
-            date = dateInput.toDate();
-        } else {
-            date = new Date(dateInput);
-        }
-        
-        return isNaN(date.getTime()) ? null : date;
-    }
+    // Tổng số công việc
+    const totalTasks = tasks.length;
     
-    // Lọc task đang pending
-    const pendingTasks = tasks.filter(task => task.status === 'pending' || task.status === 'in_progress');
+    // Công việc chưa xử lý (pending + in_progress)
+    const pendingTasks = tasks.filter(task => 
+        task.status === 'pending' || task.status === 'in_progress'
+    );
     
-    // Task quá hạn
-    const overdueTasks = pendingTasks.filter(task => {
-        const dueDate = parseDateInput(task.dueDate);
-        if (!dueDate) return false;
-        
-        const today = new Date();
-        today.setHours(23, 59, 59, 999); // End of today
-        return dueDate < today;
-    });
-    
-    // Task hoàn thành trong tháng hiện tại
-    const completedThisMonth = tasks.filter(task => {
-        if (task.status !== 'completed' || !task.completedDate) return false;
-        
-        const completedDate = parseDateInput(task.completedDate);
-        if (!completedDate) return false;
-        
-        return completedDate.getMonth() + 1 === month && 
-               completedDate.getFullYear() === year;
-    });
+    // Công việc đã hoàn thành
+    const completedTasks = tasks.filter(task => task.status === 'completed');
     
     return {
+        total: totalTasks,
         pending: pendingTasks.length,
-        overdue: overdueTasks.length,
-        completed: completedThisMonth.length
+        completed: completedTasks.length
     };
 }
 
@@ -442,13 +406,13 @@ function renderDashboard(data) {
     }
     
     // Update task statistics
+    const totalTasks = document.getElementById('dash-total-tasks');
     const pendingTasks = document.getElementById('dash-pending-tasks');
-    const overdueTasks = document.getElementById('dash-overdue-tasks');
-    const completedTasks = document.getElementById('dash-completed-tasks-month');
+    const completedTasks = document.getElementById('dash-completed-tasks');
     
+    if (totalTasks) totalTasks.textContent = tasks.total;
     if (pendingTasks) pendingTasks.textContent = tasks.pending;
-    if (overdueTasks) overdueTasks.textContent = tasks.overdue;
-    if (completedTasks) completedTasks.textContent = tasks.completed || 0;
+    if (completedTasks) completedTasks.textContent = tasks.completed;
     
 
 }

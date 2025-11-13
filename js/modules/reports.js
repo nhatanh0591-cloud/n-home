@@ -35,6 +35,30 @@ let transactionsCache = [];
 export function initReports() {
     if (!reportsSection) return;
     
+    // Lắng nghe thay đổi transactions từ store để auto-reload báo cáo
+    document.addEventListener('store:transactions:updated', () => {
+        console.log('🔄 Store transactions updated - reloading reports...');
+        loadReportData();
+        setTimeout(() => {
+            console.log('🔄 Loading category report after transactions update...');
+            loadCategoryReport();
+        }, 100);
+        // Reload thêm 1 lần nữa để đảm bảo bills cũng đã sync
+        setTimeout(() => {
+            console.log('🔄 Second reload for sync...');
+            loadCategoryReport();
+        }, 500);
+    });
+    
+    // Lắng nghe thay đổi bills để báo cáo hạng mục cập nhật real-time
+    document.addEventListener('store:bills:updated', () => {
+        console.log('🔄 Store bills updated - reloading category report...');
+        setTimeout(() => {
+            console.log('🔄 Loading category report after bills update...');
+            loadCategoryReport();
+        }, 100);
+    });
+    
     setupEventListeners();
     // Set current year as default
     const currentYear = new Date().getFullYear();
@@ -295,6 +319,9 @@ function renderReport(quarters) {
     `;
     
     reportsTableBody.innerHTML = html;
+    
+    // Render mobile cards
+    renderQuarterlyReportMobileCards(quarters);
 }
 
 /**
@@ -314,16 +341,27 @@ async function loadCategoryReport() {
         const selectedYear = parseInt(categoryReportYearEl?.value) || new Date().getFullYear();
 
         console.log('Loading category report for:', { selectedMonth, selectedYear });
+        console.log('🔄 Loading fresh data from Firebase...');
 
-        // Load transactions
+        // Load trực tiếp từ Firebase
         const transactionsRef = collection(db, 'transactions');
-        const snapshot = await getDocs(query(transactionsRef, orderBy('date', 'desc')));
-        const transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const transactionsSnapshot = await getDocs(transactionsRef);
+        const transactions = transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // Load transaction categories
+        const billsRef = collection(db, 'bills');
+        const billsSnapshot = await getDocs(billsRef);
+        const bills = billsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Load transaction categories từ Firebase
         const categoriesRef = collection(db, 'transactionCategories');
         const categoriesSnapshot = await getDocs(categoriesRef);
         const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log('💾 Loaded data:', { 
+            transactions: transactions.length, 
+            bills: bills.length, 
+            categories: categories.length 
+        });
 
         // Filter transactions by selected period
         const filteredTransactions = transactions.filter(t => {
@@ -339,14 +377,74 @@ async function loadCategoryReport() {
             return true;
         });
 
+        // Filter bills theo nhiều cách xác định tháng
+        const filteredBills = bills.filter(bill => {
+            if (bill.status !== 'paid') return false;
+            
+            // DEBUG: In ra tất cả field của bill để xem
+            console.log('🔍 BILL ID:', bill.id);
+            console.log('📋 ALL BILL FIELDS:', JSON.stringify(bill, null, 2));
+            
+            let billMonth = null;
+            let billYear = null;
+            
+            // Cách 1: billMonth/billYear trực tiếp
+            if (bill.billMonth && bill.billYear) {
+                billMonth = parseInt(bill.billMonth);
+                billYear = parseInt(bill.billYear);
+                console.log('✅ Found via billMonth/billYear:', billMonth, billYear);
+            }
+            // Cách 2: period + year (CHÍNH LÀ FIELD NÀY!)
+            else if (bill.period && bill.year) {
+                billMonth = parseInt(bill.period);
+                billYear = parseInt(bill.year);
+                console.log('✅ Found via period/year:', billMonth, billYear);
+            }
+            // Cách 3: period string (VD: "Tháng 10", "10/2025")
+            else if (bill.period && typeof bill.period === 'string') {
+                const periodStr = bill.period.toString().toLowerCase();
+                console.log('🔍 Checking period string:', periodStr);
+                
+                // Pattern "tháng X"
+                const monthMatch = periodStr.match(/tháng\s*(\d{1,2})/);
+                if (monthMatch) {
+                    billMonth = parseInt(monthMatch[1]);
+                    billYear = selectedYear;
+                    console.log('✅ Found via period tháng:', billMonth, billYear);
+                }
+                // Pattern "X/YYYY" hoặc "XX/YYYY"
+                else {
+                    const dateMatch = periodStr.match(/(\d{1,2})\/(\d{4})/);
+                    if (dateMatch) {
+                        billMonth = parseInt(dateMatch[1]);
+                        billYear = parseInt(dateMatch[2]);
+                        console.log('✅ Found via period date:', billMonth, billYear);
+                    }
+                }
+            }
+            
+            // Nếu có tháng/năm thì check match
+            if (billMonth && billYear) {
+                console.log('🎯 Final check:', { billMonth, billYear, selectedMonth, selectedYear });
+                if (billYear !== selectedYear) return false;
+                if (selectedMonth !== 'all' && billMonth !== parseInt(selectedMonth)) return false;
+                console.log('✅ BILL MATCHED!');
+                return true;
+            }
+            
+            console.log('❌ No month/year found for bill');
+            return false;
+        });
+
         console.log('Filtered transactions:', filteredTransactions.length);
+        console.log('Filtered paid bills:', filteredBills.length);
 
         // Calculate totals by category
         const categoryTotals = {};
         let totalIncome = 0;
         let totalExpense = 0;
 
-        // Initialize all categories
+        // Initialize all categories (để luôn hiển thị dù chưa có transaction)
         categories.forEach(category => {
             categoryTotals[category.id] = {
                 name: category.name,
@@ -387,8 +485,64 @@ async function loadCategoryReport() {
             });
         });
 
-        // Render table
-        renderCategoryReport(categoryTotals, totalIncome, totalExpense);
+        // 💡 TÍNH TIỀN ĐIỆN/NƯỚC TỪ HÓA ĐƠN ĐÃ THANH TOÁN VÀ CỘNG VÀO HẠNG MỤC
+        let totalElectricity = 0;
+        let totalWater = 0;
+
+        filteredBills.forEach(bill => {
+            if (!bill.services || !Array.isArray(bill.services)) return;
+            
+            bill.services.forEach(service => {
+                if (!service.amount) return;
+                const amount = parseFloat(service.amount) || 0;
+                
+                // Kiểm tra loại dịch vụ (có thể là serviceId hoặc tên service)
+                const serviceName = (service.serviceName || service.name || '').toLowerCase();
+                const serviceId = service.serviceId || '';
+                
+                // Tìm dịch vụ điện (có thể có nhiều cách đặt tên)
+                if (serviceName.includes('điện') || serviceName.includes('electric') || 
+                    serviceId.includes('electric') || serviceId.includes('dien')) {
+                    totalElectricity += amount;
+                }
+                // Tìm dịch vụ nước (có thể có nhiều cách đặt tên)  
+                else if (serviceName.includes('nước') || serviceName.includes('water') ||
+                         serviceName.includes('nuoc') || serviceId.includes('water') || 
+                         serviceId.includes('nuoc')) {
+                    totalWater += amount;
+                }
+            });
+        });
+
+        // TÌM VÀ CỘNG VÀO HẠNG MỤC "TIỀN ĐIỆN" VÀ "TIỀN NƯỚC" CÓ SẴN
+        categories.forEach(category => {
+            const categoryName = category.name.toLowerCase();
+            
+            // Đảm bảo hạng mục luôn được khởi tạo (dù chưa có transaction)
+            if (!categoryTotals[category.id]) {
+                categoryTotals[category.id] = {
+                    name: category.name,
+                    income: 0,
+                    expense: 0,
+                    profit: 0
+                };
+            }
+            
+            // Cộng tiền điện vào hạng mục "Tiền điện"
+            if ((categoryName.includes('tiền điện') || categoryName.includes('điện')) && totalElectricity > 0) {
+                categoryTotals[category.id].income += totalElectricity;
+                categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+            }
+            
+            // Cộng tiền nước vào hạng mục "Tiền nước"  
+            if ((categoryName.includes('tiền nước') || categoryName.includes('nước')) && totalWater > 0) {
+                categoryTotals[category.id].income += totalWater;
+                categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+            }
+        });
+
+        // Render table (không có hạng mục đặc biệt nữa)
+        renderCategoryReport(categoryTotals);
 
     } catch (error) {
         console.error('Error loading category report:', error);
@@ -401,43 +555,161 @@ async function loadCategoryReport() {
 /**
  * Render category report table
  */
-function renderCategoryReport(categoryTotals, totalIncome, totalExpense) {
+function renderCategoryReport(categoryTotals) {
     if (!categoryReportTableBody) return;
 
     let html = '';
     
-    // Sort categories by profit (descending)
-    const sortedCategories = Object.values(categoryTotals)
-        .filter(cat => cat.income > 0 || cat.expense > 0) // Only show categories with activity
+    // Lấy các hạng mục có hoạt động
+    const activeCategories = Object.values(categoryTotals)
+        .filter(cat => cat.income > 0 || cat.expense > 0)
         .sort((a, b) => b.profit - a.profit);
 
-    if (sortedCategories.length === 0) {
+    if (activeCategories.length === 0) {
         html = '<tr><td colspan="4" class="py-4 px-4 text-center text-gray-500">Không có dữ liệu trong khoảng thời gian đã chọn</td></tr>';
     } else {
-        sortedCategories.forEach(category => {
+        // THÊM HEADER (giống như báo cáo tháng/quý)
+        html += `
+            <tr class="border bg-gray-100">
+                <td class="py-3 px-4 font-bold border">Tên hạng mục</td>
+                <td class="py-3 px-4 text-right font-bold border">Tổng thu</td>
+                <td class="py-3 px-4 text-right font-bold border">Tổng chi</td>
+                <td class="py-3 px-4 text-right font-bold border">Lãi/Lỗ</td>
+            </tr>
+        `;
+
+        // NỘI DUNG (màu trắng)
+        activeCategories.forEach(category => {
             const profitClass = category.profit >= 0 ? 'text-green-600' : 'text-red-600';
             
             html += `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="py-3 px-4">${category.name}</td>
-                    <td class="py-3 px-4 text-right text-green-600">${formatMoney(category.income)}</td>
-                    <td class="py-3 px-4 text-right text-red-600">${formatMoney(category.expense)}</td>
-                    <td class="py-3 px-4 text-right ${profitClass}">${formatMoney(category.profit)}</td>
+                <tr class="border bg-white">
+                    <td class="py-3 px-4 border">${category.name}</td>
+                    <td class="py-3 px-4 text-right border text-green-600">${formatMoney(category.income)}</td>
+                    <td class="py-3 px-4 text-right border text-red-600">${formatMoney(category.expense)}</td>
+                    <td class="py-3 px-4 text-right border ${profitClass}">${formatMoney(category.profit)}</td>
                 </tr>
             `;
         });
     }
 
     categoryReportTableBody.innerHTML = html;
+    
+    // Render mobile cards
+    renderCategoryReportMobileCards(activeCategories);
 
-    // Update totals
-    const totalProfit = totalIncome - totalExpense;
-    const totalProfitClass = totalProfit >= 0 ? 'text-green-600' : 'text-red-600';
-
-    if (categoryTotalIncomeEl) categoryTotalIncomeEl.textContent = formatMoney(totalIncome);
-    if (categoryTotalExpenseEl) categoryTotalExpenseEl.textContent = formatMoney(totalExpense);
-    if (categoryTotalProfitEl) {
-        categoryTotalProfitEl.textContent = formatMoney(totalProfit);
-        categoryTotalProfitEl.className = `py-3 px-4 text-right ${totalProfitClass}`;
+    // ẨN PHẦN TỔNG CỘNG (tfoot)
+    const categoryTable = categoryReportTableBody.closest('table');
+    const tfoot = categoryTable?.querySelector('tfoot');
+    if (tfoot) {
+        tfoot.style.display = 'none';
     }
+
+    // XÓA PHẦN HIỂN THỊ TỔNG CỘNG (vì đây là báo cáo từng hạng mục, không phải tổng tiền)
+    if (categoryTotalIncomeEl) categoryTotalIncomeEl.textContent = '';
+    if (categoryTotalExpenseEl) categoryTotalExpenseEl.textContent = '';
+    if (categoryTotalProfitEl) categoryTotalProfitEl.textContent = '';
+}
+
+/**
+ * Render mobile cards for category report
+ */
+function renderCategoryReportMobileCards(categories) {
+    const mobileContainer = document.getElementById('category-report-mobile-cards');
+    if (!mobileContainer) return;
+    
+    if (categories.length === 0) {
+        mobileContainer.innerHTML = '<div class="text-center py-8 text-gray-500">Không có dữ liệu trong khoảng thời gian đã chọn</div>';
+        return;
+    }
+    
+    let html = '';
+    
+    categories.forEach(category => {
+        const profitClass = category.profit >= 0 ? 'text-green-600' : 'text-red-600';
+        const profitIcon = category.profit >= 0 ? '↑' : '↓';
+        
+        html += `
+            <div class="bg-white border rounded-lg p-4 shadow-sm">
+                <h4 class="font-semibold text-gray-800 mb-3">${category.name}</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600">Tổng thu</div>
+                        <div class="text-lg font-semibold text-green-600">${formatMoney(category.income)}</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-sm text-gray-600">Tổng chi</div>
+                        <div class="text-lg font-semibold text-red-600">${formatMoney(category.expense)}</div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t text-center">
+                    <div class="text-sm text-gray-600">Lãi/Lỗ</div>
+                    <div class="text-xl font-bold ${profitClass}">
+                        ${profitIcon} ${formatMoney(Math.abs(category.profit))}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    mobileContainer.innerHTML = html;
+}
+
+/**
+ * Render mobile cards for quarterly report
+ */
+function renderQuarterlyReportMobileCards(reportData) {
+    const mobileContainer = document.getElementById('quarterly-report-mobile-cards');
+    if (!mobileContainer) return;
+    
+    let html = '';
+    
+    for (let q = 1; q <= 4; q++) {
+        const quarter = reportData[q];
+        const profitClass = quarter.profit >= 0 ? 'text-green-600' : 'text-red-600';
+        const profitIcon = quarter.profit >= 0 ? '↑' : '↓';
+        
+        html += `
+            <div class="bg-white border rounded-lg p-4 shadow-sm">
+                <h4 class="font-semibold text-gray-800 mb-3 text-center">QUÝ ${getRomanNumeral(q)}</h4>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div class="text-center">
+                        <div class="text-xs text-gray-600">Doanh thu</div>
+                        <div class="text-sm font-semibold text-green-600">${formatMoney(quarter.revenue)}</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-xs text-gray-600">Chi phí</div>
+                        <div class="text-sm font-semibold text-red-600">${formatMoney(quarter.expense)}</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-xs text-gray-600">Lợi nhuận</div>
+                        <div class="text-sm font-bold ${profitClass}">${profitIcon} ${formatMoney(Math.abs(quarter.profit))}</div>
+                    </div>
+                </div>
+                
+                <div class="space-y-2">
+                    <div class="text-sm font-medium text-gray-700">Chi tiết theo tháng:</div>`;
+        
+        quarter.months.forEach(month => {
+            const monthData = quarter.monthlyData[month];
+            const monthProfitClass = monthData.profit >= 0 ? 'text-green-600' : 'text-red-600';
+            
+            html += `
+                    <div class="bg-gray-50 rounded p-2">
+                        <div class="text-xs text-gray-600 mb-1">Tháng ${month}</div>
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <span class="text-green-600">${formatMoney(monthData.revenue)}</span>
+                            <span class="text-red-600">${formatMoney(monthData.expense)}</span>
+                            <span class="${monthProfitClass}">${formatMoney(monthData.profit)}</span>
+                        </div>
+                    </div>`;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    }
+    
+    mobileContainer.innerHTML = html;
 }

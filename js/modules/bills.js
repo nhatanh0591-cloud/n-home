@@ -45,6 +45,7 @@ function getPaymentDueDate(bill) {
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let billsCache_filtered = []; // Cache đã lọc
+let selectedMobileBillIds = new Set(); // Checkbox mobile persistent
 
 // Pagination variables
 let currentPage = 1;
@@ -120,6 +121,15 @@ export function initBills() {
     
     // Lắng nghe form
     billForm.addEventListener('submit', handleBillFormSubmit);
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-bills-btn')?.addEventListener('click', () => {
+        selectedMobileBillIds.clear();
+        document.querySelectorAll('.bill-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        updateBulkApprovalButtons();
+        showToast('Bỏ chọn thành công!');
+    });
 
     // Lắng nghe bộ lọc
     filterBuildingEl.addEventListener('change', handleBuildingFilterChange);
@@ -270,9 +280,14 @@ function applyBillFilters() {
  */
 function renderBillsTable(bills) {
     billsListEl.innerHTML = '';
+    const mobileListEl = document.getElementById('bills-mobile-list');
+    if (mobileListEl) mobileListEl.innerHTML = '';
     
     if (bills.length === 0) {
         billsListEl.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500">Không tìm thấy hóa đơn nào.</td></tr>';
+        if (mobileListEl) {
+            mobileListEl.innerHTML = '<div class="p-8 text-center text-gray-500">Không tìm thấy hóa đơn nào.</div>';
+        }
         renderPagination(0, 0);
         return;
     }
@@ -332,6 +347,70 @@ function renderBillsTable(bills) {
             </td>
         `;
         billsListEl.appendChild(tr);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileListEl) {
+            const isChecked = selectedMobileBillIds.has(bill.id);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="bill-checkbox w-5 h-5 cursor-pointer" data-id="${bill.id}" data-approved="${isApproved}" data-status="${bill.status || 'unpaid'}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Mã hóa đơn:</span>
+                    <span class="mobile-card-value font-semibold text-blue-600 view-bill-link cursor-pointer" data-id="${bill.id}">${billNumber}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Khách hàng:</span>
+                    <span class="mobile-card-value font-medium">${customer ? customer.name : 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Phòng:</span>
+                    <span class="mobile-card-value">${building ? building.code : 'N/A'} - ${bill.room}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Kỳ thanh toán:</span>
+                    <span class="mobile-card-value">Tháng ${bill.period}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Hạn thanh toán:</span>
+                    <span class="mobile-card-value">${getPaymentDueDate(bill)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tổng tiền:</span>
+                    <span class="mobile-card-value font-bold text-green-600">${formatMoney(bill.totalAmount)} VNĐ</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Trạng thái:</span>
+                    <span class="mobile-card-value">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                            ${bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                        </span>
+                    </span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${bill.id}" class="toggle-bill-approve-btn ${isApproved ? 'bg-gray-400 hover:bg-gray-500' : 'bg-green-500 hover:bg-green-600'} text-white">
+                        ${isApproved ? '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' : '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
+                        ${isApproved ? 'Bỏ duyệt' : 'Duyệt'}
+                    </button>
+                    <button data-id="${bill.id}" class="toggle-bill-status-btn ${!isApproved ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')} text-white" ${!isApproved ? 'disabled' : ''}>
+                        ${bill.status === 'paid' ? '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>' : '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>'}
+                        ${bill.status === 'paid' ? 'Đã thu' : 'Thu tiền'}
+                    </button>
+                    <button data-id="${bill.id}" class="edit-bill-btn ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} text-white" ${isApproved ? 'disabled' : ''}>
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button data-id="${bill.id}" class="delete-bill-btn ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} text-white" ${isApproved ? 'disabled' : ''}>
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        }
     });
     
     // Ẩn nút action theo quyền (với timeout để đảm bảo DOM đã render)
@@ -551,8 +630,8 @@ async function handleBodyClick(e) {
     else if (target.id === 'bulk-uncollect-bills-btn') {
         await bulkUncollect();
     }
-    // Nút "Xóa hàng loạt"
-    else if (target.id === 'bulk-delete-bills-btn') {
+    // Nút "Xóa hàng loạt" (desktop hoặc mobile)
+    else if (target.id === 'bulk-delete-bills-btn' || target.id === 'bulk-delete-bills-mobile-btn') {
         await bulkDelete();
     }
     // Nút "Xuất Excel"
@@ -567,6 +646,17 @@ async function handleBodyClick(e) {
     else if (target.classList.contains('remove-custom-service-btn')) {
         target.closest('tr').remove();
         calculateBillTotal();
+    }
+    // Checkbox mobile
+    else if (target.classList.contains('bill-checkbox')) {
+        const billId = target.dataset.id;
+        if (target.checked) {
+            selectedMobileBillIds.add(billId);
+        } else {
+            selectedMobileBillIds.delete(billId);
+        }
+        updateClearSelectionButton();
+        updateBulkApprovalButtons();
     }
     // Đóng modal
     else if (target.id === 'close-bill-modal' || target.id === 'cancel-bill-btn') {
@@ -1010,7 +1100,18 @@ async function toggleBillStatus(billId) {
 }
 
 async function bulkApprove(approve) {
-    const selected = getSelectedBillIds(b => b.approved !== approve); // Chỉ chọn HĐ chưa đúng trạng thái
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selected;
+    if (selectedMobileBillIds.size > 0) {
+        const allBills = getBills();
+        selected = Array.from(selectedMobileBillIds).filter(id => {
+            const bill = allBills.find(b => b.id === id);
+            return bill && bill.approved !== approve;
+        });
+    } else {
+        selected = getSelectedBillIds(b => b.approved !== approve);
+    }
+    
     if (selected.length === 0) return;
 
     const confirmed = await showConfirm(
@@ -1028,8 +1129,9 @@ async function bulkApprove(approve) {
                 updatedAt: serverTimestamp()
             }, { merge: true });
 
-            // Tạo thông báo admin khi duyệt hóa đơn hàng loạt
+            // Tạo/xóa thông báo admin
             if (approve) {
+                // Duyệt: Tạo thông báo
                 const bill = getBills().find(b => b.id === billId);
                 if (bill) {
                     const building = getBuildings().find(b => b.id === bill.buildingId);
@@ -1057,11 +1159,40 @@ async function bulkApprove(approve) {
                         console.log('Đã tạo thông báo admin cho phòng:', building.code + '-' + bill.room);
                     }
                 }
+            } else {
+                // Bỏ duyệt: Xóa thông báo duyệt cũ
+                console.log('❌ [BULK] Bỏ duyệt - xóa thông báo duyệt cũ cho bill:', billId);
+                
+                try {
+                    // Tìm và xóa thông báo duyệt cũ cho billId này
+                    const notificationsQuery = query(
+                        collection(db, 'adminNotifications'), 
+                        where('billId', '==', billId),
+                        where('type', '==', 'bill_approved')
+                    );
+                    const notificationsSnapshot = await getDocs(notificationsQuery);
+                    
+                    const deletePromises = notificationsSnapshot.docs.map(doc => 
+                        deleteDoc(doc.ref)
+                    );
+                    
+                    if (deletePromises.length > 0) {
+                        await Promise.all(deletePromises);
+                        console.log(`✅ [BULK] Đã xóa ${deletePromises.length} thông báo duyệt cũ cho bill ${billId}`);
+                    } else {
+                        console.log('ℹ️ [BULK] Không tìm thấy thông báo duyệt cũ để xóa cho bill:', billId);
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ [BULK] Lỗi khi xóa thông báo cũ cho bill:', billId, error);
+                }
             }
         }
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
+        selectedMobileBillIds.clear();
         resetBulkSelection();
+        updateBulkApprovalButtons();
         
         showToast(`Đã ${approve ? 'duyệt' : 'bỏ duyệt'} ${selected.length} hóa đơn!`);
         // Store listener tự động cập nhật
@@ -1071,7 +1202,18 @@ async function bulkApprove(approve) {
 }
 
 async function bulkCollect() {
-    const selected = getSelectedBillIds(b => b.status !== 'paid'); // Chỉ chọn HĐ chưa thu tiền
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selected;
+    if (selectedMobileBillIds.size > 0) {
+        const allBills = getBills();
+        selected = Array.from(selectedMobileBillIds).filter(id => {
+            const bill = allBills.find(b => b.id === id);
+            return bill && bill.status !== 'paid';
+        });
+    } else {
+        selected = getSelectedBillIds(b => b.status !== 'paid');
+    }
+    
     if (selected.length === 0) return;
 
     const confirmed = await showConfirm(
@@ -1169,7 +1311,9 @@ async function bulkCollect() {
         }
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
+        selectedMobileBillIds.clear();
         resetBulkSelection();
+        updateBulkApprovalButtons();
         
         showToast(`Đã thu tiền và tạo ${selected.length} phiếu thu!`);
         // Store listener tự động cập nhật
@@ -1180,7 +1324,19 @@ async function bulkCollect() {
 
 async function bulkUncollect() {
     console.log('🔄 bulkUncollect được gọi');
-    const selected = getSelectedBillIds(b => b.status === 'paid'); // Chỉ chọn HĐ đã thu tiền
+    
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selected;
+    if (selectedMobileBillIds.size > 0) {
+        const allBills = getBills();
+        selected = Array.from(selectedMobileBillIds).filter(id => {
+            const bill = allBills.find(b => b.id === id);
+            return bill && bill.status === 'paid';
+        });
+    } else {
+        selected = getSelectedBillIds(b => b.status === 'paid');
+    }
+    
     console.log('📋 Selected bills:', selected);
     if (selected.length === 0) {
         console.log('❌ Không có hóa đơn nào được chọn hoặc không có hóa đơn đã thanh toán');
@@ -1238,7 +1394,9 @@ async function bulkUncollect() {
         }
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
+        selectedMobileBillIds.clear();
         resetBulkSelection();
+        updateBulkApprovalButtons();
         
         console.log('✅ Hoàn thành cập nhật');
         showToast(`Đã hủy thu tiền cho ${selected.length} hóa đơn!`);
@@ -1250,7 +1408,11 @@ async function bulkUncollect() {
 }
 
 async function bulkDelete() {
-    const selected = getSelectedBillIds();
+    // Lấy từ Set mobile nếu có, không thì lấy từ desktop checkboxes
+    const selected = selectedMobileBillIds.size > 0
+        ? Array.from(selectedMobileBillIds)
+        : getSelectedBillIds();
+    
     if (selected.length === 0) return showToast('Vui lòng chọn ít nhất một hóa đơn để xóa', 'error');
     
     const confirmed = await showConfirm(
@@ -1267,7 +1429,9 @@ async function bulkDelete() {
         }
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
+        selectedMobileBillIds.clear();
         resetBulkSelection();
+        updateBulkApprovalButtons();
         
         showToast(`Đã xóa ${selected.length} hóa đơn thành công!`);
         // Store listener tự động cập nhật
@@ -1277,7 +1441,8 @@ async function bulkDelete() {
 }
 
 function getSelectedBillIds(filterFunc = null) {
-    let checkboxes = document.querySelectorAll('.bill-checkbox:checked');
+    // CHỈ lấy checkbox từ desktop table, KHÔNG lấy mobile card
+    let checkboxes = document.querySelectorAll('#bills-list .bill-checkbox:checked');
     let bills = Array.from(checkboxes).map(cb => ({ 
         id: cb.dataset.id, 
         approved: cb.dataset.approved === 'true',
@@ -1316,30 +1481,74 @@ function resetBulkSelection() {
     if (bulkUncollectBtn) bulkUncollectBtn.classList.add('hidden');
 }
 
+/**
+ * Cập nhật hiển/ẩn nút bỏ chọn hàng loạt (chỉ hiện khi chọn >= 2)
+ */
+function updateClearSelectionButton() {
+    const btn = document.getElementById('clear-selection-bills-btn');
+    if (btn) {
+        if (selectedMobileBillIds.size >= 2) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
+}
+
 function updateBulkApprovalButtons() {
-    const checkedBoxes = document.querySelectorAll('.bill-checkbox:checked');
-    if (checkedBoxes.length === 0) {
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selectedIds, billsData;
+    
+    if (selectedMobileBillIds.size > 0) {
+        // Mobile: Lấy từ Set
+        selectedIds = Array.from(selectedMobileBillIds);
+        const allBills = getBills();
+        billsData = selectedIds.map(id => allBills.find(b => b.id === id)).filter(Boolean);
+    } else {
+        // Desktop: Lấy từ checkbox
+        const checkedBoxes = document.querySelectorAll('.bill-checkbox:checked');
+        if (checkedBoxes.length === 0) {
+            bulkApproveBtn.classList.add('hidden');
+            bulkUnapproveBtn.classList.add('hidden');
+            bulkCollectBtn.classList.add('hidden');
+            bulkUncollectBtn.classList.add('hidden');
+            document.getElementById('bulk-delete-bills-mobile-btn')?.classList.add('hidden');
+            return;
+        }
+        billsData = Array.from(checkedBoxes).map(cb => {
+            return getBills().find(b => b.id === cb.dataset.id);
+        }).filter(Boolean);
+    }
+    
+    if (billsData.length === 0) {
         bulkApproveBtn.classList.add('hidden');
         bulkUnapproveBtn.classList.add('hidden');
         bulkCollectBtn.classList.add('hidden');
         bulkUncollectBtn.classList.add('hidden');
+        document.getElementById('bulk-delete-bills-mobile-btn')?.classList.add('hidden');
         return;
     }
     
     // Kiểm tra trạng thái duyệt
-    const approvalStates = Array.from(checkedBoxes).map(cb => cb.dataset.approved === 'true');
-    const allApproved = approvalStates.every(s => s === true);
-    const allUnapproved = approvalStates.every(s => s === false);
+    const allApproved = billsData.every(b => b.approved === true);
+    const allUnapproved = billsData.every(b => !b.approved);
+    const someApproved = billsData.some(b => b.approved === true);
 
     // Kiểm tra trạng thái thanh toán
-    const paymentStates = Array.from(checkedBoxes).map(cb => cb.dataset.status === 'paid');
-    const allUnpaid = paymentStates.every(s => s === false);
-    const allPaid = paymentStates.every(s => s === true);
+    const allUnpaid = billsData.every(b => b.status !== 'paid');
+    const allPaid = billsData.every(b => b.status === 'paid');
 
+    // Hiện/ẩn nút theo logic
     bulkApproveBtn.classList.toggle('hidden', !allUnapproved);
     bulkUnapproveBtn.classList.toggle('hidden', !allApproved);
-    bulkCollectBtn.classList.toggle('hidden', !allUnpaid || checkedBoxes.length === 0);
-    bulkUncollectBtn.classList.toggle('hidden', !allPaid || checkedBoxes.length === 0);
+    bulkCollectBtn.classList.toggle('hidden', !(allApproved && allUnpaid));
+    bulkUncollectBtn.classList.toggle('hidden', !allPaid);
+    
+    // Nút xóa mobile: chỉ hiện khi tất cả chưa duyệt
+    const deleteMobileBtn = document.getElementById('bulk-delete-bills-mobile-btn');
+    if (deleteMobileBtn) {
+        deleteMobileBtn.classList.toggle('hidden', someApproved);
+    }
 }
 
 // --- HÀM MODAL HÓA ĐƠN ---
@@ -1889,7 +2098,10 @@ async function showBillDetail(billId) {
     setEl('bill-detail-title', `Hóa Đơn Tiền Nhà Tháng ${String(bill.period).padStart(2, '0')}-${billYear}`);
 
     const tableBody = document.getElementById('bill-detail-services-table');
+    const mobileServicesEl = document.getElementById('bill-detail-services-mobile');
     tableBody.innerHTML = '';
+    if (mobileServicesEl) mobileServicesEl.innerHTML = '';
+    
     (bill.services || []).forEach((item, index) => {
         const row = document.createElement('tr');
         row.className = 'border-b';
@@ -1897,10 +2109,12 @@ async function showBillDetail(billId) {
         let content = item.serviceName;
         let unitPrice = item.unitPrice || 0;
         let quantity = item.quantity;
+        let extraInfo = '';
         
         // Fix unitPrice cho từng loại service
         if (item.type === 'electric' || item.type === 'water_meter') {
-            content += `<br><span class="text-xs text-gray-500">(SC: ${item.oldReading} - SM: ${item.newReading})</span>`;
+            extraInfo = `(SC: ${item.oldReading} - SM: ${item.newReading})`;
+            content += `<br><span class="text-xs text-gray-500">${extraInfo}</span>`;
         } else if (item.type === 'rent') {
             quantity = item.quantityDisplay || 1;
             // Với tiền nhà, nếu unitPrice bằng 0 thì tính từ amount/quantity
@@ -1911,19 +2125,44 @@ async function showBillDetail(billId) {
             const billDate = parseDateInput(bill.billDate);
             const startDay = 1;
             const endDay = new Date(billDate.getFullYear(), billDate.getMonth() + 1, 0).getDate(); // Ngày cuối tháng
-            content += `<br><span class="text-xs text-gray-500">(Từ ngày ${startDay}-${String(bill.period).padStart(2, '0')} đến ${endDay}-${String(bill.period).padStart(2, '0')})</span>`;
+            extraInfo = `(Từ ngày ${startDay}-${String(bill.period).padStart(2, '0')} đến ${endDay}-${String(bill.period).padStart(2, '0')})`;
+            content += `<br><span class="text-xs text-gray-500">${extraInfo}</span>`;
         }
         
-        unitPrice = formatMoney(unitPrice);
+        const formattedUnitPrice = formatMoney(unitPrice);
 
         row.innerHTML = `
             <td class="py-2 px-3 border border-gray-800">${index + 1}</td>
             <td class="py-2 px-3 border border-gray-800">${content}</td>
-            <td class="py-2 px-3 text-center border border-gray-800">${unitPrice}</td>
+            <td class="py-2 px-3 text-center border border-gray-800">${formattedUnitPrice}</td>
             <td class="py-2 px-3 text-center border border-gray-800">${quantity}</td>
             <td class="py-2 px-3 text-right font-medium border border-gray-800">${formatMoney(item.amount)} VNĐ</td>
         `;
         tableBody.appendChild(row);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileServicesEl) {
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-semibold text-gray-900">${index + 1}. ${item.serviceName}</span>
+                    <span class="font-bold text-green-600">${formatMoney(item.amount)} VNĐ</span>
+                </div>
+                ${extraInfo ? `<div class="text-xs text-gray-500 mb-2">${extraInfo}</div>` : ''}
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <span class="text-gray-600">Đơn giá:</span>
+                        <span class="font-medium ml-1">${formattedUnitPrice}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-gray-600">Số lượng:</span>
+                        <span class="font-medium ml-1">${quantity}</span>
+                    </div>
+                </div>
+            `;
+            mobileServicesEl.appendChild(mobileCard);
+        }
     });
     
     // 💰 TÍNH TOÁN THANH TOÁN THỰC TẾ TỪ TRANSACTIONS

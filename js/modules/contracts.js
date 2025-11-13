@@ -16,6 +16,7 @@ let selectedCustomers = []; // Khách hàng tạm thời cho modal
 let currentContractServices = []; // Dịch vụ tạm thời cho modal
 let originalContractServices = []; // Sao lưu dịch vụ gốc
 let isCreatingServiceFromContract = false; // Cờ báo hiệu
+let selectedMobileContractIds = new Set(); // Checkbox mobile persistent
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Hợp đồng) ---
 const contractsSection = document.getElementById('contracts-section');
@@ -106,6 +107,14 @@ export function initContracts() {
     // Lắng nghe form
     contractForm.addEventListener('submit', handleContractFormSubmit);
     quickCustomerForm.addEventListener('submit', handleQuickCustomerSubmit);
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-contracts-btn')?.addEventListener('click', () => {
+        selectedMobileContractIds.clear();
+        document.querySelectorAll('.contract-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Bỏ chọn thành công!');
+    });
 
     // Lắng nghe bộ lọc
     filterBuildingEl.addEventListener('change', handleBuildingFilterChange);
@@ -277,10 +286,16 @@ function applyContractFilters(contracts = null) {
  */
 function renderContractsPage() {
     contractsListEl.innerHTML = '';
+    const mobileListEl = document.getElementById('contracts-mobile-list');
+    if (mobileListEl) mobileListEl.innerHTML = '';
+    
     const totalItems = contractsCache_filtered.length;
 
     if (totalItems === 0) {
         contractsListEl.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-gray-500">Không tìm thấy hợp đồng nào.</td></tr>';
+        if (mobileListEl) {
+            mobileListEl.innerHTML = '<div class="p-8 text-center text-gray-500">Không tìm thấy hợp đồng nào.</div>';
+        }
         updateContractPagination();
         return;
     }
@@ -361,6 +376,68 @@ function renderContractsPage() {
             </td>
         `;
         contractsListEl.appendChild(tr);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileListEl) {
+            const isChecked = selectedMobileContractIds.has(contract.id);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="contract-checkbox w-5 h-5 cursor-pointer" data-id="${contract.id}" data-code="${contractNumber}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Khách hàng:</span>
+                    <span class="mobile-card-value font-medium">${customer ? customer.name : 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Phòng:</span>
+                    <span class="mobile-card-value">${building ? building.code : 'N/A'} - ${contract.room || 'Chưa có phòng'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Thời gian:</span>
+                    <span class="mobile-card-value">${formatDateDisplay(contract.startDate)} → ${formatDateDisplay(contract.endDate)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Số người/xe:</span>
+                    <span class="mobile-card-value">${peopleCount} người / ${vehicleCount} xe</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Giá thuê:</span>
+                    <span class="mobile-card-value font-semibold text-green-600">${formatMoney(contract.rentPrice)} VNĐ</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tiền cọc:</span>
+                    <span class="mobile-card-value">${formatMoney(contract.deposit || 0)} VNĐ</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Trạng thái:</span>
+                    <span class="mobile-card-value">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${statusInfo.className}">
+                            ${statusInfo.text}
+                        </span>
+                    </span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${contract.id}" class="edit-contract-btn bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    ${contract.status !== 'terminated' ? `
+                    <button data-id="${contract.id}" class="terminate-contract-btn bg-orange-500 hover:bg-orange-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                        Thanh lý
+                    </button>
+                    ` : ''}
+                    <button data-id="${contract.id}" class="delete-contract-btn bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        }
     });
 
     updateContractPagination();
@@ -491,6 +568,18 @@ async function handleBodyClick(e) {
                 showToast('Lỗi xóa hợp đồng: ' + error.message, 'error');
             }
         }
+        return;
+    }
+    
+    // Checkbox mobile
+    if (target.classList.contains('contract-checkbox')) {
+        const contractId = target.dataset.id;
+        if (target.checked) {
+            selectedMobileContractIds.add(contractId);
+        } else {
+            selectedMobileContractIds.delete(contractId);
+        }
+        updateClearSelectionButton();
         return;
     }
     
@@ -812,22 +901,27 @@ async function handleQuickCustomerSubmit(e) {
  * Xử lý Xóa nhiều
  */
 async function handleBulkDelete() {
-    const checkedBoxes = document.querySelectorAll('.contract-checkbox:checked');
-    if (checkedBoxes.length === 0) {
+    // Lấy từ Set mobile nếu có, không thì lấy từ desktop checkboxes
+    const selectedIds = selectedMobileContractIds.size > 0 
+        ? Array.from(selectedMobileContractIds)
+        : Array.from(document.querySelectorAll('.contract-checkbox:checked')).map(cb => cb.dataset.id);
+    
+    if (selectedIds.length === 0) {
         return showToast('Vui lòng chọn ít nhất một hợp đồng để xóa!', 'warning');
     }
     
-    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${checkedBoxes.length} hợp đồng đã chọn?`, 'Xác nhận xóa');
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedIds.length} hợp đồng đã chọn?`, 'Xác nhận xóa');
     if (confirmed) {
         try {
-            for (const cb of checkedBoxes) {
-                await deleteDoc(doc(db, 'contracts', cb.dataset.id));
+            for (const id of selectedIds) {
+                await deleteDoc(doc(db, 'contracts', id));
             }
             
             // Reset trạng thái checkbox sau khi xóa thành công
+            selectedMobileContractIds.clear();
             resetBulkSelection();
             
-            showToast(`Đã xóa ${checkedBoxes.length} hợp đồng thành công!`);
+            showToast(`Đã xóa ${selectedIds.length} hợp đồng thành công!`);
             // Store listener tự động cập nhật
         } catch (error) {
             showToast('Lỗi xóa hợp đồng: ' + error.message, 'error');
@@ -850,6 +944,20 @@ function resetBulkSelection() {
     contractCheckboxes.forEach(checkbox => {
         checkbox.checked = false;
     });
+}
+
+/**
+ * Cập nhật hiển/ẩn nút bỏ chọn hàng loạt (chỉ hiện khi chọn >= 2)
+ */
+function updateClearSelectionButton() {
+    const btn = document.getElementById('clear-selection-contracts-btn');
+    if (btn) {
+        if (selectedMobileContractIds.size >= 2) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
 }
 
 /**

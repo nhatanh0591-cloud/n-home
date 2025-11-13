@@ -7,6 +7,7 @@ import { showToast, formatDate, formatTime, showConfirm } from '../utils.js';
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let notificationsCache = [];
 let notificationsCache_filtered = [];
+const selectedMobileNotificationIds = new Set();
 
 // Pagination variables
 const ITEMS_PER_PAGE = 20;
@@ -48,6 +49,28 @@ export function initNotifications() {
         document.querySelectorAll('.notification-checkbox').forEach(cb => {
             cb.checked = e.target.checked;
         });
+    });
+
+    // Lắng nghe mobile checkboxes
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('notification-checkbox-mobile')) {
+            const notificationId = e.target.dataset.id;
+            if (e.target.checked) {
+                selectedMobileNotificationIds.add(notificationId);
+            } else {
+                selectedMobileNotificationIds.delete(notificationId);
+            }
+            updateClearSelectionButton();
+        }
+    });
+
+    // Lắng nghe nút bỏ chọn
+    const clearSelectionBtn = document.getElementById('clear-selection-notifications-btn');
+    clearSelectionBtn?.addEventListener('click', () => {
+        selectedMobileNotificationIds.clear();
+        document.querySelectorAll('.notification-checkbox-mobile').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Đã bỏ chọn tất cả');
     });
 
     // Setup real-time listeners để nhận thông báo từ app
@@ -291,9 +314,14 @@ async function applyNotificationFilters() {
  */
 function renderNotificationsTable() {
     notificationsListEl.innerHTML = '';
+    const notificationsMobileListEl = document.getElementById('notifications-mobile-list');
+    if (notificationsMobileListEl) notificationsMobileListEl.innerHTML = '';
 
     if (notificationsCache_filtered.length === 0) {
         notificationsListEl.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-500">Không có thông báo nào.</td></tr>';
+        if (notificationsMobileListEl) {
+            notificationsMobileListEl.innerHTML = '<div class="p-8 text-center text-gray-500">Không có thông báo nào.</div>';
+        }
         // Ẩn pagination khi không có dữ liệu
         const paginationEl = document.getElementById('notifications-pagination');
         if (paginationEl) {
@@ -310,6 +338,7 @@ function renderNotificationsTable() {
 
     const customers = getCustomers();
 
+    // Render desktop table
     currentNotifications.forEach(notification => {
         const customer = customers.find(c => c.id === notification.customerId);
         const isUnread = !notification.isRead;
@@ -354,6 +383,66 @@ function renderNotificationsTable() {
         `;
         notificationsListEl.appendChild(tr);
     });
+
+    // Render mobile cards
+    if (notificationsMobileListEl) {
+        currentNotifications.forEach(notification => {
+            const customer = customers.find(c => c.id === notification.customerId);
+            const isUnread = !notification.isRead;
+            const isChecked = selectedMobileNotificationIds.has(notification.id);
+
+            const card = document.createElement('div');
+            card.className = 'mobile-card';
+            card.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="notification-checkbox-mobile w-5 h-5 cursor-pointer" data-id="${notification.id}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                    <span class="px-2 py-1 text-xs rounded-full ${isUnread ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}">
+                        ${isUnread ? 'Chưa đọc' : 'Đã đọc'}
+                    </span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tiêu đề:</span>
+                    <span class="mobile-card-value font-semibold">${notification.title || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Nội dung:</span>
+                    <span class="mobile-card-value whitespace-pre-wrap">${notification.message || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Khách hàng:</span>
+                    <span class="mobile-card-value">${customer?.name || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Thời gian:</span>
+                    <span class="mobile-card-value">${formatDateTime(notification.createdAt)}</span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button onclick="markAsRead('${notification.id}')" class="${isUnread ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-400'} text-white" title="${isUnread ? 'Đánh dấu đã đọc' : 'Đã đọc'}">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        ${isUnread ? 'Chưa đọc' : 'Đã đọc'}
+                    </button>
+                    ${notification.relatedType === 'task' ? 
+                        `<button onclick="goToTask('${notification.relatedId}')" class="bg-green-500 hover:bg-green-600 text-white" title="Xử lý sự cố">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                            </svg>
+                            Xử lý
+                        </button>` : ''
+                    }
+                    <button onclick="deleteNotification('${notification.id}')" class="bg-red-500 hover:bg-red-600 text-white" title="Xóa">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            notificationsMobileListEl.appendChild(card);
+        });
+    }
     
     // Render pagination
     renderNotificationsPagination(totalItems);
@@ -489,8 +578,15 @@ window.deleteNotification = async function(notificationId) {
  * Xóa nhiều thông báo
  */
 async function bulkDeleteNotifications() {
-    const selected = Array.from(document.querySelectorAll('.notification-checkbox:checked'))
-        .map(cb => cb.dataset.id);
+    let selected = [];
+    
+    // Sử dụng Set cho mobile, fallback cho desktop
+    if (selectedMobileNotificationIds.size > 0) {
+        selected = Array.from(selectedMobileNotificationIds);
+    } else {
+        selected = Array.from(document.querySelectorAll('.notification-checkbox:checked'))
+            .map(cb => cb.dataset.id);
+    }
     
     if (selected.length === 0) {
         showToast('Vui lòng chọn thông báo để xóa!', 'warning');
@@ -504,6 +600,10 @@ async function bulkDeleteNotifications() {
         for (const id of selected) {
             await deleteDoc(doc(db, 'adminNotifications', id));
         }
+        
+        // Xóa Set sau khi xóa thành công
+        selectedMobileNotificationIds.clear();
+        updateClearSelectionButton();
         
         loadNotifications();
         resetBulkSelection();
@@ -532,6 +632,20 @@ function resetBulkSelection() {
     const bulkActions = document.querySelector('.bulk-actions');
     if (bulkActions) {
         bulkActions.style.display = 'none';
+    }
+}
+
+/**
+ * Cập nhật nút bỏ chọn
+ */
+function updateClearSelectionButton() {
+    const clearBtn = document.getElementById('clear-selection-notifications-btn');
+    if (clearBtn) {
+        if (selectedMobileNotificationIds.size >= 2) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
     }
 }
 

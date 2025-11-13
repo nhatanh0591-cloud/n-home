@@ -7,6 +7,7 @@ import { showToast, openModal, closeModal, formatNumber, parseFormattedNumber, s
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let isCreatingServiceFromBuilding = false;
 let isCreatingServiceFromContract = false;
+let selectedMobileServiceIds = new Set(); // Checkbox mobile persistent
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Dịch vụ) ---
 const servicesSection = document.getElementById('services-section');
@@ -73,6 +74,14 @@ export function initServices() {
     searchEl.addEventListener('input', loadServices);
     selectAllCheckbox.addEventListener('change', (e) => {
         document.querySelectorAll('.service-checkbox').forEach(cb => cb.checked = e.target.checked);
+    });
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-services-btn')?.addEventListener('click', () => {
+        selectedMobileServiceIds.clear();
+        document.querySelectorAll('.service-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Bỏ chọn thành công!');
     });
 
     // Nút chọn tất cả/bỏ chọn tòa nhà trong modal dịch vụ
@@ -178,6 +187,8 @@ export function loadServices() {
  */
 function renderServicesTable(services) {
     servicesListEl.innerHTML = ''; // Xóa bảng cũ
+    const mobileListEl = document.getElementById('services-mobile-list');
+    if (mobileListEl) mobileListEl.innerHTML = '';
 
     if (services.length === 0) {
         servicesListEl.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-500">Chưa có phí dịch vụ nào.</td></tr>';
@@ -187,11 +198,12 @@ function renderServicesTable(services) {
     const allBuildings = getBuildings();
 
     services.forEach(service => {
-        const tr = document.createElement('tr');
-        tr.className = 'border-b hover:bg-gray-50';
-        
         // Đếm số tòa nhà mà dịch vụ này áp dụng
         const buildingCount = service.buildings && service.buildings.length > 0 ? service.buildings.length : 0;
+        
+        // 🖥️ RENDER DESKTOP ROW
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-gray-50';
         
         tr.innerHTML = `
             <td class="py-4 px-4">
@@ -217,6 +229,48 @@ function renderServicesTable(services) {
             </td>
         `;
         servicesListEl.appendChild(tr);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileListEl) {
+            const isChecked = selectedMobileServiceIds.has(service.id);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="service-checkbox w-5 h-5 cursor-pointer" data-id="${service.id}" data-name="${service.name}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tên dịch vụ:</span>
+                    <span class="mobile-card-value font-semibold">${service.name}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Đơn giá:</span>
+                    <span class="mobile-card-value font-bold text-green-600">${formatNumber(service.price)} VNĐ</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Đơn vị:</span>
+                    <span class="mobile-card-value">${service.unit}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Áp dụng cho:</span>
+                    <button data-id="${service.id}" class="view-service-buildings-btn inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${buildingCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                        ${buildingCount} tòa nhà
+                    </button>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${service.id}" class="edit-service-btn bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button data-id="${service.id}" class="delete-service-btn bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        }
     });
 }
 
@@ -290,6 +344,16 @@ async function handleBodyClick(e) {
                 showToast('Lỗi xóa dịch vụ: ' + error.message, 'error');
             }
         }
+    }
+    // Checkbox mobile
+    else if (target.classList.contains('service-checkbox')) {
+        const serviceId = target.dataset.id;
+        if (target.checked) {
+            selectedMobileServiceIds.add(serviceId);
+        } else {
+            selectedMobileServiceIds.delete(serviceId);
+        }
+        updateClearSelectionButton();
     }
     // Nút "Xóa nhiều"
     else if (target.id === 'bulk-delete-services-btn' || target.closest('#bulk-delete-services-btn')) {
@@ -433,8 +497,18 @@ async function handleServiceFormSubmit(e) {
  * Xử lý Xóa nhiều
  */
 async function handleBulkDelete() {
-    const selected = Array.from(document.querySelectorAll('.service-checkbox:checked'))
-        .map(cb => ({ id: cb.dataset.id, name: cb.dataset.name }));
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selected;
+    if (selectedMobileServiceIds.size > 0) {
+        const allServices = getServices();
+        selected = Array.from(selectedMobileServiceIds).map(id => {
+            const service = allServices.find(s => s.id === id);
+            return { id, name: service?.name || 'N/A' };
+        });
+    } else {
+        selected = Array.from(document.querySelectorAll('.service-checkbox:checked'))
+            .map(cb => ({ id: cb.dataset.id, name: cb.dataset.name }));
+    }
 
     if (selected.length === 0) {
         showToast('Vui lòng chọn ít nhất 1 dịch vụ để xóa!', 'error');
@@ -457,7 +531,9 @@ async function handleBulkDelete() {
         }
         
         // Reset trạng thái checkbox sau khi xóa thành công
+        selectedMobileServiceIds.clear();
         resetBulkSelection();
+        updateClearSelectionButton();
         
         showToast(`Đã xóa ${selected.length} dịch vụ thành công!`);
         // Store listener sẽ tự động cập nhật
@@ -524,6 +600,20 @@ function resetBulkSelection() {
     serviceCheckboxes.forEach(checkbox => {
         checkbox.checked = false;
     });
+}
+
+/**
+ * Cập nhật trạng thái hiển thị nút bỏ chọn hàng loạt
+ */
+function updateClearSelectionButton() {
+    const clearBtn = document.getElementById('clear-selection-services-btn');
+    if (clearBtn) {
+        if (selectedMobileServiceIds.size >= 2) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+    }
 }
 
 /**

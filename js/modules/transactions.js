@@ -13,6 +13,7 @@ let transactionsCache_filtered = []; // Cache đã lọc
 let transactionCategoriesCache = []; // Cache cho loại thu chi
 let currentTransactionItems = []; // Hạng mục tạm thời cho modal
 let skipSortAfterEdit = false; // Flag để không sort sau khi edit
+const selectedMobileTransactionIds = new Set(); // Set lưu trạng thái checkbox mobile
 
 // Pagination variables
 let currentPage = 1;
@@ -125,6 +126,27 @@ export function initTransactions() {
             cb.checked = e.target.checked;
         });
         updateBulkApprovalButtons();
+    });
+    
+    // Checkbox mobile events
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('transaction-checkbox-mobile')) {
+            const transactionId = e.target.dataset.id;
+            if (e.target.checked) {
+                selectedMobileTransactionIds.add(transactionId);
+            } else {
+                selectedMobileTransactionIds.delete(transactionId);
+            }
+            updateBulkApprovalButtons();
+        }
+    });
+    
+    // Clear selection button
+    document.getElementById('clear-selection-transactions-btn')?.addEventListener('click', () => {
+        selectedMobileTransactionIds.clear();
+        document.querySelectorAll('.transaction-checkbox-mobile').forEach(cb => cb.checked = false);
+        updateBulkApprovalButtons();
+        showToast('Bỏ chọn thành công!');
     });
     
     // Lắng nghe các input trong modal thu chi
@@ -403,6 +425,95 @@ function renderTransactionsTable(transactions) {
             
             transactionsListEl.appendChild(tr);
         });
+        
+        // 📱 RENDER MOBILE CARDS
+        const mobileListEl = document.getElementById('transactions-mobile-list');
+        if (mobileListEl) {
+            mobileListEl.innerHTML = '';
+            transactionsToShow.forEach(t => {
+                const building = buildings.find(b => b.id === t.buildingId);
+                const customer = customers.find(c => c.id === t.customerId);
+                const account = accounts.find(a => a.id === t.accountId);
+                const accountDisplay = account 
+                    ? (account.bank && account.accountHolder 
+                        ? `${account.bank} - ${account.accountHolder}`
+                        : (account.bank || account.accountHolder || '-'))
+                    : '-';
+                
+                const totalAmount = t.items && t.items.length > 0 
+                    ? t.items.reduce((sum, item) => sum + (item.amount || 0), 0)
+                    : 0;
+                
+                const isChecked = selectedMobileTransactionIds.has(t.id);
+                
+                const mobileCard = document.createElement('div');
+                mobileCard.className = 'mobile-card';
+                mobileCard.innerHTML = `
+                    <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                        <input type="checkbox" class="transaction-checkbox-mobile w-5 h-5 cursor-pointer" data-id="${t.id}" data-approved="${t.approved || false}" ${isChecked ? 'checked' : ''}>
+                        <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Tên phiếu:</span>
+                        <span class="mobile-card-value font-bold text-lg">${t.title || 'N/A'}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Loại:</span>
+                        <span class="mobile-card-value font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? 'Thu' : 'Chi'}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Tòa nhà:</span>
+                        <span class="mobile-card-value">${building ? building.code : '-'}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Người ${t.type === 'income' ? 'nộp' : 'nhận'}:</span>
+                        <span class="mobile-card-value">${t.payer || (customer ? customer.name : '-')}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Ngày thực ${t.type === 'income' ? 'thu' : 'chi'}:</span>
+                        <span class="mobile-card-value">${formatDateForDisplay(t.date)}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Số tiền:</span>
+                        <span class="mobile-card-value font-bold text-green-600">${formatMoney(totalAmount)}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Sổ quỹ:</span>
+                        <span class="mobile-card-value text-sm">${accountDisplay}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Trạng thái:</span>
+                        <span class="px-2 py-1 text-xs rounded-full ${t.approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                            ${t.approved ? 'Đã duyệt' : 'Chưa duyệt'}
+                        </span>
+                    </div>
+                    <div class="mobile-card-actions">
+                        <button data-id="${t.id}" class="toggle-transaction-approve-btn ${t.approved ? 'bg-gray-400' : 'bg-green-500'} hover:opacity-90 text-white">
+                            ${t.approved ? 
+                                '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>' :
+                                '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>'
+                            }
+                            ${t.approved ? 'Bỏ duyệt' : 'Duyệt'}
+                        </button>
+                        ${t.approved ? 
+                            '<button class="bg-gray-300 text-gray-500 cursor-not-allowed" disabled>Sửa</button>' :
+                            '<button data-id="' + t.id + '" class="edit-transaction-btn bg-gray-500 hover:bg-gray-600 text-white">' +
+                                '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>' +
+                                'Sửa' +
+                            '</button>'
+                        }
+                        ${t.approved ? 
+                            '<button class="bg-gray-300 text-gray-500 cursor-not-allowed" disabled>Xóa</button>' :
+                            '<button data-id="' + t.id + '" class="delete-transaction-btn bg-red-500 hover:bg-red-600 text-white">' +
+                                '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>' +
+                                'Xóa' +
+                            '</button>'
+                        }
+                    </div>
+                `;
+                mobileListEl.appendChild(mobileCard);
+            });
+        }
         
         // Cập nhật bulk buttons sau khi render xong
         updateBulkApprovalButtons();
@@ -957,13 +1068,40 @@ async function deleteTransaction(id) {
     }
 
     try {
-        // Nếu phiếu này liên kết với hóa đơn, cập nhật hóa đơn
+        // Nếu phiếu này liên kết với hóa đơn, cập nhật hóa đơn và xóa thông báo
         if (t.billId) {
             await setDoc(doc(db, 'bills', t.billId), {
                 status: 'unpaid',
+                paidAmount: 0,
                 updatedAt: serverTimestamp()
             }, { merge: true });
-            showToast('Đã xóa phiếu và cập nhật hóa đơn!');
+            
+            // Xóa thông báo thu tiền liên quan đến hóa đơn này
+            console.log('🗑️ Xóa phiếu thu - tìm và xóa thông báo thu tiền cho bill:', t.billId);
+            try {
+                const { query, where, getDocs, deleteDoc, doc } = await import('../firebase.js');
+                const notificationsQuery = query(
+                    collection(db, 'adminNotifications'),
+                    where('billId', '==', t.billId),
+                    where('type', '==', 'payment_collected')
+                );
+                const notificationsSnapshot = await getDocs(notificationsQuery);
+                
+                const deletePromises = notificationsSnapshot.docs.map(notifDoc => 
+                    deleteDoc(doc(db, 'adminNotifications', notifDoc.id))
+                );
+                
+                if (deletePromises.length > 0) {
+                    await Promise.all(deletePromises);
+                    console.log(`✅ Đã xóa ${deletePromises.length} thông báo thu tiền cho bill ${t.billId}`);
+                } else {
+                    console.log('ℹ️ Không tìm thấy thông báo thu tiền để xóa cho bill:', t.billId);
+                }
+            } catch (error) {
+                console.error('❌ Lỗi khi xóa thông báo thu tiền:', error);
+            }
+            
+            showToast('Đã xóa phiếu, cập nhật hóa đơn và xóa thông báo!');
         }
         
         await deleteDoc(doc(db, 'transactions', id));
@@ -1359,8 +1497,10 @@ async function bulkApproveTransactions(approve) {
             }
         }
         
-        // Reset trạng thái checkbox và ẩn nút hàng loạt
+        // Reset trạng thái
+        selectedMobileTransactionIds.clear();
         resetBulkSelection();
+        updateBulkApprovalButtons();
         
         // Set flag để không sort lại sau khi bulk approve
         skipSortAfterEdit = true;
@@ -1376,10 +1516,18 @@ async function bulkApproveTransactions(approve) {
  * Lấy danh sách ID các transaction được chọn
  */
 function getSelectedTransactionIds(filter = null) {
-    const checkboxes = document.querySelectorAll('.transaction-checkbox:checked');
     const allTransactions = getTransactions();
     
-    return Array.from(checkboxes).map(cb => cb.dataset.id).filter(id => {
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selectedIds;
+    if (selectedMobileTransactionIds.size > 0) {
+        selectedIds = Array.from(selectedMobileTransactionIds);
+    } else {
+        const checkboxes = document.querySelectorAll('.transaction-checkbox:checked');
+        selectedIds = Array.from(checkboxes).map(cb => cb.dataset.id);
+    }
+    
+    return selectedIds.filter(id => {
         if (!filter) return true;
         const transaction = allTransactions.find(t => t.id === id);
         return transaction && filter(transaction);
@@ -1409,17 +1557,28 @@ function resetBulkSelection() {
  * Cập nhật hiển thị nút bulk approval
  */
 function updateBulkApprovalButtons() {
-    const checkedBoxes = document.querySelectorAll('.transaction-checkbox:checked');
-    if (checkedBoxes.length === 0) {
+    // Kiểm tra cả Set mobile và desktop checkboxes
+    const mobileCount = selectedMobileTransactionIds.size;
+    const desktopChecked = document.querySelectorAll('.transaction-checkbox:checked').length;
+    const totalSelected = Math.max(mobileCount, desktopChecked);
+    
+    if (totalSelected === 0) {
         if (bulkApproveTransactionsBtn) bulkApproveTransactionsBtn.classList.add('hidden');
         if (bulkUnapproveTransactionsBtn) bulkUnapproveTransactionsBtn.classList.add('hidden');
+        updateClearSelectionButton();
         return;
     }
     
     // Lấy trạng thái approved của các transaction được chọn
     const allTransactions = getTransactions();
-    const states = Array.from(checkedBoxes).map(cb => {
-        const transactionId = cb.dataset.id;
+    let selectedIds;
+    if (selectedMobileTransactionIds.size > 0) {
+        selectedIds = Array.from(selectedMobileTransactionIds);
+    } else {
+        selectedIds = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => cb.dataset.id);
+    }
+    
+    const states = selectedIds.map(transactionId => {
         const transaction = allTransactions.find(t => t.id === transactionId);
         return transaction ? transaction.approved : false;
     });
@@ -1433,6 +1592,23 @@ function updateBulkApprovalButtons() {
     }
     if (bulkUnapproveTransactionsBtn) {
         bulkUnapproveTransactionsBtn.classList.toggle('hidden', !allApproved);
+    }
+    
+    // Cập nhật clear button
+    updateClearSelectionButton();
+}
+
+/**
+ * Cập nhật trạng thái hiển thị nút bỏ chọn hàng loạt
+ */
+function updateClearSelectionButton() {
+    const clearBtn = document.getElementById('clear-selection-transactions-btn');
+    if (clearBtn) {
+        if (selectedMobileTransactionIds.size >= 2) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
     }
 }
 

@@ -30,6 +30,7 @@ import {
 // Cache và biến global
 let tasksCache = [];
 let buildingsCache = [];
+const selectedMobileTaskIds = new Set();
 
 // Pagination variables
 const ITEMS_PER_PAGE = 20;
@@ -123,9 +124,33 @@ function setupEventListeners() {
     // Form submit
     taskForm?.addEventListener('submit', handleTaskFormSubmit);
     
-    // Bulk delete
+    // Bulk actions
     bulkDeleteTasksBtn?.addEventListener('click', handleBulkDeleteTasks);
+    document.getElementById('bulk-complete-tasks-btn')?.addEventListener('click', handleBulkCompleteTasks);
     selectAllTasksBtn?.addEventListener('change', handleSelectAllTasks);
+    
+    // Checkbox mobile events
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('task-checkbox-mobile')) {
+            const taskId = e.target.dataset.id;
+            if (e.target.checked) {
+                selectedMobileTaskIds.add(taskId);
+            } else {
+                selectedMobileTaskIds.delete(taskId);
+            }
+            updateClearSelectionButton();
+            updateBulkCompleteButton();
+        }
+    });
+    
+    // Clear selection button
+    document.getElementById('clear-selection-tasks-btn')?.addEventListener('click', () => {
+        selectedMobileTaskIds.clear();
+        document.querySelectorAll('.task-checkbox-mobile').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        updateBulkCompleteButton();
+        showToast('Bỏ chọn thành công!');
+    });
     
     // Filters
     filterTaskBuildingEl?.addEventListener('change', handleFilterBuildingChange);
@@ -292,14 +317,19 @@ function handleFilterBuildingChange() {
 function renderTasks(tasks = tasksCache) {
     if (!tasksListEl) return;
     
+    const mobileListEl = document.getElementById('tasks-mobile-list');
+    
     if (tasks.length === 0) {
         tasksListEl.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-8 text-gray-500">
+                <td colspan="8" class="text-center py-8 text-gray-500">
                     Chưa có công việc nào. Nhấn nút "+" để thêm mới.
                 </td>
             </tr>
         `;
+        if (mobileListEl) {
+            mobileListEl.innerHTML = '<div class="text-center py-8 text-gray-500">Chưa có công việc nào. Nhấn nút "+" để thêm mới.</div>';
+        }
         // Ẩn pagination khi không có dữ liệu
         const paginationEl = document.getElementById('tasks-pagination');
         if (paginationEl) {
@@ -314,6 +344,7 @@ function renderTasks(tasks = tasksCache) {
     const endIndex = startIndex + ITEMS_PER_PAGE;
     const currentTasks = tasks.slice(startIndex, endIndex);
     
+    // 🖥️ RENDER DESKTOP TABLE
     tasksListEl.innerHTML = currentTasks.map(task => {
         const building = buildingsCache.find(b => b.id === task.buildingId);
         const buildingName = building ? building.code : 'N/A';
@@ -366,6 +397,85 @@ function renderTasks(tasks = tasksCache) {
             </tr>
         `;
     }).join('');
+    
+    // 📱 RENDER MOBILE CARDS
+    if (mobileListEl) {
+        mobileListEl.innerHTML = '';
+        currentTasks.forEach(task => {
+            const building = buildingsCache.find(b => b.id === task.buildingId);
+            const buildingName = building ? building.code : 'N/A';
+            const isChecked = selectedMobileTaskIds.has(task.id);
+            
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="task-checkbox-mobile w-5 h-5 cursor-pointer" data-id="${task.id}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Công việc:</span>
+                    <span class="mobile-card-value font-bold text-lg">${task.title}</span>
+                </div>
+                ${task.description ? `
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Mô tả:</span>
+                    <span class="mobile-card-value text-gray-600">${task.description}</span>
+                </div>
+                ` : ''}
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tòa nhà:</span>
+                    <span class="mobile-card-value">${buildingName}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Phòng:</span>
+                    <span class="mobile-card-value">${task.room || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Người báo:</span>
+                    <span class="mobile-card-value">${task.reporter}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Ngày báo cáo:</span>
+                    <span class="mobile-card-value">${formatDateTime(task.createdAt)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Trạng thái:</span>
+                    <span class="px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(task.status)}">
+                        ${getStatusText(task.status)}
+                    </span>
+                </div>
+                ${task.imageUrls && task.imageUrls.length > 0 ? `
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Hình ảnh:</span>
+                    <button onclick="viewTaskImages('${task.id}')" class="inline-flex items-center px-3 py-1 rounded-lg bg-blue-100 text-blue-800 text-sm font-medium hover:bg-blue-200">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        ${task.imageUrls.length} ảnh
+                    </button>
+                </div>
+                ` : ''}
+                <div class="mobile-card-actions">
+                    <button onclick="toggleTaskStatus('${task.id}')" class="${getStatusButtonClass(task.status)} text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Nghiệm thu
+                    </button>
+                    <button onclick="editTask('${task.id}')" class="bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button onclick="deleteTask('${task.id}')" class="bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        });
+    }
     
     // Render pagination
     renderTasksPagination(totalItems);
@@ -545,6 +655,90 @@ window.deleteTask = async function(taskId) {
 /**
  * Toggle task status - global function
  */
+/**
+ * Bulk complete tasks - nghiệm thu hàng loạt
+ */
+async function handleBulkCompleteTasks() {
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selectedIds;
+    if (selectedMobileTaskIds.size > 0) {
+        selectedIds = Array.from(selectedMobileTaskIds);
+    } else {
+        selectedIds = Array.from(document.querySelectorAll('.task-checkbox:checked'))
+            .map(checkbox => checkbox.dataset.id);
+    }
+    
+    if (selectedIds.length === 0) {
+        showToast('Vui lòng chọn ít nhất một công việc để nghiệm thu!', 'warning');
+        return;
+    }
+    
+    const confirmed = await showConfirm(`Bạn có chắc chắn muốn nghiệm thu ${selectedIds.length} công việc đã chọn?`, 'Xác nhận nghiệm thu');
+    if (!confirmed) return;
+    
+    try {
+        let totalImagesDeleted = 0;
+        
+        // Xử lý từng task
+        for (const taskId of selectedIds) {
+            const task = tasksCache.find(t => t.id === taskId);
+            if (!task) continue;
+            
+            // Nếu task có ảnh, xóa ảnh trước
+            if (task.imageUrls && task.imageUrls.length > 0) {
+                const deletePromises = task.imageUrls.map(url => {
+                    try {
+                        const path = decodeURIComponent(url.split('/o/')[1].split('?')[0]);
+                        const imageRef = ref(storage, path);
+                        return deleteObject(imageRef);
+                    } catch (err) {
+                        console.error('Error deleting image:', err);
+                        return Promise.resolve();
+                    }
+                });
+                
+                await Promise.all(deletePromises);
+                totalImagesDeleted += task.imageUrls.length;
+                
+                // Cập nhật task với status completed và xóa imageUrls
+                await updateDoc(doc(db, 'tasks', taskId), {
+                    status: 'completed',
+                    imageUrls: [],
+                    images: 0,
+                    updatedAt: serverTimestamp()
+                });
+            } else {
+                // Chỉ cập nhật status
+                await updateDoc(doc(db, 'tasks', taskId), {
+                    status: 'completed',
+                    updatedAt: serverTimestamp()
+                });
+            }
+            
+            // Gửi thông báo
+            await sendTaskCompletionNotification(task);
+        }
+        
+        // Reset trạng thái
+        selectedMobileTaskIds.clear();
+        if (selectAllTasksBtn) selectAllTasksBtn.checked = false;
+        document.querySelectorAll('.task-checkbox, .task-checkbox-mobile').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        updateBulkCompleteButton();
+        
+        const message = totalImagesDeleted > 0 
+            ? `Đã nghiệm thu ${selectedIds.length} công việc và xóa ${totalImagesDeleted} ảnh!`
+            : `Đã nghiệm thu ${selectedIds.length} công việc!`;
+        
+        showToast(message, 'success');
+        await loadTasks();
+        
+    } catch (error) {
+        console.error('Error bulk completing tasks:', error);
+        showToast('Lỗi khi nghiệm thu: ' + error.message, 'error');
+    }
+}
+
 window.toggleTaskStatus = async function(taskId) {
     const task = tasksCache.find(t => t.id === taskId);
     if (!task) return;
@@ -669,8 +863,14 @@ function handleSelectAllTasks() {
  * Handle bulk delete tasks
  */
 async function handleBulkDeleteTasks() {
-    const selectedIds = Array.from(document.querySelectorAll('.task-checkbox:checked'))
-        .map(checkbox => checkbox.dataset.id);
+    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+    let selectedIds;
+    if (selectedMobileTaskIds.size > 0) {
+        selectedIds = Array.from(selectedMobileTaskIds);
+    } else {
+        selectedIds = Array.from(document.querySelectorAll('.task-checkbox:checked'))
+            .map(checkbox => checkbox.dataset.id);
+    }
     
     if (selectedIds.length === 0) {
         showToast('Vui lòng chọn ít nhất một công việc để xóa!', 'warning');
@@ -689,11 +889,14 @@ async function handleBulkDeleteTasks() {
         const notificationDeletePromises = selectedIds.map(taskId => deleteRelatedNotifications(taskId));
         await Promise.all(notificationDeletePromises);
         
+        // Reset trạng thái
+        selectedMobileTaskIds.clear();
+        if (selectAllTasksBtn) selectAllTasksBtn.checked = false;
+        document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        
         showToast(`Đã xóa ${selectedIds.length} công việc và thông báo liên quan!`, 'success');
         await loadTasks();
-        
-        // Uncheck select all
-        if (selectAllTasksBtn) selectAllTasksBtn.checked = false;
         
     } catch (error) {
         console.error('Error bulk deleting tasks:', error);
@@ -784,6 +987,35 @@ window.viewTaskImages = function(taskId) {
     modal.appendChild(content);
     document.body.appendChild(modal);
 };
+
+/**
+ * Cập nhật trạng thái hiển thị nút bỏ chọn hàng loạt
+ */
+function updateClearSelectionButton() {
+    const clearBtn = document.getElementById('clear-selection-tasks-btn');
+    if (clearBtn) {
+        if (selectedMobileTaskIds.size >= 2) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+    }
+}
+
+/**
+ * Cập nhật trạng thái hiển thị nút nghiệm thu hàng loạt
+ */
+function updateBulkCompleteButton() {
+    const bulkCompleteBtn = document.getElementById('bulk-complete-tasks-btn');
+    if (bulkCompleteBtn) {
+        // Hiển nút khi có ít nhất 2 task được chọn
+        if (selectedMobileTaskIds.size >= 2) {
+            bulkCompleteBtn.classList.remove('hidden');
+        } else {
+            bulkCompleteBtn.classList.add('hidden');
+        }
+    }
+}
 
 /**
  * Gửi thông báo đẩy khi hoàn thành task

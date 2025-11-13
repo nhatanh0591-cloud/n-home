@@ -8,6 +8,7 @@ import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showC
 let currentCustomerPage = 1;
 const customersPerPage = 20;
 let customersCache_filtered = []; // Cache đã lọc để phân trang
+let selectedMobileCustomerIds = new Set(); // Checkbox mobile persistent
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Khách hàng) ---
 const customersSection = document.getElementById('customers-section');
@@ -69,6 +70,14 @@ export function initCustomers() {
     
     // Lắng nghe form
     customerForm.addEventListener('submit', handleCustomerFormSubmit);
+    
+    // Lắng nghe nút bỏ chọn hàng loạt
+    document.getElementById('clear-selection-customers-btn')?.addEventListener('click', () => {
+        selectedMobileCustomerIds.clear();
+        document.querySelectorAll('.customer-checkbox').forEach(cb => cb.checked = false);
+        updateClearSelectionButton();
+        showToast('Bỏ chọn thành công!');
+    });
 
     // Lắng nghe bộ lọc
     filterBuildingEl.addEventListener('change', () => { currentCustomerPage = 1; loadCustomers(); });
@@ -197,9 +206,14 @@ export function loadCustomers() {
  */
 function renderCustomersPage() {
     customersListEl.innerHTML = '';
+    const mobileListEl = document.getElementById('customers-mobile-list');
+    if (mobileListEl) mobileListEl.innerHTML = '';
 
     if (customersCache_filtered.length === 0) {
         customersListEl.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-500">Không tìm thấy khách hàng nào.</td></tr>';
+        if (mobileListEl) {
+            mobileListEl.innerHTML = '<div class="p-8 text-center text-gray-500">Không tìm thấy khách hàng nào.</div>';
+        }
         updateCustomerPagination();
         return;
     }
@@ -245,6 +259,55 @@ function renderCustomersPage() {
             </td>
         `;
         customersListEl.appendChild(tr);
+        
+        // 📱 RENDER MOBILE CARD
+        if (mobileListEl) {
+            const customerId = customer.originalCustomerId || customer.id;
+            const isChecked = selectedMobileCustomerIds.has(customerId);
+            const mobileCard = document.createElement('div');
+            mobileCard.className = 'mobile-card';
+            mobileCard.innerHTML = `
+                <div class="flex items-center gap-3 mb-3 pb-3 border-b">
+                    <input type="checkbox" class="customer-checkbox w-5 h-5 cursor-pointer" data-id="${customerId}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Họ tên:</span>
+                    <span class="mobile-card-value font-semibold">${customer.name}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Số điện thoại:</span>
+                    <span class="mobile-card-value">
+                        <a href="tel:${customer.phone}" class="text-blue-600 hover:text-blue-800">${customer.phone}</a>
+                    </span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tòa nhà:</span>
+                    <span class="mobile-card-value">${customer.buildingName || '-'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Phòng:</span>
+                    <span class="mobile-card-value">${customer.roomName || '-'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Trạng thái:</span>
+                    <span class="mobile-card-value">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.className}">${statusInfo.text}</span>
+                    </span>
+                </div>
+                <div class="mobile-card-actions">
+                    <button data-id="${customer.originalCustomerId || customer.id}" class="edit-customer-btn bg-gray-500 hover:bg-gray-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                        Sửa
+                    </button>
+                    <button data-id="${customer.originalCustomerId || customer.id}" class="delete-customer-btn bg-red-500 hover:bg-red-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            `;
+            mobileListEl.appendChild(mobileCard);
+        }
     });
 
     updateCustomerPagination();
@@ -365,9 +428,19 @@ async function handleBodyClick(e) {
     else if (target.id === 'export-customers-btn' || target.closest('#export-customers-btn')) {
         handleExport();
     }
-    // Nút đóng modal
+    // Nút "Đóng modal"
     else if (target.id === 'close-customer-modal' || target.id === 'cancel-customer-btn') {
         closeModal(customerModal);
+    }
+    // Checkbox mobile
+    else if (target.classList.contains('customer-checkbox')) {
+        const customerId = target.dataset.id;
+        if (target.checked) {
+            selectedMobileCustomerIds.add(customerId);
+        } else {
+            selectedMobileCustomerIds.delete(customerId);
+        }
+        updateClearSelectionButton();
     }
 }
 
@@ -412,24 +485,26 @@ async function handleCustomerFormSubmit(e) {
  * Xử lý Xóa nhiều
  */
 async function handleBulkDelete() {
-    const checkedBoxes = document.querySelectorAll('.customer-checkbox:checked');
-    if (checkedBoxes.length === 0) {
+    // Lấy từ Set mobile nếu có, không thì lấy từ desktop checkboxes
+    const selectedIds = selectedMobileCustomerIds.size > 0
+        ? Array.from(selectedMobileCustomerIds)
+        : Array.from(document.querySelectorAll('.customer-checkbox:checked')).map(cb => cb.dataset.id);
+    
+    if (selectedIds.length === 0) {
         showToast('Vui lòng chọn ít nhất một khách hàng để xóa!', 'warning');
         return;
     }
     
-    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${checkedBoxes.length} khách hàng đã chọn?`, 'Xác nhận xóa');
+    const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedIds.length} khách hàng đã chọn?`, 'Xác nhận xóa');
     if (confirmed) {
         try {
-            // Lấy danh sách ID unique để tránh xóa trùng
-            const uniqueIds = [...new Set(Array.from(checkedBoxes).map(cb => cb.dataset.id))];
-            
-            for (const id of uniqueIds) {
+            for (const id of selectedIds) {
                 await deleteDoc(doc(db, 'customers', id));
             }
-            showToast(`Đã xóa ${uniqueIds.length} khách hàng thành công!`);
+            showToast(`Đá xóa ${selectedIds.length} khách hàng thành công!`);
             
             // Reset tất cả checkbox sau khi xóa thành công
+            selectedMobileCustomerIds.clear();
             document.querySelectorAll('.customer-checkbox').forEach(cb => cb.checked = false);
             if (selectAllCheckbox) selectAllCheckbox.checked = false;
             
@@ -459,7 +534,20 @@ function handleExport() {
     }));
     
     exportToExcel(data, 'Danh_sach_khach_hang');
-    showToast('Xuất dữ liệu thành công!');
+}
+
+/**
+ * Cập nhật hiển/ẩn nút bỏ chọn hàng loạt (chỉ hiện khi chọn >= 2)
+ */
+function updateClearSelectionButton() {
+    const btn = document.getElementById('clear-selection-customers-btn');
+    if (btn) {
+        if (selectedMobileCustomerIds.size >= 2) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    }
 }
 
 /**
