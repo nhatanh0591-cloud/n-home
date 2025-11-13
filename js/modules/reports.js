@@ -18,6 +18,14 @@ const reportsSection = document.getElementById('reports-section');
 const reportYearEl = document.getElementById('report-year');
 const reportsTableBody = document.getElementById('reports-table-body');
 
+// Category report elements
+const categoryReportMonthEl = document.getElementById('category-report-month');
+const categoryReportYearEl = document.getElementById('category-report-year');
+const categoryReportTableBody = document.getElementById('category-report-table-body');
+const categoryTotalIncomeEl = document.getElementById('category-total-income');
+const categoryTotalExpenseEl = document.getElementById('category-total-expense');
+const categoryTotalProfitEl = document.getElementById('category-total-profit');
+
 // Cache
 let transactionsCache = [];
 
@@ -30,10 +38,20 @@ export function initReports() {
     setupEventListeners();
     // Set current year as default
     const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    
     if (reportYearEl && !reportYearEl.value) {
         reportYearEl.value = currentYear;
     }
+    if (categoryReportYearEl && !categoryReportYearEl.value) {
+        categoryReportYearEl.value = currentYear;
+    }
+    if (categoryReportMonthEl && !categoryReportMonthEl.value) {
+        categoryReportMonthEl.value = currentMonth;
+    }
+    
     loadReportData();
+    loadCategoryReport();
 }
 
 /**
@@ -41,6 +59,8 @@ export function initReports() {
  */
 function setupEventListeners() {
     reportYearEl?.addEventListener('change', loadReportData);
+    categoryReportMonthEl?.addEventListener('change', loadCategoryReport);
+    categoryReportYearEl?.addEventListener('change', loadCategoryReport);
 }
 
 /**
@@ -283,4 +303,141 @@ function renderReport(quarters) {
 function getRomanNumeral(num) {
     const numerals = ['I', 'II', 'III', 'IV'];
     return numerals[num - 1] || num;
+}
+
+/**
+ * Load category report data
+ */
+async function loadCategoryReport() {
+    try {
+        const selectedMonth = categoryReportMonthEl?.value || 'all';
+        const selectedYear = parseInt(categoryReportYearEl?.value) || new Date().getFullYear();
+
+        console.log('Loading category report for:', { selectedMonth, selectedYear });
+
+        // Load transactions
+        const transactionsRef = collection(db, 'transactions');
+        const snapshot = await getDocs(query(transactionsRef, orderBy('date', 'desc')));
+        const transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Load transaction categories
+        const categoriesRef = collection(db, 'transactionCategories');
+        const categoriesSnapshot = await getDocs(categoriesRef);
+        const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Filter transactions by selected period
+        const filteredTransactions = transactions.filter(t => {
+            if (!t.date || !t.approved) return false;
+
+            const transactionDate = new Date(t.date);
+            const transactionYear = transactionDate.getFullYear();
+            const transactionMonth = transactionDate.getMonth() + 1;
+
+            if (transactionYear !== selectedYear) return false;
+            if (selectedMonth !== 'all' && transactionMonth !== parseInt(selectedMonth)) return false;
+
+            return true;
+        });
+
+        console.log('Filtered transactions:', filteredTransactions.length);
+
+        // Calculate totals by category
+        const categoryTotals = {};
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        // Initialize all categories
+        categories.forEach(category => {
+            categoryTotals[category.id] = {
+                name: category.name,
+                income: 0,
+                expense: 0,
+                profit: 0
+            };
+        });
+
+        // Process transactions
+        filteredTransactions.forEach(transaction => {
+            if (!transaction.items) return;
+
+            transaction.items.forEach(item => {
+                if (!item.categoryId || !item.amount) return;
+
+                const amount = parseFloat(item.amount) || 0;
+
+                if (!categoryTotals[item.categoryId]) {
+                    categoryTotals[item.categoryId] = {
+                        name: `Unknown Category (${item.categoryId})`,
+                        income: 0,
+                        expense: 0,
+                        profit: 0
+                    };
+                }
+
+                if (transaction.type === 'income') {
+                    categoryTotals[item.categoryId].income += amount;
+                    totalIncome += amount;
+                } else if (transaction.type === 'expense') {
+                    categoryTotals[item.categoryId].expense += amount;
+                    totalExpense += amount;
+                }
+
+                categoryTotals[item.categoryId].profit = 
+                    categoryTotals[item.categoryId].income - categoryTotals[item.categoryId].expense;
+            });
+        });
+
+        // Render table
+        renderCategoryReport(categoryTotals, totalIncome, totalExpense);
+
+    } catch (error) {
+        console.error('Error loading category report:', error);
+        if (categoryReportTableBody) {
+            categoryReportTableBody.innerHTML = '<tr><td colspan="4" class="py-4 px-4 text-center text-red-500">Lỗi tải dữ liệu báo cáo</td></tr>';
+        }
+    }
+}
+
+/**
+ * Render category report table
+ */
+function renderCategoryReport(categoryTotals, totalIncome, totalExpense) {
+    if (!categoryReportTableBody) return;
+
+    let html = '';
+    
+    // Sort categories by profit (descending)
+    const sortedCategories = Object.values(categoryTotals)
+        .filter(cat => cat.income > 0 || cat.expense > 0) // Only show categories with activity
+        .sort((a, b) => b.profit - a.profit);
+
+    if (sortedCategories.length === 0) {
+        html = '<tr><td colspan="4" class="py-4 px-4 text-center text-gray-500">Không có dữ liệu trong khoảng thời gian đã chọn</td></tr>';
+    } else {
+        sortedCategories.forEach(category => {
+            const profitClass = category.profit >= 0 ? 'text-green-600' : 'text-red-600';
+            
+            html += `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-3 px-4">${category.name}</td>
+                    <td class="py-3 px-4 text-right text-green-600">${formatMoney(category.income)}</td>
+                    <td class="py-3 px-4 text-right text-red-600">${formatMoney(category.expense)}</td>
+                    <td class="py-3 px-4 text-right ${profitClass}">${formatMoney(category.profit)}</td>
+                </tr>
+            `;
+        });
+    }
+
+    categoryReportTableBody.innerHTML = html;
+
+    // Update totals
+    const totalProfit = totalIncome - totalExpense;
+    const totalProfitClass = totalProfit >= 0 ? 'text-green-600' : 'text-red-600';
+
+    if (categoryTotalIncomeEl) categoryTotalIncomeEl.textContent = formatMoney(totalIncome);
+    if (categoryTotalExpenseEl) categoryTotalExpenseEl.textContent = formatMoney(totalExpense);
+    if (categoryTotalProfitEl) {
+        categoryTotalProfitEl.textContent = formatMoney(totalProfit);
+        categoryTotalProfitEl.className = `py-3 px-4 text-right ${totalProfitClass}`;
+    }
 }

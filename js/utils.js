@@ -72,9 +72,14 @@ export function parseDateInput(dateStr) {
     
     // 1. Nếu là số (từ Excel)
     if (typeof dateStr === 'number') {
-        const excelEpoch = new Date(1900, 0, 1);
-        const days = dateStr - 2; // Excel tính sai 1 ngày (năm 1900)
-        return new Date(excelEpoch.getTime() + days * 24 * 60 * 60 * 1000);
+        // Excel serial date: ngày 1/1/1900 = 1, nhưng Excel coi 1900 là năm nhuận sai
+        // Để chuyển đổi chính xác, ta cần điều chỉnh
+        const excelEpoch = new Date(1899, 11, 30); // 30/12/1899
+        const days = dateStr;
+        const result = new Date(excelEpoch.getTime() + days * 24 * 60 * 60 * 1000);
+        
+        // Đảm bảo sử dụng UTC để tránh vấn đề timezone
+        return new Date(result.getFullYear(), result.getMonth(), result.getDate());
     }
     
     // 2. Nếu là chuỗi
@@ -94,6 +99,12 @@ export function parseDateInput(dateStr) {
             const [day, month, year] = dateStr.split('/');
             return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         }
+        // Định dạng DD/MM/YYYY (với dấu phẩy hoặc khoảng trắng)
+        const cleanStr = dateStr.trim().replace(/[,\s]/g, '');
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(cleanStr)) {
+            const [day, month, year] = cleanStr.split('/');
+            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        }
     }
     
     // 3. Thử tạo Date trực tiếp (cho trường hợp ISO string)
@@ -103,6 +114,28 @@ export function parseDateInput(dateStr) {
     }
 
     return null;
+}
+
+/**
+ * Lấy ngày hiện tại dưới dạng YYYY-MM-DD (local timezone)
+ */
+export function getCurrentDateString() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Chuyển đổi Date object thành string YYYY-MM-DD (local timezone) 
+ */
+export function formatDateForStorage(date) {
+    if (!date) return null;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 /**

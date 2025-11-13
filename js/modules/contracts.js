@@ -5,7 +5,7 @@ import { getContracts, getBuildings, getCustomers, getServices } from '../store.
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    importFromExcel, exportToExcel, showConfirm
+    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -199,9 +199,34 @@ function applyContractFilters(contracts = null) {
         return true;
     });
     
-    // Sắp xếp theo phòng trước, sau đó theo ngày
+    // Sắp xếp theo: Ngày import MỚI NHẤT → Tòa nhà → Phòng (để dễ phát hiện hợp đồng vừa import)
     contractsCache_filtered.sort((a, b) => {
-        // Sắp xếp theo phòng trước
+        // 1️⃣ SẮP XẾP THEO NGÀY IMPORT TRƯỚC (mới nhất lên đầu, không tính giờ phút giây)
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        
+        // Lấy chỉ ngày, bỏ giờ phút giây để nhóm các hợp đồng import cùng ngày
+        const dayA = new Date(dateA.getFullYear(), dateA.getMonth(), dateA.getDate());
+        const dayB = new Date(dateB.getFullYear(), dateB.getMonth(), dateB.getDate());
+        
+        const dayCompare = dayB - dayA;
+        if (dayCompare !== 0) {
+            return dayCompare;
+        }
+
+        // 2️⃣ CÙNG NGÀY IMPORT - SẮP XẾP THEO TÒA NHÀ
+        const buildingA = getBuildings().find(bd => bd.id === a.buildingId);
+        const buildingB = getBuildings().find(bd => bd.id === b.buildingId);
+        
+        const buildingCodeA = buildingA ? buildingA.code : '';
+        const buildingCodeB = buildingB ? buildingB.code : '';
+        
+        const buildingCompare = buildingCodeA.localeCompare(buildingCodeB);
+        if (buildingCompare !== 0) {
+            return buildingCompare;
+        }
+        
+        // 3️⃣ CÙNG TÒA NHÀ - SẮP XẾP THEO PHÒNG
         const roomA = a.room;
         const roomB = b.room;
         
@@ -233,15 +258,10 @@ function applyContractFilters(contracts = null) {
         
         // Trong cùng category, so sánh theo value
         if (typeof valueA === 'number' && typeof valueB === 'number') {
-            const roomCompare = valueA - valueB;
-            if (roomCompare !== 0) return roomCompare;
+            return valueA - valueB;
         } else {
-            const roomCompare = valueA.toString().localeCompare(valueB.toString());
-            if (roomCompare !== 0) return roomCompare;
+            return valueA.toString().localeCompare(valueB.toString());
         }
-        
-        // Nếu cùng phòng, sắp xếp theo ngày tạo (mới nhất trước)
-        return parseDateInput(b.createdAt) - parseDateInput(a.createdAt);
     });
 
     // Cập nhật thống kê dựa trên data đã lọc
@@ -260,7 +280,7 @@ function renderContractsPage() {
     const totalItems = contractsCache_filtered.length;
 
     if (totalItems === 0) {
-        contractsListEl.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500">Không tìm thấy hợp đồng nào.</td></tr>';
+        contractsListEl.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-gray-500">Không tìm thấy hợp đồng nào.</td></tr>';
         updateContractPagination();
         return;
     }
@@ -278,13 +298,35 @@ function renderContractsPage() {
         const statusInfo = getStatusInfo(contract.status);
         const contractNumber = `CT${contract.id.slice(-6).toUpperCase()}`;
         
+        // Tính số người dựa vào dịch vụ nước
+        const getPeopleCount = (contract) => {
+            if (!contract.serviceDetails) return '-';
+            const waterService = contract.serviceDetails.find(s => {
+                const service = getServices().find(sv => sv.id === s.serviceId);
+                return service && service.name.toLowerCase().includes('nước') && service.unit.toLowerCase().includes('người');
+            });
+            return waterService ? waterService.quantity || 1 : '-';
+        };
+        
+        // Tính số xe dựa vào dịch vụ xe
+        const getVehicleCount = (contract) => {
+            if (!contract.serviceDetails) return '-';
+            const vehicleService = contract.serviceDetails.find(s => {
+                const service = getServices().find(sv => sv.id === s.serviceId);
+                return service && (service.name.toLowerCase().includes('xe') || service.name.toLowerCase().includes('gửi xe'));
+            });
+            return vehicleService ? vehicleService.quantity || 1 : '-';
+        };
+        
+        const peopleCount = getPeopleCount(contract);
+        const vehicleCount = getVehicleCount(contract);
+        
         const tr = document.createElement('tr');
         tr.className = 'border-b hover:bg-gray-50';
         tr.innerHTML = `
             <td class="py-4 px-4">
                 <input type="checkbox" class="contract-checkbox w-4 h-4 cursor-pointer" data-id="${contract.id}" data-code="${contractNumber}">
             </td>
-            <td class="py-4 px-4 font-medium text-blue-600">${contractNumber}</td>
             <td class="py-4 px-4">
                 <div class="flex gap-3">
                     <button data-id="${contract.id}" class="edit-contract-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
@@ -308,12 +350,15 @@ function renderContractsPage() {
             </td>
             <td class="py-4 px-4">${formatDateDisplay(contract.startDate)}</td>
             <td class="py-4 px-4">${formatDateDisplay(contract.endDate)}</td>
+            <td class="py-4 px-4 text-center">${peopleCount}</td>
+            <td class="py-4 px-4 text-center">${vehicleCount}</td>
+            <td class="py-4 px-4 whitespace-nowrap">${formatMoney(contract.rentPrice)} VNĐ</td>
+            <td class="py-4 px-4 whitespace-nowrap">${formatMoney(contract.deposit || 0)} VNĐ</td>
             <td class="py-4 px-4">
                 <span class="px-2 py-1 rounded-full text-xs font-medium ${statusInfo.className}">
                     ${statusInfo.text}
                 </span>
             </td>
-            <td class="py-4 px-4">${formatMoney(contract.rentPrice)} VNĐ</td>
         `;
         contractsListEl.appendChild(tr);
     });
@@ -696,8 +741,8 @@ async function handleContractFormSubmit(e) {
         const contractData = {
             buildingId,
             room,
-            startDate: parseDateInput(startDate).toISOString().split('T')[0],
-            endDate: parseDateInput(endDate).toISOString().split('T')[0],
+            startDate: formatDateForStorage(parseDateInput(startDate)),
+            endDate: formatDateForStorage(parseDateInput(endDate)),
             paymentDay,
             rentPrice,
             deposit,
@@ -823,6 +868,25 @@ function handleExport() {
         const customer = customers.find(cu => cu.id === c.representativeId);
         const statusInfo = getStatusInfo(c.status);
         
+        // Tính số người và số xe cho export
+        const getPeopleCountForExport = (contract) => {
+            if (!contract.serviceDetails) return 0;
+            const waterService = contract.serviceDetails.find(s => {
+                const service = getServices().find(sv => sv.id === s.serviceId);
+                return service && service.name.toLowerCase().includes('nước') && service.unit.toLowerCase().includes('người');
+            });
+            return waterService ? waterService.quantity || 1 : 0;
+        };
+        
+        const getVehicleCountForExport = (contract) => {
+            if (!contract.serviceDetails) return 0;
+            const vehicleService = contract.serviceDetails.find(s => {
+                const service = getServices().find(sv => sv.id === s.serviceId);
+                return service && (service.name.toLowerCase().includes('xe') || service.name.toLowerCase().includes('gửi xe'));
+            });
+            return vehicleService ? vehicleService.quantity || 1 : 0;
+        };
+
         return {
             'Mã HĐ': `CT${c.id.slice(-6).toUpperCase()}`,
             'Khách hàng': customer ? customer.name : 'N/A',
@@ -830,8 +894,11 @@ function handleExport() {
             'Phòng': c.room,
             'Bắt đầu': formatDateDisplay(c.startDate),
             'Kết thúc': formatDateDisplay(c.endDate),
-            'Trạng thái': statusInfo.text,
-            'Giá thuê': c.rentPrice
+            'Số người': getPeopleCountForExport(c),
+            'Số xe': getVehicleCountForExport(c),
+            'Giá thuê': c.rentPrice,
+            'Tiền cọc': c.deposit || 0,
+            'Trạng thái': statusInfo.text
         };
     });
     
@@ -1046,14 +1113,6 @@ async function handleImportSubmit() {
                     }
                     
                     // Create contract
-                    // Format dates properly without timezone issues
-                    const formatDateForStorage = (date) => {
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        return `${year}-${month}-${day}`;
-                    };
-                    
                     console.log(`🗓️ Date parsing for row ${rowNumber}:`);
                     console.log(`  Start date raw: "${row['Ngày bắt đầu']}" -> parsed: ${startDateParsed} -> formatted: ${formatDateForStorage(startDateParsed)}`);
                     console.log(`  End date raw: "${row['Ngày kết thúc']}" -> parsed: ${endDateParsed} -> formatted: ${formatDateForStorage(endDateParsed)}`);

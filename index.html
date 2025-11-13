@@ -495,9 +495,6 @@
                                             </th>
                                             <th class="py-3 px-4">Thao tác</th>
                                             <th class="py-3 px-4">Tên hạng mục</th>
-                                            <th class="py-3 px-4">Tổng thu</th>
-                                            <th class="py-3 px-4">Tổng chi</th>
-                                            <th class="py-3 px-4">Lãi/Lỗ</th>
                                         </tr>
                                     </thead>
                                     <tbody id="transaction-categories-management-list">
@@ -656,13 +653,15 @@
                                         <th class="py-3 px-4 w-12">
                                             <input type="checkbox" id="select-all-contracts" class="w-4 h-4 cursor-pointer">
                                         </th>
-                                        <th class="py-3 px-4">Mã hợp đồng</th>
                                         <th class="py-3 px-4">Thao tác</th>
                                         <th class="py-3 px-4">Khách hàng</th>
                                         <th class="py-3 px-4">Bắt đầu</th>
                                         <th class="py-3 px-4">Kết thúc</th>
+                                        <th class="py-3 px-4">Số người</th>
+                                        <th class="py-3 px-4">Số xe</th>
+                                        <th class="py-3 px-4 whitespace-nowrap">Giá thuê</th>
+                                        <th class="py-3 px-4 whitespace-nowrap">Tiền cọc</th>
                                         <th class="py-3 px-4">Trạng thái</th>
-                                        <th class="py-3 px-4">Giá thuê</th>
                                     </tr>
                                 </thead>
                                 <tbody id="contracts-list">
@@ -1202,6 +1201,70 @@
 
                 <!-- Reports Section -->
                 <div id="reports-section" class="hidden">
+                    <!-- Báo cáo theo hạng mục -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <h2 class="text-lg font-semibold">Báo cáo thu chi theo hạng mục</h2>
+                        </div>
+                        <div class="p-6">
+                            <div class="mb-4 flex gap-4 items-center">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Chọn tháng</label>
+                                    <select id="category-report-month" class="p-2.5 border rounded-lg bg-gray-50">
+                                        <option value="all">Tất cả tháng</option>
+                                        <option value="1">Tháng 1</option>
+                                        <option value="2">Tháng 2</option>
+                                        <option value="3">Tháng 3</option>
+                                        <option value="4">Tháng 4</option>
+                                        <option value="5">Tháng 5</option>
+                                        <option value="6">Tháng 6</option>
+                                        <option value="7">Tháng 7</option>
+                                        <option value="8">Tháng 8</option>
+                                        <option value="9">Tháng 9</option>
+                                        <option value="10">Tháng 10</option>
+                                        <option value="11">Tháng 11</option>
+                                        <option value="12">Tháng 12</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Chọn năm</label>
+                                    <select id="category-report-year" class="p-2.5 border rounded-lg bg-gray-50">
+                                        <option value="2025" selected>2025</option>
+                                        <option value="2024">2024</option>
+                                        <option value="2023">2023</option>
+                                        <option value="2022">2022</option>
+                                        <option value="2021">2021</option>
+                                        <option value="2020">2020</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="border-b text-left text-gray-600">
+                                            <th class="py-3 px-4">Tên hạng mục</th>
+                                            <th class="py-3 px-4 text-right">Tổng thu</th>
+                                            <th class="py-3 px-4 text-right">Tổng chi</th>
+                                            <th class="py-3 px-4 text-right">Lãi/Lỗ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="category-report-table-body">
+                                        <!-- Data will be loaded here -->
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="border-t-2 font-bold text-gray-800 bg-gray-50">
+                                            <td class="py-3 px-4">TỔNG CỘNG</td>
+                                            <td class="py-3 px-4 text-right text-green-600" id="category-total-income">0</td>
+                                            <td class="py-3 px-4 text-right text-red-600" id="category-total-expense">0</td>
+                                            <td class="py-3 px-4 text-right" id="category-total-profit">0</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Báo cáo theo tháng và quý (cũ) -->
                     <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
                         <div class="p-4 border-b">
                             <h2 class="text-lg font-semibold">Báo cáo thu chi theo tháng và quý</h2>

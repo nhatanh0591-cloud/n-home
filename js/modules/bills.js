@@ -5,7 +5,7 @@ import { getBills, getBuildings, getCustomers, getContracts, getServices, getAcc
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    importFromExcel, exportToExcel, showConfirm
+    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage
 } from '../utils.js';
 
 // --- HÀM HELPER ---
@@ -908,7 +908,7 @@ async function toggleBillStatus(billId) {
                 accountId: accountId, // LẤY TỪ TÒA NHÀ
                 title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
                 payer: customer?.name || 'Khách hàng',
-                date: new Date().toISOString().split('T')[0],
+                date: getCurrentDateString(),
                 items: items,
                 approved: true,
                 createdAt: serverTimestamp(),
@@ -1112,7 +1112,7 @@ async function bulkCollect() {
                     accountId: accountId,
                     title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
                     payer: customer?.name || 'Khách hàng',
-                    date: new Date().toISOString().split('T')[0],
+                    date: getCurrentDateString(),
                     items: items,
                     approved: true,
                     createdAt: serverTimestamp(),
@@ -1163,7 +1163,7 @@ async function bulkCollect() {
             await setDoc(doc(db, 'bills', billId), {
                 status: 'paid',
                 paidAmount: bill.totalAmount,
-                paidDate: new Date().toISOString().split('T')[0],
+                paidDate: getCurrentDateString(),
                 updatedAt: serverTimestamp()
             }, { merge: true });
         }

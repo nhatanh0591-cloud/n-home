@@ -109,14 +109,10 @@ async function loadTransactionCategoriesData() {
 function renderTransactionCategories() {
     if (!transactionCategoriesListEl) return;
 
-    // Calculate stats for each category
-    const transactions = getTransactions();
-    const categoryStats = calculateCategoryStats(transactions);
-
     if (transactionCategoriesCache.length === 0) {
         transactionCategoriesListEl.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center py-8 text-gray-500">
+                <td colspan="3" class="text-center py-8 text-gray-500">
                     Chưa có hạng mục nào. Nhấn nút "+" để thêm mới.
                 </td>
             </tr>
@@ -124,10 +120,7 @@ function renderTransactionCategories() {
         return;
     }
 
-    transactionCategoriesListEl.innerHTML = transactionCategoriesCache.map(category => {
-        const stats = categoryStats[category.id] || { income: 0, expense: 0 };
-        const profit = stats.income - stats.expense;
-        
+    transactionCategoriesListEl.innerHTML = transactionCategoriesCache.map(category => {        
         return `
             <tr class="border-b hover:bg-gray-50">
                 <td class="py-3 px-4">
@@ -148,41 +141,9 @@ function renderTransactionCategories() {
                     </div>
                 </td>
                 <td class="py-3 px-4 font-medium">${category.name}</td>
-                <td class="py-3 px-4 text-green-600 font-medium">${formatMoney(stats.income)}</td>
-                <td class="py-3 px-4 text-red-600 font-medium">${formatMoney(stats.expense)}</td>
-                <td class="py-3 px-4 font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}">
-                    ${formatMoney(Math.abs(profit))}
-                </td>
             </tr>
         `;
     }).join('');
-}
-
-/**
- * Tính toán thống kê cho từng hạng mục
- */
-function calculateCategoryStats(transactions) {
-    const stats = {};
-    
-    transactions.forEach(transaction => {
-        if (!transaction.items) return;
-        
-        transaction.items.forEach(item => {
-            if (!item.categoryId) return;
-            
-            if (!stats[item.categoryId]) {
-                stats[item.categoryId] = { income: 0, expense: 0 };
-            }
-            
-            if (transaction.type === 'income') {
-                stats[item.categoryId].income += item.amount || 0;
-            } else {
-                stats[item.categoryId].expense += item.amount || 0;
-            }
-        });
-    });
-    
-    return stats;
 }
 
 /**
