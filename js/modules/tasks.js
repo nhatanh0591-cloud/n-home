@@ -21,6 +21,7 @@ import {
 
 import { 
     showToast, 
+    openModal,
     closeModal,
     parseDateInput,
     showConfirm
@@ -349,14 +350,14 @@ function renderTasks(tasks = tasksCache) {
                         </button>
                     </div>
                 </td>
-                <td class="py-3 px-4">
+                <td class="py-3 px-4" style="word-wrap: break-word; word-break: break-word; max-width: 300px;">
                     <div class="font-medium text-gray-900">${task.title}</div>
                     ${task.description ? `<div class="text-sm text-gray-500">${task.description}</div>` : ''}
                 </td>
-                <td class="py-3 px-4">${buildingName}</td>
-                <td class="py-3 px-4">${task.room || 'N/A'}</td>
-                <td class="py-3 px-4">${task.reporter}</td>
-                <td class="py-3 px-4">${formatDateTime(task.createdAt)}</td>
+                <td class="py-3 px-4" style="white-space: nowrap;">${buildingName}</td>
+                <td class="py-3 px-4" style="white-space: nowrap;">${task.room || 'N/A'}</td>
+                <td class="py-3 px-4" style="white-space: nowrap;">${task.reporter}</td>
+                <td class="py-3 px-4" style="white-space: nowrap;">${formatDateTime(task.createdAt)}</td>
                 <td class="py-3 px-4">
                     <span class="px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(task.status)}">
                         ${getStatusText(task.status)}
@@ -460,8 +461,9 @@ function openTaskModal(taskData = null) {
         taskReporterEl.value = taskData.reporter;
     }
     
-    taskModal.classList.remove('hidden');
-    taskTitleEl.focus();
+    // 🔥 SỬA: Dùng helper openModal từ utils để xử lý animation đúng cách
+    openModal(taskModal);
+    setTimeout(() => taskTitleEl.focus(), 50); // Focus sau khi animation bắt đầu
 }
 
 /**
@@ -494,7 +496,12 @@ async function handleTaskFormSubmit(e) {
             showToast('Thêm công việc thành công!', 'success');
         }
         
+        // 🔥 SỬA: Đóng modal và reset form TRƯỚC KHI load lại data
         closeModal(taskModal);
+        taskForm.reset();
+        taskIdEl.value = '';
+        
+        // Load lại data sau khi đóng modal để tránh block UI
         await loadTasks();
         
     } catch (error) {

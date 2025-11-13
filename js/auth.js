@@ -72,6 +72,14 @@ export function initAuth() {
             } else if (isLoggedIn && savedEmail && USER_ROLES[savedEmail]) {
                 // Có trạng thái đăng nhập đã lưu, duy trì session
                 console.log("✅ Duy trì trạng thái đăng nhập từ localStorage:", savedEmail);
+                
+                // 🔥 SỬA: Tạo mock currentUser object để các hàm khác hoạt động
+                currentUser = {
+                    email: savedEmail,
+                    uid: 'local-' + savedEmail,
+                    fromLocalStorage: true
+                };
+                
                 showMainApp();
                 resolve(true);
             } else {
@@ -98,6 +106,14 @@ export function initAuth() {
             } else if (isLoggedIn && savedEmail && USER_ROLES[savedEmail]) {
                 // Firebase chưa ready nhưng có trạng thái đã lưu
                 console.log("✅ Duy trì session từ localStorage:", savedEmail);
+                
+                // 🔥 SỬA: Tạo mock currentUser object để các hàm khác hoạt động
+                currentUser = {
+                    email: savedEmail,
+                    uid: 'local-' + savedEmail,
+                    fromLocalStorage: true
+                };
+                
                 showMainApp();
                 unsubscribe(); // Dừng lắng nghe
                 resolve(true);
@@ -403,8 +419,24 @@ export function getCurrentUser() {
  * Lấy thông tin role của user hiện tại
  */
 export function getCurrentUserRole() {
-    if (!currentUser || !currentUser.email) return null;
-    return USER_ROLES[currentUser.email] || null;
+    // 🔥 SỬA: Nếu currentUser null (PWA mode), fallback sang localStorage
+    let email = null;
+    
+    if (currentUser && currentUser.email) {
+        email = currentUser.email;
+    } else {
+        // Fallback: lấy từ localStorage
+        const savedEmail = localStorage.getItem('n-home-user-email');
+        const isLoggedIn = localStorage.getItem('n-home-logged-in');
+        
+        if (isLoggedIn && savedEmail) {
+            email = savedEmail;
+            console.log('⚠️ getCurrentUserRole: Fallback to localStorage:', savedEmail);
+        }
+    }
+    
+    if (!email) return null;
+    return USER_ROLES[email] || null;
 }
 
 /**
