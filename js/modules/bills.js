@@ -594,7 +594,14 @@ async function handleBodyClick(e) {
             showToast('Phải duyệt hóa đơn trước khi thu tiền!', 'error');
             return;
         }
-        await toggleBillStatus(id);
+        
+        if (bill.status === 'paid') {
+            // Hủy thu tiền - xử lý trực tiếp
+            await toggleBillStatus(id);
+        } else {
+            // Thu tiền - mở modal chọn ngày
+            openPaymentModal(id);
+        }
         
         // Nếu modal chi tiết đang mở, reload lại để cập nhật paidAmount
         const billDetailModal = document.getElementById('bill-detail-modal');
@@ -624,7 +631,7 @@ async function handleBodyClick(e) {
     }
     // Nút "Thu tiền hàng loạt"
     else if (target.id === 'bulk-collect-bills-btn') {
-        await bulkCollect();
+        openBulkPaymentModal();
     }
     // Nút "Hủy thu tiền hàng loạt"
     else if (target.id === 'bulk-uncollect-bills-btn') {
@@ -664,6 +671,20 @@ async function handleBodyClick(e) {
     }
     else if (target.id === 'close-bill-detail-modal') {
         closeModal(billDetailModal);
+    }
+    // Modal thu tiền
+    else if (target.id === 'close-payment-modal' || target.id === 'cancel-payment-btn') {
+        closeModal(document.getElementById('payment-modal'));
+    }
+    else if (target.id === 'confirm-payment-btn') {
+        await handleSinglePaymentConfirm();
+    }
+    // Modal thu tiền hàng loạt
+    else if (target.id === 'close-bulk-payment-modal' || target.id === 'cancel-bulk-payment-btn') {
+        closeModal(document.getElementById('bulk-payment-modal'));
+    }
+    else if (target.id === 'confirm-bulk-payment-btn') {
+        await handleBulkPaymentConfirm();
     }
 }
 
@@ -963,7 +984,7 @@ async function toggleBillApproval(billId) {
     }
 }
 
-async function toggleBillStatus(billId) {
+async function toggleBillStatus(billId, paymentDate = null) {
     const bill = getBills().find(b => b.id === billId);
     if (!bill) return;
 
@@ -988,6 +1009,8 @@ async function toggleBillStatus(billId) {
             }
             
             const transactionCode = `PT${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}`;
+            // Sử dụng ngày thu tiền được chọn hoặc ngày hiện tại
+            const transactionDate = paymentDate || getCurrentDateString();
             const transactionData = {
                 type: 'income',
                 code: transactionCode,
@@ -998,7 +1021,7 @@ async function toggleBillStatus(billId) {
                 accountId: accountId, // LẤY TỪ TÒA NHÀ
                 title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
                 payer: customer?.name || 'Khách hàng',
-                date: getCurrentDateString(),
+                date: transactionDate,
                 items: items,
                 approved: true,
                 createdAt: serverTimestamp(),
@@ -1011,6 +1034,7 @@ async function toggleBillStatus(billId) {
             await setDoc(doc(db, 'bills', billId), {
                 status: newStatus,
                 paidAmount: totalPaid,
+                paidDate: transactionDate, // Lưu ngày thu tiền
                 updatedAt: serverTimestamp()
             }, { merge: true });
             
@@ -1201,10 +1225,15 @@ async function bulkApprove(approve) {
     }
 }
 
-async function bulkCollect() {
-    // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
+async function bulkCollect(billIds = null, paymentDate = null) {
+    // Nếu có billIds được truyền vào, sử dụng chúng (từ modal)
+    // Nếu không, lấy từ Set mobile hoặc desktop checkboxes
     let selected;
-    if (selectedMobileBillIds.size > 0) {
+    
+    if (billIds) {
+        // Từ modal - đã được filter trước đó
+        selected = billIds;
+    } else if (selectedMobileBillIds.size > 0) {
         const allBills = getBills();
         selected = Array.from(selectedMobileBillIds).filter(id => {
             const bill = allBills.find(b => b.id === id);
@@ -1244,6 +1273,8 @@ async function bulkCollect() {
             
             if (accountId) {
                 const transactionCode = `PT${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}_${billId.slice(-4)}`;
+                // Sử dụng ngày thu tiền được chọn hoặc ngày hiện tại
+                const transactionDate = paymentDate || getCurrentDateString();
                 const transactionData = {
                     type: 'income',
                     code: transactionCode,
@@ -1254,7 +1285,7 @@ async function bulkCollect() {
                     accountId: accountId,
                     title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
                     payer: customer?.name || 'Khách hàng',
-                    date: getCurrentDateString(),
+                    date: transactionDate,
                     items: items,
                     approved: true,
                     createdAt: serverTimestamp(),
@@ -1302,18 +1333,22 @@ async function bulkCollect() {
             }
             
             // Cập nhật trạng thái hóa đơn
+            const transactionDate = paymentDate || getCurrentDateString();
             await setDoc(doc(db, 'bills', billId), {
                 status: 'paid',
                 paidAmount: bill.totalAmount,
-                paidDate: getCurrentDateString(),
+                paidDate: transactionDate, // Sử dụng ngày thu tiền đã chọn
                 updatedAt: serverTimestamp()
             }, { merge: true });
         }
         
-        // Reset trạng thái checkbox và ẩn nút hàng loạt
-        selectedMobileBillIds.clear();
-        resetBulkSelection();
-        updateBulkApprovalButtons();
+        // Chỉ reset khi không được gọi từ modal
+        if (!billIds) {
+            // Reset trạng thái checkbox và ẩn nút hàng loạt
+            selectedMobileBillIds.clear();
+            resetBulkSelection();
+            updateBulkApprovalButtons();
+        }
         
         showToast(`Đã thu tiền và tạo ${selected.length} phiếu thu!`);
         // Store listener tự động cập nhật
@@ -2951,6 +2986,159 @@ function createTransactionItemsFromBill(bill) {
     }
     
     return items;
+}
+
+// --- HÀM XỬ LÝ MODAL THU TIỀN ---
+
+/**
+ * Mở modal thu tiền cho hóa đơn đơn lẻ
+ */
+function openPaymentModal(billId) {
+    const bill = getBills().find(b => b.id === billId);
+    if (!bill) return;
+    
+    // Set ngày mặc định là hôm nay
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('payment-date').value = today;
+    
+    // Lưu billId để sử dụng khi confirm
+    document.getElementById('payment-modal').dataset.billId = billId;
+    
+    openModal(document.getElementById('payment-modal'));
+}
+
+/**
+ * Mở modal thu tiền hàng loạt
+ */
+function openBulkPaymentModal() {
+    // Lấy danh sách hóa đơn được chọn
+    let selectedBills = [];
+    
+    if (selectedMobileBillIds.size > 0) {
+        // Mobile: từ Set
+        const allBills = getBills();
+        selectedBills = Array.from(selectedMobileBillIds)
+            .map(id => allBills.find(b => b.id === id))
+            .filter(bill => bill && bill.status !== 'paid' && bill.approved);
+    } else {
+        // Desktop: từ checkbox (CHỈ LẤY TỪ DESKTOP TABLE, KHÔNG LẤY MOBILE)
+        const checkboxes = document.querySelectorAll('#bills-list .bill-checkbox:checked');
+        selectedBills = Array.from(checkboxes)
+            .map(cb => getBills().find(b => b.id === cb.dataset.id))
+            .filter(bill => bill && bill.status !== 'paid' && bill.approved);
+    }
+    
+    if (selectedBills.length === 0) {
+        showToast('Vui lòng chọn ít nhất một hóa đơn đã duyệt và chưa thu tiền!', 'warning');
+        return;
+    }
+    
+    // Hiển thị số lượng hóa đơn
+    document.getElementById('bulk-payment-count').textContent = selectedBills.length;
+    
+    // Set ngày mặc định là hôm nay
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('bulk-payment-date').value = today;
+    
+    // Lưu danh sách billIds để sử dụng khi confirm
+    document.getElementById('bulk-payment-modal').dataset.billIds = JSON.stringify(selectedBills.map(b => b.id));
+    
+    openModal(document.getElementById('bulk-payment-modal'));
+}
+
+/**
+ * Xử lý xác nhận thu tiền đơn lẻ
+ */
+async function handleSinglePaymentConfirm() {
+    const modal = document.getElementById('payment-modal');
+    const billId = modal.dataset.billId;
+    const paymentDate = document.getElementById('payment-date').value;
+    
+    if (!paymentDate) {
+        showToast('Vui lòng chọn ngày thu tiền!', 'error');
+        return;
+    }
+    
+    try {
+        // Disable button để tránh click nhiều lần
+        const confirmBtn = document.getElementById('confirm-payment-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = 'Đang xử lý...';
+        
+        await toggleBillStatus(billId, paymentDate);
+        closeModal(modal);
+        showToast('Thu tiền thành công!');
+        
+        // Nếu modal chi tiết đang mở, reload lại
+        const billDetailModal = document.getElementById('bill-detail-modal');
+        if (billDetailModal && !billDetailModal.classList.contains('hidden')) {
+            setTimeout(() => {
+                showBillDetail(billId);
+            }, 500);
+        }
+        
+    } catch (error) {
+        showToast('Lỗi thu tiền: ' + error.message, 'error');
+    } finally {
+        // Restore button
+        const confirmBtn = document.getElementById('confirm-payment-btn');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+            </svg>
+            Xác nhận thu tiền
+        `;
+    }
+}
+
+/**
+ * Xử lý xác nhận thu tiền hàng loạt
+ */
+async function handleBulkPaymentConfirm() {
+    const modal = document.getElementById('bulk-payment-modal');
+    const billIds = JSON.parse(modal.dataset.billIds || '[]');
+    const paymentDate = document.getElementById('bulk-payment-date').value;
+    
+    if (!paymentDate) {
+        showToast('Vui lòng chọn ngày thu tiền!', 'error');
+        return;
+    }
+    
+    if (billIds.length === 0) {
+        showToast('Không có hóa đơn nào để thu tiền!', 'error');
+        return;
+    }
+    
+    try {
+        // Disable button để tránh click nhiều lần
+        const confirmBtn = document.getElementById('confirm-bulk-payment-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = 'Đang xử lý...';
+        
+        await bulkCollect(billIds, paymentDate);
+        closeModal(modal);
+        
+        // Reset trạng thái checkbox và ẩn nút hàng loạt
+        selectedMobileBillIds.clear();
+        resetBulkSelection();
+        updateBulkApprovalButtons();
+        
+        showToast(`Đã thu tiền ${billIds.length} hóa đơn thành công!`);
+        
+    } catch (error) {
+        showToast('Lỗi thu tiền: ' + error.message, 'error');
+    } finally {
+        // Restore button
+        const confirmBtn = document.getElementById('confirm-bulk-payment-btn');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+            </svg>
+            Xác nhận thu tiền
+        `;
+    }
 }
 
 // Export hàm để có thể gọi từ event listener
