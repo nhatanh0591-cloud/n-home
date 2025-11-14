@@ -295,8 +295,8 @@ function loadTasksFromStore() {
             tasksCache = getTasks() || [];
             console.log(`🔄 Loaded ${tasksCache.length} tasks from store`);
             
-            renderTasks();
-            updateStats();
+            // Apply filter hiện tại thay vì render tất cả
+            filterTasks();
         });
     } catch (error) {
         console.error('Error loading tasks from store:', error);
@@ -336,6 +336,9 @@ function populateBuildingDropdowns() {
             return;
         }
         
+        // 🔥 Save current value trước khi re-render
+        const currentValue = dropdown.value;
+        
         // Clear existing options (except first one)
         while (dropdown.children.length > 1) {
             dropdown.removeChild(dropdown.lastChild);
@@ -347,6 +350,11 @@ function populateBuildingDropdowns() {
             option.textContent = building.code; // Copy từ contracts.js
             dropdown.appendChild(option);
         });
+        
+        // 🔥 Restore value sau khi re-render
+        if (currentValue) {
+            dropdown.value = currentValue;
+        }
     });
     
     // Initialize filter room dropdown
@@ -678,11 +686,12 @@ function updateStats() {
 function updateStatsWithFiltered(filteredTasks) {
     const total = filteredTasks.length;
     const newTasks = filteredTasks.filter(t => t.status === 'pending').length;
+    const pendingReview = filteredTasks.filter(t => t.status === 'pending-review').length;
     const completed = filteredTasks.filter(t => t.status === 'completed').length;
     
     if (totalTasksEl) totalTasksEl.textContent = total;
     if (newTasksEl) newTasksEl.textContent = newTasks;
-    if (pendingTasksEl) pendingTasksEl.textContent = 0; // Không dùng nữa
+    if (pendingTasksEl) pendingTasksEl.textContent = pendingReview; // Chờ nghiệm thu
     if (completedTasksEl) completedTasksEl.textContent = completed;
 }
 
@@ -746,8 +755,8 @@ async function handleTaskFormSubmit(e) {
         taskForm.reset();
         taskIdEl.value = '';
         
-        // Load lại data sau khi đóng modal để tránh block UI
-        await loadTasks();
+        // Load lại data sau khi đóng modal để tránh block UI (giữ nguyên filter)
+        filterTasks();
         
     } catch (error) {
         console.error('Error saving task:', error);
@@ -780,7 +789,7 @@ window.deleteTask = async function(taskId) {
         await deleteRelatedNotifications(taskId);
         
         showToast('Xóa công việc và thông báo liên quan thành công!', 'success');
-        await loadTasks();
+        filterTasks(); // Giữ nguyên filter
     } catch (error) {
         console.error('Error deleting task:', error);
         showToast('Lỗi khi xóa công việc: ' + error.message, 'error');
@@ -866,7 +875,7 @@ async function handleBulkCompleteTasks() {
             : `Đã nghiệm thu ${selectedIds.length} công việc!`;
         
         showToast(message, 'success');
-        await loadTasks();
+        filterTasks(); // Giữ nguyên filter
         
     } catch (error) {
         console.error('Error bulk completing tasks:', error);
@@ -903,13 +912,20 @@ window.toggleTaskStatus = async function(taskId) {
     try {
         await updateDoc(doc(db, 'tasks', taskId), updateData);
         
-        // Cập nhật cache
+        // Cập nhật cache ngay lập tức
         const taskIndex = tasksCache.findIndex(t => t.id === taskId);
         if (taskIndex !== -1) {
-            tasksCache[taskIndex] = { ...tasksCache[taskIndex], ...updateData };
+            tasksCache[taskIndex] = { 
+                ...tasksCache[taskIndex], 
+                status: newStatus,
+                completedAt: updateData.completedAt,
+                updatedAt: new Date()
+            };
         }
         
-        loadTasks(); // Refresh table
+        // Refresh table và stats (giữ nguyên filter)
+        filterTasks();
+        
         showToast(`Đã cập nhật trạng thái thành ${newStatus === 'pending' ? 'Chưa xử lý' : 'Chờ nghiệm thu'}`, 'success');
     } catch (error) {
         console.error('Error updating task status:', error);
@@ -981,10 +997,15 @@ window.toggleTaskApproval = async function(taskId) {
         // Cập nhật cache
         const taskIndex = tasksCache.findIndex(t => t.id === taskId);
         if (taskIndex !== -1) {
-            tasksCache[taskIndex] = { ...tasksCache[taskIndex], ...updateData };
+            tasksCache[taskIndex] = { 
+                ...tasksCache[taskIndex], 
+                status: newStatus,
+                updatedAt: new Date()
+            };
         }
         
-        loadTasks(); // Refresh table
+        // Refresh table và stats (giữ nguyên filter)
+        filterTasks();
         
         const statusMessages = {
             'pending-review': 'Đã chuyển về chờ nghiệm thu',
@@ -1014,6 +1035,8 @@ function filterTasks() {
     const searchText = taskSearchEl?.value?.toLowerCase() || '';
     const startDate = parseDateInput(filterTaskStartDateEl?.value || '');
     const endDate = parseDateInput(filterTaskEndDateEl?.value || '');
+    
+    console.log('🔍 FILTER TASKS - Building:', buildingFilter, 'Room:', roomFilter, 'Status:', statusFilter);
     
     const filtered = tasksCache.filter(task => {
         const matchBuilding = !buildingFilter || task.buildingId === buildingFilter;
@@ -1092,7 +1115,7 @@ async function handleBulkDeleteTasks() {
         updateClearSelectionButton();
         
         showToast(`Đã xóa ${selectedIds.length} công việc và thông báo liên quan!`, 'success');
-        await loadTasks();
+        filterTasks(); // Giữ nguyên filter
         
     } catch (error) {
         console.error('Error bulk deleting tasks:', error);

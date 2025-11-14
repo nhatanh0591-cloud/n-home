@@ -609,7 +609,7 @@ export function hideActionButtons(module) {
         const editButtons = document.querySelectorAll('.bg-gray-500, .bg-gray-600, [title="Sửa"], [title*="sửa"], .edit-customer-btn');
         editButtons.forEach(btn => btn.style.display = 'none');
         
-        // Ẩn tất cả nút xóa (màu đỏ) - NHƯNG KHÔNG ẩn nút đăng xuất
+        // Ẩn tất cả nút xóa (màu đỏ) - NHƯNG KHÔNG ẩn nút đăng xuất và KHÔNG ẩn status badge
         const deleteButtons = document.querySelectorAll('.bg-red-500, .bg-red-600, [title="Xóa"], [title*="xóa"], .delete-customer-btn');
         deleteButtons.forEach(btn => {
             // Kiểm tra xem có phải nút đăng xuất không (có icon logout)
@@ -617,7 +617,10 @@ export function hideActionButtons(module) {
                                    btn.classList.contains('user-info') ||
                                    btn.closest('.user-info');
             
-            if (!isLogoutButton) {
+            // CHỈ ẨN NẾU LÀ BUTTON hoặc có onclick (KHÔNG ẨN span/badge status)
+            const isButton = btn.tagName === 'BUTTON' || btn.hasAttribute('onclick') || btn.classList.contains('delete-customer-btn');
+            
+            if (!isLogoutButton && isButton) {
                 btn.style.display = 'none';
             }
         });
@@ -723,6 +726,34 @@ export function hideActionButtons(module) {
                     } else if (onclickAttr && onclickAttr.includes('toggleTaskStatus')) {
                         btn.style.display = ''; // Đảm bảo nút bánh răng luôn hiện
                         console.log('✅ GIỮ NÚT BÁNH RĂNG');
+                    }
+                });
+                
+                // ẨN CHECKBOX TRONG TASKS CHO VIEWER (quanly@gmail.com)
+                // Ẩn checkbox header "select-all-tasks"
+                const selectAllTasksCheckbox = document.getElementById('select-all-tasks');
+                if (selectAllTasksCheckbox) {
+                    const headerCell = selectAllTasksCheckbox.closest('th');
+                    if (headerCell) {
+                        headerCell.style.display = 'none';
+                    }
+                }
+                
+                // Ẩn tất cả checkbox trong desktop table rows
+                const taskCheckboxes = tasksSection.querySelectorAll('.task-checkbox');
+                taskCheckboxes.forEach(cb => {
+                    const cell = cb.closest('td');
+                    if (cell) {
+                        cell.style.display = 'none';
+                    }
+                });
+                
+                // Ẩn tất cả checkbox trong mobile cards
+                const mobileCheckboxContainers = tasksSection.querySelectorAll('.task-checkbox-mobile');
+                mobileCheckboxContainers.forEach(cb => {
+                    const container = cb.closest('.flex.items-center.gap-3');
+                    if (container && container.classList.contains('border-b')) {
+                        container.style.display = 'none';
                     }
                 });
             }
