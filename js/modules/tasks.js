@@ -52,6 +52,14 @@ const cancelTaskBtn = document.getElementById('cancel-task-btn');
 const bulkDeleteTasksBtn = document.getElementById('bulk-delete-tasks-btn');
 const selectAllTasksBtn = document.getElementById('select-all-tasks');
 
+// Pagination elements
+const tasksShowingStartEl = document.getElementById('tasks-showing-start');
+const tasksShowingEndEl = document.getElementById('tasks-showing-end');
+const tasksTotalEl = document.getElementById('tasks-total');
+const tasksPageInfoEl = document.getElementById('tasks-page-info');
+const tasksPrevBtn = document.getElementById('tasks-prev-page');
+const tasksNextBtn = document.getElementById('tasks-next-page');
+
 // Filters
 const filterTaskBuildingEl = document.getElementById('filter-task-building');
 const filterTaskRoomEl = document.getElementById('filter-task-room');
@@ -215,6 +223,19 @@ function setupEventListeners() {
     bulkDeleteTasksBtn?.addEventListener('click', handleBulkDeleteTasks);
     document.getElementById('bulk-complete-tasks-btn')?.addEventListener('click', handleBulkCompleteTasks);
     selectAllTasksBtn?.addEventListener('change', handleSelectAllTasks);
+    
+    // Pagination events
+    tasksPrevBtn?.addEventListener('click', () => {
+        if (currentTasksPage > 1) {
+            changeTasksPage(currentTasksPage - 1);
+        }
+    });
+    tasksNextBtn?.addEventListener('click', () => {
+        const totalPages = Math.ceil(tasksCache.length / ITEMS_PER_PAGE);
+        if (currentTasksPage < totalPages) {
+            changeTasksPage(currentTasksPage + 1);
+        }
+    });
     
     // Checkbox mobile events
     document.addEventListener('click', (e) => {
@@ -1067,6 +1088,34 @@ function filterTasks() {
 }
 
 /**
+ * Get filtered tasks WITHOUT resetting page (for pagination)
+ */
+function getFilteredTasks() {
+    const buildingFilter = filterTaskBuildingEl?.value || '';
+    const roomFilter = filterTaskRoomEl?.value || '';
+    const statusFilter = filterTaskStatusEl?.value || '';
+    const searchText = taskSearchEl?.value?.toLowerCase() || '';
+    const startDate = parseDateInput(filterTaskStartDateEl?.value || '');
+    const endDate = parseDateInput(filterTaskEndDateEl?.value || '');
+    
+    return tasksCache.filter(task => {
+        const matchBuilding = !buildingFilter || task.buildingId === buildingFilter;
+        const matchRoom = !roomFilter || (task.room && task.room.toLowerCase().includes(roomFilter.toLowerCase()));
+        const matchStatus = !statusFilter || task.status === statusFilter;
+        const matchSearch = !searchText || 
+            task.title.toLowerCase().includes(searchText) ||
+            (task.description && task.description.toLowerCase().includes(searchText)) ||
+            task.reporter.toLowerCase().includes(searchText);
+        
+        const taskDate = task.createdAt ? new Date(task.createdAt.seconds * 1000) : null;
+        if (startDate && (!taskDate || taskDate < startDate)) return false;
+        if (endDate && (!taskDate || taskDate > endDate)) return false;
+        
+        return matchBuilding && matchRoom && matchStatus && matchSearch;
+    });
+}
+
+/**
  * Handle select all tasks
  */
 function handleSelectAllTasks() {
@@ -1279,76 +1328,17 @@ async function sendTaskCompletionNotification(task) {
  * Render pagination cho tasks
  */
 function renderTasksPagination(totalItems) {
-    const paginationEl = document.getElementById('tasks-pagination');
-    if (!paginationEl || totalItems <= ITEMS_PER_PAGE) {
-        if (paginationEl) paginationEl.innerHTML = '';
-        return;
-    }
-    
     const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-    if (totalPages <= 1) {
-        paginationEl.innerHTML = '';
-        return;
-    }
+    const startIndex = (currentTasksPage - 1) * ITEMS_PER_PAGE + 1;
+    const endIndex = Math.min(currentTasksPage * ITEMS_PER_PAGE, totalItems);
+
+    tasksShowingStartEl.textContent = totalItems > 0 ? startIndex : 0;
+    tasksShowingEndEl.textContent = endIndex;
+    tasksTotalEl.textContent = totalItems;
+    tasksPageInfoEl.textContent = `Trang ${currentTasksPage} / ${totalPages || 1}`;
     
-    let paginationHTML = '<nav class="flex items-center justify-between">';
-    
-    // Thông tin trang hiện tại
-    const startItem = (currentTasksPage - 1) * ITEMS_PER_PAGE + 1;
-    const endItem = Math.min(currentTasksPage * ITEMS_PER_PAGE, totalItems);
-    paginationHTML += `
-        <div class="text-sm text-gray-700">
-            Hiển thị <span class="font-medium">${startItem}</span> đến <span class="font-medium">${endItem}</span>
-            trong tổng số <span class="font-medium">${totalItems}</span> công việc
-        </div>
-    `;
-    
-    // Nút điều hướng
-    paginationHTML += '<div class="flex gap-2">';
-    
-    // Nút Previous
-    if (currentTasksPage > 1) {
-        paginationHTML += `
-            <button onclick="changeTasksPage(${currentTasksPage - 1})" 
-                    class="px-3 py-1 text-sm bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded">
-                Trước
-            </button>
-        `;
-    }
-    
-    // Các số trang
-    let startPage = Math.max(1, currentTasksPage - 2);
-    let endPage = Math.min(totalPages, startPage + 4);
-    
-    if (endPage - startPage < 4) {
-        startPage = Math.max(1, endPage - 4);
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-        const activeClass = i === currentTasksPage 
-            ? 'bg-blue-500 text-white border-blue-500' 
-            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50';
-        
-        paginationHTML += `
-            <button onclick="changeTasksPage(${i})" 
-                    class="px-3 py-1 text-sm border rounded ${activeClass}">
-                ${i}
-            </button>
-        `;
-    }
-    
-    // Nút Next
-    if (currentTasksPage < totalPages) {
-        paginationHTML += `
-            <button onclick="changeTasksPage(${currentTasksPage + 1})" 
-                    class="px-3 py-1 text-sm bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded">
-                Sau
-            </button>
-        `;
-    }
-    
-    paginationHTML += '</div></nav>';
-    paginationEl.innerHTML = paginationHTML;
+    tasksPrevBtn.disabled = currentTasksPage === 1;
+    tasksNextBtn.disabled = currentTasksPage >= totalPages;
 }
 
 /**
@@ -1356,6 +1346,6 @@ function renderTasksPagination(totalItems) {
  */
 window.changeTasksPage = function(page) {
     currentTasksPage = page;
-    const filtered = filterTasks();
+    const filtered = getFilteredTasks(); // Dùng helper không reset page
     renderTasks(filtered);
 };

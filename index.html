@@ -1281,8 +1281,9 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="p-4">
-                            <table class="desktop-table w-full">
+                        <div class="p-4 overflow-x-auto">
+                            <!-- Desktop Table -->
+                            <table class="w-full desktop-table">
                                 <thead>
                                     <tr class="border-b text-left text-gray-600 text-sm font-medium">
                                         <th class="py-3 px-4 w-12">
@@ -1304,10 +1305,23 @@
                             <!-- Mobile Cards -->
                             <div id="tasks-mobile-list" class="mobile-cards">
                             </div>
+                            
+                            <!-- Pagination for tasks -->
+                            <div id="tasks-pagination" class="flex justify-between items-center mt-4 pt-4 border-t">
+                                <div class="text-sm text-gray-600">
+                                    Hiển thị <span id="tasks-showing-start">0</span>-<span id="tasks-showing-end">0</span> trong tổng số <span id="tasks-total">0</span> công việc
+                                </div>
+                                <div class="flex gap-2">
+                                    <button id="tasks-prev-page" class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        Trước
+                                    </button>
+                                    <span id="tasks-page-info" class="px-3 py-1">Trang 1</span>
+                                    <button id="tasks-next-page" class="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                        Sau
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <!-- Pagination for tasks -->
-                        <div id="tasks-pagination" class="mt-4"></div>
                     </div>
                 </div>
 
