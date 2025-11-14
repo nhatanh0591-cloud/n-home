@@ -115,26 +115,21 @@ function formatCompletionTime(timestamp) {
 }
 
 /**
- * Get status icon SVG
+ * Get status icon SVG cho nút 1 (trạng thái xử lý)
  */
 function getStatusIcon(status) {
     switch (status) {
         case 'pending':
-            // Gear/Settings icon
+            // Gear/Settings icon - màu vàng
             return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>`;
         case 'pending-review':
-            // Eye icon
+            // Eye icon - màu xám
             return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-            </svg>`;
-        case 'completed':
-            // Checkmark icon
-            return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>`;
         default:
             return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,20 +140,42 @@ function getStatusIcon(status) {
 }
 
 /**
- * Get button tooltip text
+ * Get approval icon SVG cho nút 2 (nghiệm thu)
  */
-function getButtonTooltip(status, userRole) {
-    const isAdmin = userRole && userRole.email !== 'quanly@gmail.com';
-    
+function getApprovalIcon(status) {
+    // Luôn là checkmark icon
+    return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    </svg>`;
+}
+
+/**
+ * Get button tooltip text cho nút 1 (trạng thái xử lý)
+ */
+function getStatusTooltip(status) {
     switch (status) {
         case 'pending':
             return 'Đánh dấu hoàn thành';
         case 'pending-review':
-            return isAdmin ? 'Nghiệm thu' : 'Chờ nghiệm thu';
-        case 'completed':
-            return isAdmin ? 'Đã nghiệm thu' : 'Đã hoàn thành'; // Sửa tooltip
+            return 'Chưa hoàn thành';
         default:
             return 'Cập nhật trạng thái';
+    }
+}
+
+/**
+ * Get approval tooltip text cho nút 2 (nghiệm thu)
+ */
+function getApprovalTooltip(status) {
+    switch (status) {
+        case 'pending':
+            return 'Chờ hoàn thành';
+        case 'pending-review':
+            return 'Nghiệm thu';
+        case 'completed':
+            return 'Đã nghiệm thu';
+        default:
+            return 'Nghiệm thu';
     }
 }
 
@@ -420,12 +437,11 @@ function renderTasks(tasks = tasksCache) {
         const buildingName = building ? building.code : 'N/A';
         const userRole = getCurrentUserRole();
         const isAdmin = userRole && userRole.email !== 'quanly@gmail.com';
+        const isManager = userRole && userRole.email === 'quanly@gmail.com';
         
-        // Kiểm tra xem user có thể thao tác với task này không
-        const canPerformAction = 
-            (task.status === 'pending') || // Tất cả đều có thể bấm hoàn thành
-            (task.status === 'pending-review' && isAdmin) || // Chỉ admin mới nghiệm thu được
-            (task.status === 'completed' && isAdmin); // Chỉ admin mới revert được
+        console.log('🔍 DEBUG - UserRole:', userRole);
+        console.log('🔍 DEBUG - Email:', userRole?.email);
+        console.log('🔍 DEBUG - isAdmin:', isAdmin, 'isManager:', isManager);
         
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -434,11 +450,19 @@ function renderTasks(tasks = tasksCache) {
                 </td>
                 <td class="py-3 px-4">
                     <div class="flex gap-2">
+                        <!-- Nút 1: Trạng thái xử lý (pending <-> pending-review) -->
                         <button onclick="toggleTaskStatus('${task.id}')" 
-                                class="w-8 h-8 rounded ${getStatusButtonClass(task.status)} flex items-center justify-center ${canPerformAction ? '' : 'opacity-50 cursor-not-allowed'}" 
-                                title="${getButtonTooltip(task.status, userRole)}" 
-                                ${canPerformAction ? '' : 'disabled'}>
+                                class="w-8 h-8 rounded ${getStatusButtonClass(task.status)} flex items-center justify-center ${task.status === 'completed' ? 'opacity-50 cursor-not-allowed' : ''}" 
+                                title="${getStatusTooltip(task.status)}"
+                                ${task.status === 'completed' ? 'disabled' : ''}>
                             ${getStatusIcon(task.status)}
+                        </button>
+                        <!-- Nút 2: Nghiệm thu (sẽ bị ẩn bởi auth.js cho manager) -->
+                        <button onclick="toggleTaskApproval('${task.id}')" 
+                                class="w-8 h-8 rounded ${getApprovalButtonClass(task.status)} flex items-center justify-center ${task.status === 'pending' ? 'opacity-50 cursor-not-allowed' : ''}" 
+                                title="${getApprovalTooltip(task.status)}"
+                                ${task.status === 'pending' ? 'disabled' : ''}>
+                            ${getApprovalIcon(task.status)}
                         </button>
                         ${task.imageUrls && task.imageUrls.length > 0 ? `
                             <button onclick="viewTaskImages('${task.id}')" class="w-8 h-8 rounded bg-blue-500 hover:bg-blue-600 flex items-center justify-center relative" title="Xem ${task.imageUrls.length} ảnh">
@@ -448,6 +472,7 @@ function renderTasks(tasks = tasksCache) {
                                 <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">${task.imageUrls.length}</span>
                             </button>
                         ` : ''}
+                        <!-- Nút sửa/xóa (sẽ bị ẩn bởi auth.js cho manager) -->
                         <button onclick="editTask('${task.id}')" class="w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -487,6 +512,9 @@ function renderTasks(tasks = tasksCache) {
             const building = buildingsCache.find(b => b.id === task.buildingId);
             const buildingName = building ? building.code : 'N/A';
             const isChecked = selectedMobileTaskIds.has(task.id);
+            const userRole = getCurrentUserRole();
+            const isAdmin = userRole && userRole.email !== 'quanly@gmail.com';
+            const isManager = userRole && userRole.email === 'quanly@gmail.com';
             
             const mobileCard = document.createElement('div');
             mobileCard.className = 'mobile-card';
@@ -539,12 +567,19 @@ function renderTasks(tasks = tasksCache) {
                 </div>
                 ` : ''}
                 <div class="mobile-card-actions">
-                    <button onclick="toggleTaskStatus('${task.id}')" class="${getStatusButtonClass(task.status)} text-white">
-                        <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        Nghiệm thu
+                    <!-- Nút 1: Trạng thái xử lý -->
+                    <button onclick="toggleTaskStatus('${task.id}')" 
+                            class="${getStatusButtonClass(task.status)} text-white ${task.status === 'completed' ? 'opacity-50 cursor-not-allowed' : ''}"
+                            ${task.status === 'completed' ? 'disabled' : ''}>
+                        ${getStatusIcon(task.status)} ${task.status === 'pending' ? 'Xong' : 'Chưa'}
                     </button>
+                    <!-- Nút 2: Nghiệm thu (sẽ bị ẩn bởi auth.js cho manager) -->
+                    <button onclick="toggleTaskApproval('${task.id}')" 
+                            class="${getApprovalButtonClass(task.status)} text-white ${task.status === 'pending' ? 'opacity-50 cursor-not-allowed' : ''}"
+                            ${task.status === 'pending' ? 'disabled' : ''}>
+                        ${getApprovalIcon(task.status)} ${task.status === 'completed' ? 'OK' : task.status === 'pending-review' ? 'Duyệt' : 'Chờ'}
+                    </button>
+                    <!-- Nút sửa/xóa mobile (sẽ bị ẩn bởi auth.js cho manager) -->
                     <button onclick="editTask('${task.id}')" class="bg-gray-500 hover:bg-gray-600 text-white">
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                         Sửa
@@ -576,9 +611,20 @@ function renderTasks(tasks = tasksCache) {
 function getStatusButtonClass(status) {
     switch (status) {
         case 'pending': return 'bg-yellow-500 hover:bg-yellow-600'; // Chưa xử lý - màu vàng như đèn
-        case 'pending-review': return 'bg-green-500 hover:bg-green-600'; // Chờ nghiệm thu - màu xanh
-        case 'completed': return 'bg-gray-400 hover:bg-gray-500'; // Hoàn thành
-        default: return 'bg-blue-500 hover:bg-blue-600';
+        case 'pending-review': return 'bg-gray-500 hover:bg-gray-600'; // Chờ nghiệm thu - màu xám
+        default: return 'bg-yellow-500 hover:bg-yellow-600';
+    }
+}
+
+/**
+ * Get approval button class cho nút 2 (nghiệm thu)
+ */
+function getApprovalButtonClass(status) {
+    switch (status) {
+        case 'pending': return 'bg-gray-400'; // Disable - màu xám
+        case 'pending-review': return 'bg-green-500 hover:bg-green-600'; // Enable - màu xanh lá
+        case 'completed': return 'bg-gray-500 hover:bg-gray-600'; // Hoàn thành - màu xám
+        default: return 'bg-gray-400';
     }
 }
 
@@ -828,50 +874,77 @@ async function handleBulkCompleteTasks() {
     }
 }
 
+// Function cho nút 1: Toggle giữa pending và pending-review
 window.toggleTaskStatus = async function(taskId) {
     const task = tasksCache.find(t => t.id === taskId);
     if (!task) return;
     
-    const currentUser = getCurrentUserRole();
     let newStatus;
     let updateData = {
         updatedAt: serverTimestamp()
     };
     
-    // 3-state workflow logic with role-based permissions
+    // Toggle giữa pending và pending-review
     switch (task.status) {
         case 'pending':
-            // Anyone can move from pending to pending-review
             newStatus = 'pending-review';
-            updateData.completedAt = serverTimestamp(); // Lưu thời gian hoàn thành khi chuyển sang pending-review
+            updateData.completedAt = serverTimestamp(); // Lưu thời gian hoàn thành
             break;
-            
         case 'pending-review':
-            if (currentUser.email === 'quanly@gmail.com') {
-                // Employee cannot modify pending-review
-                showToast('Bạn không có quyền nghiệm thu!', 'warning');
-                return;
-            } else {
-                // Admin can approve to completed
-                newStatus = 'completed';
-                // Giữ nguyên completedAt từ lúc pending-review
-            }
+            newStatus = 'pending';
+            updateData.completedAt = null; // Xóa thời gian hoàn thành
             break;
-            
-        case 'completed':
-            if (currentUser.email === 'quanly@gmail.com') {
-                // Employee cannot modify completed tasks
-                showToast('Bạn không có quyền sửa đổi task đã hoàn thành', 'error');
-                return;
-            } else {
-                // Admin can revert to pending (back to start)
-                newStatus = 'pending';
-                updateData.completedAt = null; // Clear completion timestamp
-            }
-            break;
-            
         default:
             newStatus = 'pending';
+    }
+    
+    updateData.status = newStatus;
+    
+    try {
+        await updateDoc(doc(db, 'tasks', taskId), updateData);
+        
+        // Cập nhật cache
+        const taskIndex = tasksCache.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+            tasksCache[taskIndex] = { ...tasksCache[taskIndex], ...updateData };
+        }
+        
+        loadTasks(); // Refresh table
+        showToast(`Đã cập nhật trạng thái thành ${newStatus === 'pending' ? 'Chưa xử lý' : 'Chờ nghiệm thu'}`, 'success');
+    } catch (error) {
+        console.error('Error updating task status:', error);
+        showToast('Lỗi khi cập nhật trạng thái', 'error');
+    }
+};
+
+// Function cho nút 2: Nghiệm thu (pending-review <-> completed)
+window.toggleTaskApproval = async function(taskId) {
+    const task = tasksCache.find(t => t.id === taskId);
+    if (!task) return;
+    
+    // Không cho phép thao tác nếu task đang pending
+    if (task.status === 'pending') {
+        showToast('Cần hoàn thành công việc trước khi nghiệm thu', 'warning');
+        return;
+    }
+    
+    let newStatus;
+    let updateData = {
+        updatedAt: serverTimestamp()
+    };
+    
+    // Toggle giữa pending-review và completed
+    switch (task.status) {
+        case 'pending-review':
+            newStatus = 'completed';
+            // Giữ nguyên completedAt
+            break;
+        case 'completed':
+            newStatus = 'pending-review';
+            // Giữ nguyên completedAt
+            break;
+        default:
+            return;
     }
     
     updateData.status = newStatus;
@@ -902,27 +975,32 @@ window.toggleTaskStatus = async function(taskId) {
             updateData.images = 0; // Reset count
         }
         
-        // Update task with new status and timestamps
+        // Update task with new status
         await updateDoc(doc(db, 'tasks', taskId), updateData);
         
+        // Cập nhật cache
+        const taskIndex = tasksCache.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+            tasksCache[taskIndex] = { ...tasksCache[taskIndex], ...updateData };
+        }
+        
+        loadTasks(); // Refresh table
+        
         const statusMessages = {
-            'pending': 'Đã chuyển về trạng thái chờ xử lý',
-            'pending-review': 'Đã chuyển sang chờ nghiệm thu',
+            'pending-review': 'Đã chuyển về chờ nghiệm thu',
             'completed': 'Đã nghiệm thu hoàn thành'
         };
         
-        showToast(statusMessages[newStatus] || `Đã cập nhật trạng thái: ${getStatusText(newStatus)}`, 'success');
+        showToast(statusMessages[newStatus] || `Đã cập nhật trạng thái nghiệm thu`, 'success');
         
         // 🔔 GỬI THÔNG BÁO ĐẨY KHI HOÀN THÀNH TASK
         if (newStatus === 'completed') {
             await sendTaskCompletionNotification(task);
         }
         
-        await loadTasks();
-        
     } catch (error) {
-        console.error('Error updating task status:', error);
-        showToast('Lỗi khi cập nhật trạng thái: ' + error.message, 'error');
+        console.error('Error updating task approval:', error);
+        showToast('Lỗi khi cập nhật nghiệm thu: ' + error.message, 'error');
     }
 };
 

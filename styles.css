@@ -455,22 +455,26 @@ input[type="date"]:hover::-webkit-calendar-picker-indicator {
     
     .mobile-card-actions {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         margin-top: 12px;
         padding-top: 12px;
         border-top: 1px solid #f3f4f6;
+        justify-content: space-between;
+        align-items: stretch;
     }
     
     .mobile-card-actions button {
         flex: 1;
-        padding: 8px 12px;
+        padding: 8px 8px;
         border-radius: 6px;
-        font-size: 0.875rem;
+        font-size: 0.8rem;
         font-weight: 500;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 4px;
+        min-width: 0;
+        text-align: center;
     }
     
     /* Bill Detail Modal - FULL SCREEN trên Mobile */

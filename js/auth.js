@@ -589,15 +589,17 @@ export function hideActionButtons(module) {
             console.log("🛡️ LOGO N-HOME ĐÃ ĐƯỢC BẢO VỆ!");
         }
         
-        // Ẩn tất cả nút thêm (màu xanh lá) - NHƯNG KHÔNG ẢNH HƯỞNG LOGO
+        // Ẩn tất cả nút thêm (màu xanh lá) - NHƯNG KHÔNG ẢNH HƯỞNG LOGO VÀ NÚT THÊM TASK
         const addButtons = document.querySelectorAll('.bg-green-500, .bg-green-600, [title*="Thêm"], [title*="thêm"]');
         addButtons.forEach(btn => {
-            // LOẠI TRỪ LOGO N-HOME
+            // LOẠI TRỪ LOGO N-HOME VÀ NÚT THÊM TASK
             const isLogo = btn.id === 'n-home-logo' || 
                            btn.textContent?.trim() === 'N-Home' ||
                            (btn.classList.contains('bg-green-600') && btn.textContent?.includes('N-Home'));
             
-            if (!isLogo && (btn.textContent.includes('+') || btn.title?.includes('Thêm') || btn.title?.includes('thêm'))) {
+            const isAddTaskBtn = btn.id === 'add-task-btn' || btn.textContent?.includes('Thêm sự cố');
+            
+            if (!isLogo && !isAddTaskBtn && (btn.textContent.includes('+') || btn.title?.includes('Thêm') || btn.title?.includes('thêm'))) {
                 btn.style.display = 'none';
                 console.log("🚫 Đã ẩn nút:", btn.textContent || btn.title);
             }
@@ -671,29 +673,77 @@ export function hideActionButtons(module) {
             importExportButtons.forEach(btn => btn.style.display = 'none');
         }
         
-        // Ẩn nút duyệt hóa đơn (màu xanh dương trong bảng)
+        // Ẩn nút duyệt hóa đơn và các nút thao tác khác trong bills
         if (module === 'bills') {
-            const approveButtons = document.querySelectorAll('[title*="Duyệt"], [title*="duyệt"], .bg-blue-500');
+            // Ẩn nút Duyệt/Bỏ duyệt (cả desktop và mobile)
+            const approveButtons = document.querySelectorAll(
+                '[title*="Duyệt"], [title*="duyệt"], ' +
+                '.toggle-bill-approve-btn, ' +
+                'button:has(svg):not(.toggle-bill-status-btn):not(.edit-bill-btn):not(.delete-bill-btn)'
+            );
             approveButtons.forEach(btn => {
-                if (btn.title?.includes('Duyệt') || btn.title?.includes('duyệt')) {
+                if (btn.classList.contains('toggle-bill-approve-btn') || 
+                    btn.title?.includes('Duyệt') || 
+                    btn.title?.includes('duyệt') ||
+                    btn.textContent?.includes('Duyệt') ||
+                    btn.textContent?.includes('Bỏ duyệt')) {
                     btn.style.display = 'none';
                 }
             });
+            
+            // Ẩn nút Thu tiền/Đã thu (cả desktop và mobile)
+            const collectButtons = document.querySelectorAll('.toggle-bill-status-btn');
+            collectButtons.forEach(btn => btn.style.display = 'none');
+            
+            // Ẩn phần mobile-card-actions hoàn toàn
+            const mobileCardActions = document.querySelectorAll('.mobile-card-actions');
+            mobileCardActions.forEach(actions => actions.style.display = 'none');
+            
+            // Ẩn các nút bulk actions cho bills
+            const billBulkButtons = document.querySelectorAll(
+                '#bulk-approve-bills-btn, #bulk-unapprove-bills-btn, ' +
+                '#bulk-collect-bills-btn, #bulk-uncollect-bills-btn'
+            );
+            billBulkButtons.forEach(btn => btn.style.display = 'none');
         }
         
-        // Ẩn checkbox "Chọn tất cả"
-        const selectAllCheckboxes = document.querySelectorAll('#select-all-customers, #select-all-bills, #select-all-tasks, [id*="select-all"]');
+        // ẨN NÚT NGHIỆM THU TRONG TASKS CHO MANAGER (KHÔNG ẨN NÚT BÁNH RĂNG)
+        // Chỉ ẩn nút có onclick="toggleTaskApproval" - KHÔNG phải toggleTaskStatus
+        setTimeout(() => {
+            // Tìm tất cả button trong tasks section
+            const tasksSection = document.getElementById('tasks-section');
+            if (tasksSection) {
+                const allTaskButtons = tasksSection.querySelectorAll('button[onclick]');
+                allTaskButtons.forEach(btn => {
+                    const onclickAttr = btn.getAttribute('onclick');
+                    // CHỈ ẨN nút nghiệm thu, KHÔNG ẨN nút bánh răng (toggleTaskStatus)
+                    if (onclickAttr && onclickAttr.includes('toggleTaskApproval')) {
+                        btn.style.display = 'none';
+                        console.log('🚫 ẨN NÚT NGHIỆM THU');
+                    } else if (onclickAttr && onclickAttr.includes('toggleTaskStatus')) {
+                        btn.style.display = ''; // Đảm bảo nút bánh răng luôn hiện
+                        console.log('✅ GIỮ NÚT BÁNH RĂNG');
+                    }
+                });
+            }
+        }, 100); // Giảm delay
+        
+        // Ẩn checkbox "Chọn tất cả" (trừ tasks)
+        const selectAllCheckboxes = document.querySelectorAll('#select-all-customers, #select-all-bills, [id*="select-all"]:not(#select-all-tasks)');
         selectAllCheckboxes.forEach(cb => cb.style.display = 'none');
         
-        // Ẩn các checkbox trong từng row (để không thể chọn để xóa hàng loạt)
-        const rowCheckboxes = document.querySelectorAll('.customer-checkbox, .bill-checkbox, .task-checkbox');
+        // Ẩn các checkbox trong từng row (trừ tasks để manager có thể chọn tasks)
+        const rowCheckboxes = document.querySelectorAll('.customer-checkbox, .bill-checkbox');
         rowCheckboxes.forEach(cb => cb.style.display = 'none');
         
         // Sẽ ẩn phần upload khi modal được mở (xử lý trong event listener)
         
-        // Ẩn cột "Thao tác" header và toàn bộ cột
+        // Ẩn cột "Thao tác" header và toàn bộ cột (trừ tasks table)
         const tables = document.querySelectorAll('table');
         tables.forEach(table => {
+            // Bỏ qua tasks table - manager được phép thao tác tasks
+            if (table.closest('#tasks-section')) return;
+            
             const headers = table.querySelectorAll('th');
             headers.forEach((th, index) => {
                 if (th.textContent?.includes('Thao tác') || th.textContent?.includes('Action')) {
