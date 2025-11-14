@@ -27,6 +27,8 @@ import {
     showConfirm
 } from '../utils.js';
 
+import { getCurrentUserRole } from '../auth.js';
+
 // Cache và biến global
 let tasksCache = [];
 let buildingsCache = [];
@@ -90,6 +92,74 @@ function formatDateTime(timestamp) {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     
     return `${hours}:${minutes} | ${day}-${month}-${year}`;
+}
+
+/**
+ * Format completion datetime for display
+ */
+function formatCompletionTime(timestamp) {
+    if (!timestamp) return null;
+    let date;
+    if (timestamp.toDate) {
+        date = timestamp.toDate();
+    } else {
+        date = new Date(timestamp);
+    }
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${hours}:${minutes} | ${day}-${month}-${year}`;
+}
+
+/**
+ * Get status icon SVG
+ */
+function getStatusIcon(status) {
+    switch (status) {
+        case 'pending':
+            // Gear/Settings icon
+            return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>`;
+        case 'pending-review':
+            // Eye icon
+            return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>`;
+        case 'completed':
+            // Checkmark icon
+            return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>`;
+        default:
+            return `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>`;
+    }
+}
+
+/**
+ * Get button tooltip text
+ */
+function getButtonTooltip(status, userRole) {
+    const isAdmin = userRole && userRole.email !== 'quanly@gmail.com';
+    
+    switch (status) {
+        case 'pending':
+            return 'Đánh dấu hoàn thành';
+        case 'pending-review':
+            return isAdmin ? 'Nghiệm thu' : 'Chờ nghiệm thu';
+        case 'completed':
+            return isAdmin ? 'Đã nghiệm thu' : 'Đã hoàn thành'; // Sửa tooltip
+        default:
+            return 'Cập nhật trạng thái';
+    }
 }
 
 /**
@@ -348,6 +418,14 @@ function renderTasks(tasks = tasksCache) {
     tasksListEl.innerHTML = currentTasks.map(task => {
         const building = buildingsCache.find(b => b.id === task.buildingId);
         const buildingName = building ? building.code : 'N/A';
+        const userRole = getCurrentUserRole();
+        const isAdmin = userRole && userRole.email !== 'quanly@gmail.com';
+        
+        // Kiểm tra xem user có thể thao tác với task này không
+        const canPerformAction = 
+            (task.status === 'pending') || // Tất cả đều có thể bấm hoàn thành
+            (task.status === 'pending-review' && isAdmin) || // Chỉ admin mới nghiệm thu được
+            (task.status === 'completed' && isAdmin); // Chỉ admin mới revert được
         
         return `
             <tr class="border-b hover:bg-gray-50">
@@ -356,10 +434,11 @@ function renderTasks(tasks = tasksCache) {
                 </td>
                 <td class="py-3 px-4">
                     <div class="flex gap-2">
-                        <button onclick="toggleTaskStatus('${task.id}')" class="w-8 h-8 rounded ${getStatusButtonClass(task.status)} flex items-center justify-center" title="Nghiệm thu">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
+                        <button onclick="toggleTaskStatus('${task.id}')" 
+                                class="w-8 h-8 rounded ${getStatusButtonClass(task.status)} flex items-center justify-center ${canPerformAction ? '' : 'opacity-50 cursor-not-allowed'}" 
+                                title="${getButtonTooltip(task.status, userRole)}" 
+                                ${canPerformAction ? '' : 'disabled'}>
+                            ${getStatusIcon(task.status)}
                         </button>
                         ${task.imageUrls && task.imageUrls.length > 0 ? `
                             <button onclick="viewTaskImages('${task.id}')" class="w-8 h-8 rounded bg-blue-500 hover:bg-blue-600 flex items-center justify-center relative" title="Xem ${task.imageUrls.length} ảnh">
@@ -386,13 +465,16 @@ function renderTasks(tasks = tasksCache) {
                     ${task.description ? `<div class="text-sm text-gray-500">${task.description}</div>` : ''}
                 </td>
                 <td class="py-3 px-4" style="white-space: nowrap;">${buildingName}</td>
-                <td class="py-3 px-4" style="white-space: nowrap;">${task.room || 'N/A'}</td>
+                <td class="py-3 px-4" style="white-space: nowrap;">${task.room || '-'}</td>
                 <td class="py-3 px-4" style="white-space: nowrap;">${task.reporter}</td>
                 <td class="py-3 px-4" style="white-space: nowrap;">${formatDateTime(task.createdAt)}</td>
-                <td class="py-3 px-4">
-                    <span class="px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(task.status)}">
-                        ${getStatusText(task.status)}
-                    </span>
+                <td class="py-3 px-4" style="white-space: nowrap;">
+                    ${task.status === 'pending' ? 
+                        `<span class="px-2 py-1 text-xs rounded-full bg-red-500 text-white">
+                            ${getStatusText(task.status, task.completedAt)}
+                        </span>` :
+                        `<span style="white-space: nowrap;">${getStatusText(task.status, task.completedAt)}</span>`
+                    }
                 </td>
             </tr>
         `;
@@ -429,7 +511,7 @@ function renderTasks(tasks = tasksCache) {
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Phòng:</span>
-                    <span class="mobile-card-value">${task.room || 'N/A'}</span>
+                    <span class="mobile-card-value">${task.room || '-'}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Người báo:</span>
@@ -442,7 +524,7 @@ function renderTasks(tasks = tasksCache) {
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
                     <span class="px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(task.status)}">
-                        ${getStatusText(task.status)}
+                        ${getStatusText(task.status, task.completedAt)}
                     </span>
                 </div>
                 ${task.imageUrls && task.imageUrls.length > 0 ? `
@@ -493,9 +575,10 @@ function renderTasks(tasks = tasksCache) {
  */
 function getStatusButtonClass(status) {
     switch (status) {
-        case 'completed': return 'bg-gray-400 hover:bg-gray-500';
-        case 'in-progress': return 'bg-yellow-500 hover:bg-yellow-600';
-        default: return 'bg-green-500 hover:bg-green-600';
+        case 'pending': return 'bg-yellow-500 hover:bg-yellow-600'; // Chưa xử lý - màu vàng như đèn
+        case 'pending-review': return 'bg-green-500 hover:bg-green-600'; // Chờ nghiệm thu - màu xanh
+        case 'completed': return 'bg-gray-400 hover:bg-gray-500'; // Hoàn thành
+        default: return 'bg-blue-500 hover:bg-blue-600';
     }
 }
 
@@ -505,21 +588,26 @@ function getStatusButtonClass(status) {
 function getStatusBadgeClass(status) {
     switch (status) {
         case 'pending': return 'bg-yellow-100 text-yellow-800';
-        case 'in-progress': return 'bg-blue-100 text-blue-800';
+        case 'pending-review': return 'bg-purple-100 text-purple-800';
         case 'completed': return 'bg-green-100 text-green-800';
         default: return 'bg-gray-100 text-gray-800';
     }
 }
 
 /**
- * Get status text
+ * Get status text with completion time
  */
-function getStatusText(status) {
+function getStatusText(status, completedAt = null) {
     switch (status) {
-        case 'pending': return 'Chưa xử lý';
-        case 'in-progress': return 'Đang xử lý';
-        case 'completed': return 'Hoàn thành';
-        default: return 'Không xác định';
+        case 'pending': 
+            return 'Chưa xử lý';
+        case 'pending-review':
+        case 'completed':
+            // Hiển thị ngày giờ hoàn thành cho cả 2 trạng thái (màu đen)
+            const timeStr = formatCompletionTime(completedAt);
+            return timeStr || 'N/A';
+        default: 
+            return 'Không xác định';
     }
 }
 
@@ -529,11 +617,12 @@ function getStatusText(status) {
 function updateStats() {
     const total = tasksCache.length;
     const newTasks = tasksCache.filter(t => t.status === 'pending').length;
+    const pendingReview = tasksCache.filter(t => t.status === 'pending-review').length;
     const completed = tasksCache.filter(t => t.status === 'completed').length;
     
     if (totalTasksEl) totalTasksEl.textContent = total;
     if (newTasksEl) newTasksEl.textContent = newTasks;
-    if (pendingTasksEl) pendingTasksEl.textContent = 0; // Không dùng nữa
+    if (pendingTasksEl) pendingTasksEl.textContent = pendingReview; // Sử dụng cho chờ nghiệm thu
     if (completedTasksEl) completedTasksEl.textContent = completed;
 }
 
@@ -743,17 +832,49 @@ window.toggleTaskStatus = async function(taskId) {
     const task = tasksCache.find(t => t.id === taskId);
     if (!task) return;
     
+    const currentUser = getCurrentUserRole();
     let newStatus;
+    let updateData = {
+        updatedAt: serverTimestamp()
+    };
+    
+    // 3-state workflow logic with role-based permissions
     switch (task.status) {
         case 'pending':
-            newStatus = 'completed';
+            // Anyone can move from pending to pending-review
+            newStatus = 'pending-review';
+            updateData.completedAt = serverTimestamp(); // Lưu thời gian hoàn thành khi chuyển sang pending-review
             break;
+            
+        case 'pending-review':
+            if (currentUser.email === 'quanly@gmail.com') {
+                // Employee cannot modify pending-review
+                showToast('Bạn không có quyền nghiệm thu!', 'warning');
+                return;
+            } else {
+                // Admin can approve to completed
+                newStatus = 'completed';
+                // Giữ nguyên completedAt từ lúc pending-review
+            }
+            break;
+            
         case 'completed':
-            newStatus = 'pending';
+            if (currentUser.email === 'quanly@gmail.com') {
+                // Employee cannot modify completed tasks
+                showToast('Bạn không có quyền sửa đổi task đã hoàn thành', 'error');
+                return;
+            } else {
+                // Admin can revert to pending (back to start)
+                newStatus = 'pending';
+                updateData.completedAt = null; // Clear completion timestamp
+            }
             break;
+            
         default:
             newStatus = 'pending';
     }
+    
+    updateData.status = newStatus;
     
     try {
         // Nếu chuyển sang completed và có ảnh → xóa ảnh để tiết kiệm bộ nhớ
@@ -777,23 +898,20 @@ window.toggleTaskStatus = async function(taskId) {
             console.log('✅ Deleted', task.imageUrls.length, 'images');
             
             // Update task to remove image URLs
-            await updateDoc(doc(db, 'tasks', taskId), {
-                status: newStatus,
-                imageUrls: [], // Clear image URLs
-                images: 0, // Reset count
-                updatedAt: serverTimestamp()
-            });
-            
-            showToast(`Đã nghiệm thu và xóa ${task.imageUrls.length} ảnh!`, 'success');
-        } else {
-            // Normal status update
-            await updateDoc(doc(db, 'tasks', taskId), {
-                status: newStatus,
-                updatedAt: serverTimestamp()
-            });
-            
-            showToast(`Đã cập nhật trạng thái: ${getStatusText(newStatus)}`, 'success');
+            updateData.imageUrls = []; // Clear image URLs
+            updateData.images = 0; // Reset count
         }
+        
+        // Update task with new status and timestamps
+        await updateDoc(doc(db, 'tasks', taskId), updateData);
+        
+        const statusMessages = {
+            'pending': 'Đã chuyển về trạng thái chờ xử lý',
+            'pending-review': 'Đã chuyển sang chờ nghiệm thu',
+            'completed': 'Đã nghiệm thu hoàn thành'
+        };
+        
+        showToast(statusMessages[newStatus] || `Đã cập nhật trạng thái: ${getStatusText(newStatus)}`, 'success');
         
         // 🔔 GỬI THÔNG BÁO ĐẨY KHI HOÀN THÀNH TASK
         if (newStatus === 'completed') {

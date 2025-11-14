@@ -330,17 +330,19 @@ function calculateTaskStats(month, year) {
     // Tổng số công việc
     const totalTasks = tasks.length;
     
-    // Công việc chưa xử lý (pending + in_progress)
-    const pendingTasks = tasks.filter(task => 
-        task.status === 'pending' || task.status === 'in_progress'
-    );
+    // Công việc chưa xử lý
+    const newTasks = tasks.filter(task => task.status === 'pending');
+    
+    // Công việc chờ nghiệm thu
+    const pendingReviewTasks = tasks.filter(task => task.status === 'pending-review');
     
     // Công việc đã hoàn thành
     const completedTasks = tasks.filter(task => task.status === 'completed');
     
     return {
         total: totalTasks,
-        pending: pendingTasks.length,
+        new: newTasks.length,
+        pendingReview: pendingReviewTasks.length,
         completed: completedTasks.length
     };
 }
@@ -406,12 +408,12 @@ function renderDashboard(data) {
     }
     
     // Update task statistics
-    const totalTasks = document.getElementById('dash-total-tasks');
+    const newTasks = document.getElementById('dash-new-tasks');
     const pendingTasks = document.getElementById('dash-pending-tasks');
     const completedTasks = document.getElementById('dash-completed-tasks');
     
-    if (totalTasks) totalTasks.textContent = tasks.total;
-    if (pendingTasks) pendingTasks.textContent = tasks.pending;
+    if (newTasks) newTasks.textContent = tasks.new;
+    if (pendingTasks) pendingTasks.textContent = tasks.pendingReview;
     if (completedTasks) completedTasks.textContent = tasks.completed;
     
 
