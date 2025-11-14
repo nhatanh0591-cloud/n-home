@@ -485,9 +485,10 @@ async function loadCategoryReport() {
             });
         });
 
-        // 💡 TÍNH TIỀN ĐIỆN/NƯỚC TỪ HÓA ĐƠN ĐÃ THANH TOÁN VÀ CỘNG VÀO HẠNG MỤC
+        // 💡 TÍNH TIỀN ĐIỆN/NƯỚC/NHÀ TỪ HÓA ĐƠN ĐÃ THANH TOÁN VÀ CỘNG VÀO HẠNG MỤC
         let totalElectricity = 0;
         let totalWater = 0;
+        let totalHouse = 0;
 
         filteredBills.forEach(bill => {
             if (!bill.services || !Array.isArray(bill.services)) return;
@@ -511,10 +512,16 @@ async function loadCategoryReport() {
                          serviceId.includes('nuoc')) {
                     totalWater += amount;
                 }
+                // Tìm dịch vụ tiền nhà (có thể có nhiều cách đặt tên)
+                else if (serviceName.includes('tiền nhà') || serviceName.includes('nhà') || 
+                         serviceName.includes('house') || serviceName.includes('rent') ||
+                         serviceId.includes('house') || serviceId.includes('rent')) {
+                    totalHouse += amount;
+                }
             });
         });
 
-        // TÌM VÀ CỘNG VÀO HẠNG MỤC "TIỀN ĐIỆN" VÀ "TIỀN NƯỚC" CÓ SẴN
+        // TÌM VÀ CỘNG VÀO HẠNG MỤC "TIỀN ĐIỆN", "TIỀN NƯỚC", VÀ "TIỀN NHÀ" CÓ SẴN
         categories.forEach(category => {
             const categoryName = category.name.toLowerCase();
             
@@ -539,6 +546,12 @@ async function loadCategoryReport() {
                 categoryTotals[category.id].income += totalWater;
                 categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
             }
+            
+            // Cộng tiền nhà vào hạng mục "Tiền nhà"
+            if ((categoryName.includes('tiền nhà') || categoryName.includes('nhà')) && totalHouse > 0) {
+                categoryTotals[category.id].income += totalHouse;
+                categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+            }
         });
 
         // Render table (không có hạng mục đặc biệt nữa)
@@ -560,10 +573,46 @@ function renderCategoryReport(categoryTotals) {
 
     let html = '';
     
-    // Lấy các hạng mục có hoạt động
+    // Lấy các hạng mục có hoạt động và bỏ "Tiền hóa đơn"
     const activeCategories = Object.values(categoryTotals)
-        .filter(cat => cat.income > 0 || cat.expense > 0)
-        .sort((a, b) => b.profit - a.profit);
+        .filter(cat => {
+            // Bỏ hạng mục "Tiền hóa đơn" 
+            const categoryName = cat.name.toLowerCase();
+            if (categoryName.includes('tiền hóa đơn') || categoryName.includes('hóa đơn')) {
+                return false;
+            }
+            return cat.income > 0 || cat.expense > 0;
+        });
+
+    // Sắp xếp: các hạng mục ưu tiên lên đầu, còn lại theo profit
+    const priorityOrder = ['tiền nhà', 'tiền điện', 'tiền nước', 'chi phí cố định', 'tiền vệ sinh'];
+    
+    activeCategories.sort((a, b) => {
+        const nameA = a.name.toLowerCase();
+        const nameB = b.name.toLowerCase();
+        
+        // Tìm vị trí trong danh sách ưu tiên
+        const priorityA = priorityOrder.findIndex(p => nameA.includes(p));
+        const priorityB = priorityOrder.findIndex(p => nameB.includes(p));
+        
+        // Nếu cả 2 đều có ưu tiên → sắp xếp theo thứ tự ưu tiên
+        if (priorityA !== -1 && priorityB !== -1) {
+            return priorityA - priorityB;
+        }
+        
+        // Nếu chỉ A có ưu tiên → A lên trước
+        if (priorityA !== -1 && priorityB === -1) {
+            return -1;
+        }
+        
+        // Nếu chỉ B có ưu tiên → B lên trước  
+        if (priorityA === -1 && priorityB !== -1) {
+            return 1;
+        }
+        
+        // Nếu cả 2 đều không có ưu tiên → sắp xếp theo profit
+        return b.profit - a.profit;
+    });
 
     if (activeCategories.length === 0) {
         html = '<tr><td colspan="4" class="py-4 px-4 text-center text-gray-500">Không có dữ liệu trong khoảng thời gian đã chọn</td></tr>';

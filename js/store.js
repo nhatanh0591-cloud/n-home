@@ -107,18 +107,22 @@ export async function initializeStore() {
         console.log("⚡ CACHE HIT! Hiển thị dữ liệu ngay lập tức từ máy tính...");
         notifyDataReady();
         
-        // 🔄 Setup listeners ngay để sync với Firebase
-        console.log("🔄 Setup real-time listeners để sync với Firebase...");
-        setupRealtimeListeners();
+        // 🔄 Setup listeners SAU để cập nhật real-time (không block UI)
+        setTimeout(() => {
+            console.log("🔄 Setup real-time listeners để sync với Firebase...");
+            setupRealtimeListeners();
+        }, 100);
         
     } else {
         // 📭 Không có cache - báo ready ngay để hiển thị UI, load Firebase sau
-        console.log("📭 CACHE MISS! Hiển thị UI rỗng, đang tải từ Firebase...");
+        console.log("� CACHE MISS! Hiển thị UI rỗng, đang tải từ Firebase...");
         notifyDataReady();
         
-        // 🔄 Setup listeners ngay để sync với Firebase
-        console.log("🔄 Setup real-time listeners để sync với Firebase...");
-        setupRealtimeListeners();
+        // 🔄 Setup listeners + load data từ Firebase
+        setTimeout(async () => {
+            setupRealtimeListeners();
+            await loadInitialDataFromFirebase();
+        }, 100);
     }
 }
 
