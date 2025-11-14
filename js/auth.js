@@ -35,7 +35,7 @@ const PERMISSIONS = {
     },
     viewer: {
         // Quản lý chỉ được XEM 3 thứ
-        dashboard: false, // Không xem dashboard
+        dashboard: true, // Được xem dashboard
         buildings: false, // Không xem tòa nhà
         services: false, // Không xem dịch vụ
         accounts: false, // Không xem sổ quỹ
@@ -521,11 +521,11 @@ export function hideUnauthorizedMenus() {
     if (userRole.role === 'viewer') {
         console.log("🔍 Đang ẩn menu cho viewer...");
         
-        // Ẩn dashboard
+        // Dashboard được phép cho viewer
         const dashboardBtn = document.getElementById('dashboard-btn');
         if (dashboardBtn) {
-            dashboardBtn.style.display = 'none';
-            console.log("✅ Đã ẩn dashboard");
+            dashboardBtn.style.display = 'block';
+            console.log("✅ Dashboard được hiển thị cho viewer");
         }
         
         // Ẩn toàn bộ menu "Danh mục dữ liệu" 
