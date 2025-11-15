@@ -3,18 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>N-Home - Web Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>N-Home Admin</title>
+    <meta name="description" content="Hệ thống quản lý cho N-Home">
     
-    <!-- Favicon -->
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+    
+    <!-- Theme Color - Trùng với logo #23904f -->
+    <meta name="theme-color" content="#23904f">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#23904f">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#23904f">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="N-Home Admin">
+    <link rel="apple-touch-icon" href="/icon-nen-xanh.jpg">
+    <link rel="apple-touch-startup-image" href="/icon-nen-xanh.jpg">
+    
+    <!-- Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- Icons -->
     <link rel="icon" type="image/jpeg" sizes="192x192" href="/icon-nen-xanh.jpg">
     <link rel="icon" type="image/jpeg" sizes="512x512" href="/icon-nen-xanh.jpg">
-    <link rel="apple-touch-icon" href="/icon-nen-xanh.jpg">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/admin-sw.js')
+                    .then((registration) => {
+                        console.log('N-Home Admin SW registered successfully:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('N-Home Admin SW registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </head>
 <body class="bg-slate-100">
 
