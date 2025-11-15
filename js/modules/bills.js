@@ -670,6 +670,13 @@ async function handleBodyClick(e) {
         closeModal(billModal);
     }
     else if (target.id === 'close-bill-detail-modal') {
+        // Restore body scroll khi đóng modal trên mobile
+        if (window.innerWidth <= 768) {
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.width = '';
+            document.body.style.height = '';
+        }
         closeModal(billDetailModal);
     }
     // Modal thu tiền
@@ -2425,20 +2432,35 @@ async function showBillDetail(billId) {
 
     openModal(billDetailModal);
     
-    // Fix scroll trên mobile
+    // Fix scroll cho mobile sau khi modal mở
     setTimeout(() => {
-        const printableDiv = document.getElementById('bill-detail-printable');
-        if (printableDiv && window.innerWidth <= 768) {
-            // Reset scroll position
-            printableDiv.scrollTop = 0;
-            // Force refresh layout để đảm bảo scroll hoạt động
-            printableDiv.style.overflow = 'hidden';
-            setTimeout(() => {
-                printableDiv.style.overflow = 'auto';
-                // Thêm focus để đảm bảo touch events hoạt động
-                printableDiv.focus();
-                printableDiv.tabIndex = -1;
-            }, 10);
+        if (window.innerWidth <= 768) {
+            const modal = document.getElementById('bill-detail-modal');
+            const printableDiv = document.getElementById('bill-detail-printable');
+            
+            if (modal && printableDiv) {
+                // Force modal position and size
+                modal.style.position = 'fixed';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.width = '100vw';
+                modal.style.height = '100vh';
+                modal.style.zIndex = '9999';
+                
+                // Reset và force scroll properties
+                printableDiv.scrollTop = 0;
+                printableDiv.style.overflowY = 'auto';
+                printableDiv.style.webkitOverflowScrolling = 'touch';
+                printableDiv.style.touchAction = 'pan-y';
+                printableDiv.style.height = '100%';
+                printableDiv.style.minHeight = '100%';
+                
+                // Prevent body scroll khi modal mở
+                document.body.style.overflow = 'hidden';
+                document.body.style.position = 'fixed';
+                document.body.style.width = '100%';
+                document.body.style.height = '100%';
+            }
         }
     }, 150);
 }
