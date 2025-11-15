@@ -34,8 +34,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     
-    <!-- PWA Service Worker Registration -->
+    <!-- PWA Service Worker Registration & Install Prompt -->
     <script>
+        let deferredPrompt;
+        let installButton = null;
+
+        // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/admin-sw.js')
@@ -47,6 +51,76 @@
                     });
             });
         }
+
+        // PWA Install Prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA Install prompt event fired');
+            e.preventDefault();
+            deferredPrompt = e;
+            showInstallPrompt();
+        });
+
+        // Show custom install prompt
+        function showInstallPrompt() {
+            // Tạo popup install
+            const installPrompt = document.createElement('div');
+            installPrompt.id = 'pwa-install-prompt';
+            installPrompt.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                    <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+                        <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home Admin</h3>
+                        <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn và sử dụng offline</p>
+                        <div style="display: flex; gap: 12px;">
+                            <button id="pwa-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
+                            <button id="pwa-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(installPrompt);
+
+            // Install button click
+            document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log('PWA install outcome:', outcome);
+                    deferredPrompt = null;
+                }
+                document.body.removeChild(installPrompt);
+            });
+
+            // Cancel button click
+            document.getElementById('pwa-cancel-btn').addEventListener('click', () => {
+                document.body.removeChild(installPrompt);
+                // Lưu trạng thái đã từ chối để không hiện lại trong 7 ngày
+                localStorage.setItem('pwa-install-dismissed', Date.now());
+            });
+        }
+
+        // Check if should show install prompt
+        window.addEventListener('load', () => {
+            // Không hiện prompt nếu đã cài đặt hoặc vừa từ chối
+            const dismissed = localStorage.getItem('pwa-install-dismissed');
+            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+            
+            if (!isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
+                // Delay 2 seconds để user load xong trang
+                setTimeout(() => {
+                    if (deferredPrompt) {
+                        showInstallPrompt();
+                    }
+                }, 2000);
+            }
+        });
+
+        // Track if app was installed
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA was installed successfully');
+            localStorage.removeItem('pwa-install-dismissed');
+        });
     </script>
 </head>
 <body class="bg-slate-100">
