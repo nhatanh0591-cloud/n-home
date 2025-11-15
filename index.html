@@ -132,19 +132,6 @@
                 }, 2000);
             }
         });
-        
-        // Force show install button for testing (remove after testing)
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                // Thêm button test vào góc màn hình
-                const testBtn = document.createElement('button');
-                testBtn.innerHTML = '📱 Test Install';
-                testBtn.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;background:#16a34a;color:white;border:none;padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer;';
-                testBtn.onclick = () => showInstallPrompt();
-                document.body.appendChild(testBtn);
-            }, 1000);
-        });
-
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
             console.log('PWA Admin was installed successfully');
