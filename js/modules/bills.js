@@ -849,8 +849,13 @@ async function handleBillFormSubmit(e) {
         const billDateObj = parseDateInput(billDate);
         const formattedBillDate = `${billDateObj.getFullYear()}-${String(billDateObj.getMonth() + 1).padStart(2, '0')}-${String(billDateObj.getDate()).padStart(2, '0')}`;
         
+        // Lấy tên khách hàng để lưu luôn vào hóa đơn
+        const customer = getCustomers().find(c => c.id === customerId);
+        const customerName = customer ? customer.name : '';
+        
         const billData = {
-            buildingId, room, customerId, period, 
+            buildingId, room, customerId, customerName,
+            period, 
             billDate: formattedBillDate, 
             dueDate,
             services,

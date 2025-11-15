@@ -37,7 +37,7 @@ exports.cassoWebhook = functions.https.onRequest(async (req, res) => {
   // Luôn return 200 OK ngay để Casso biết đã nhận được webhook
   res.status(200).send("OK");
   // Diagnostic marker to confirm deployed handler revision
-  console.log("🔁 Webhook handler (rev): processing incoming data shape...");
+  console.log("🔁 Webhook handler (rev-v2): processing with customer name logic...");
 
     // Casso gửi data trong body
     const webhookData = req.body;
@@ -102,25 +102,30 @@ async function processTransaction(transaction) {
 
   const {id, description, amount, when} = transaction;
 
-  // Parse nội dung chuyển khoản để lấy thông tin
-  const paymentInfo = parsePaymentDescription(description);
+  // Chuẩn hóa nội dung giao dịch để so khớp
+  const normalizedDescription = description
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/Đ/g, "D")
+      .replace(/đ/g, "d");
+  
+  console.log("🔍 Normalized description:", normalizedDescription);
 
-  if (!paymentInfo) {
-    console.log("⚠️ Cannot parse payment description:", description);
-    // Tạo phiếu thu chưa duyệt để admin tự kiểm tra
-    await createUnverifiedTransaction(transaction, "Không parse được nội dung chuyển khoản");
-    return;
-  }
+  // Lấy tháng/năm từ thời gian giao dịch
+  const transactionDate = new Date(when);
+  const transactionMonth = transactionDate.getMonth() + 1; // 1-12
+  const transactionYear = transactionDate.getFullYear();
+  
+  console.log("📅 Transaction time:", {month: transactionMonth, year: transactionYear});
 
-  console.log("✅ Parsed payment info:", paymentInfo);
-
-  // Tìm hóa đơn tương ứng (truyền thêm amount để so sánh)
-  const bill = await findMatchingBill(paymentInfo, amount);
+  // Tìm hóa đơn theo logic mới: số tiền + tháng + tên khách hàng
+  const bill = await findMatchingBillOptimized(normalizedDescription, amount, transactionMonth, transactionYear);
 
   if (!bill) {
-    console.log("⚠️ No matching bill found for:", paymentInfo, "amount:", amount);
+    console.log("⚠️ No matching bill found for:", normalizedDescription, "amount:", amount);
     // Tạo phiếu thu chưa duyệt để admin tự kiểm tra
-    await createUnverifiedTransaction(transaction, `Không tìm thấy hóa đơn khớp cho khách hàng: ${paymentInfo.customerName}`);
+    await createUnverifiedTransaction(transaction, "Không tìm thấy hóa đơn khớp");
     return;
   }
 
@@ -144,112 +149,85 @@ async function processTransaction(transaction) {
   await updateBillAndCreateTransaction(bill, transaction);
 }
 
-/**
- * Parse nội dung chuyển khoản
- * Format: "NGUYEN VAN A CHUYEN KHOAN" hoặc tên khách hàng bất kỳ
- * Trả về tên khách hàng đã chuẩn hóa (không dấu, chữ hoa)
- */
-function parsePaymentDescription(description) {
-  if (!description) return null;
-
-  // Chuẩn hóa: chữ hoa, bỏ dấu, trim
-  const normalized = description
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/Đ/g, "D")
-      .replace(/đ/g, "d")
-      .trim();
-
-  console.log("🔍 Normalized description:", normalized);
-
-  // Bỏ "QR - " hoặc "QR-" ở đầu (ngân hàng tự động thêm vào)
-  const cleanedDesc = normalized.replace(/^QR\s*-?\s*/g, "").trim();
-  console.log("🧹 After removing QR prefix:", cleanedDesc);
-
-  // Bỏ từ "CHUYEN KHOAN" nếu có
-  const customerName = cleanedDesc.replace(/CHUYEN\s*KHOAN/g, "").trim();
-  console.log("✨ Final customer name:", customerName);
-
-  if (!customerName) {
-    return null;
-  }
-
-  return {
-    customerName: customerName,
-  };
-}
+// Hàm parsePaymentDescription đã được thay thế bằng logic mới trong findMatchingBillOptimized
 
 /**
- * Tìm hóa đơn khớp với thông tin thanh toán
- * Tìm theo tên khách hàng + số tiền
+ * Tìm hóa đơn khớp với logic tối ưu: lọc theo số tiền + tháng trước, sau đó so khớp tên
  */
-async function findMatchingBill(paymentInfo, amount) {
-  const {customerName} = paymentInfo;
-
+async function findMatchingBillOptimized(normalizedDescription, amount, month, year) {
   try {
-    // 1. Lấy tất cả hóa đơn chưa thanh toán, đã duyệt
+    console.log("🔍 Searching bills with amount:", amount, "month:", month, "year:", year);
+    
+    // 1. Lọc hóa đơn theo số tiền + tháng + trạng thái (NHANH!)
     const billsRef = db.collection("bills");
     const snapshot = await billsRef
+        .where("totalAmount", "==", amount)
         .where("status", "==", "unpaid")
         .where("approved", "==", true)
+        .where("period", "==", month)
+        .where("year", "==", year)
         .get();
 
     if (snapshot.empty) {
-      console.log("⚠️ No unpaid bills found");
+      console.log("⚠️ No bills found matching amount + month + year");
       return null;
     }
 
-    // 2. Lấy danh sách khách hàng
-    const customersSnapshot = await db.collection("customers").get();
-    const customers = {};
-    customersSnapshot.forEach((doc) => {
-      const customer = doc.data();
-      // Chuẩn hóa tên khách hàng (bỏ dấu, chữ hoa)
-      const normalizedName = customer.name
-          .toUpperCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/Đ/g, "D")
-          .replace(/đ/g, "d")
-          .trim();
-      customers[doc.id] = {
-        id: doc.id,
-        name: customer.name,
-        normalizedName: normalizedName,
-      };
-    });
+    console.log("📋 Found", snapshot.docs.length, "bill(s) matching amount + time filter");
 
-    // 3. Tìm hóa đơn khớp với tên khách hàng + số tiền
+    // 2. Với mỗi hóa đơn, lấy tên khách hàng và so khớp
     for (const billDoc of snapshot.docs) {
       const bill = billDoc.data();
-      const customer = customers[bill.customerId];
+      
+      // Ưu tiên dùng customerName nếu có (từ hóa đơn mới)
+      let customerNormalizedName = null;
+      
+      if (bill.customerName) {
+        // Hóa đơn mới đã có customerName
+        customerNormalizedName = bill.customerName
+            .toUpperCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/Đ/g, "D")
+            .replace(/đ/g, "d")
+            .trim();
+      } else {
+        // Hóa đơn cũ, phải lấy từ collection customers  
+        const customerDoc = await db.collection("customers").doc(bill.customerId).get();
+        if (customerDoc.exists) {
+          const customer = customerDoc.data();
+          customerNormalizedName = customer.name
+              .toUpperCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/Đ/g, "D")
+              .replace(/đ/g, "d")
+              .trim();
+        }
+      }
 
-      if (!customer) continue;
+      if (!customerNormalizedName) {
+        console.log("⚠️ No customer name found for bill:", billDoc.id);
+        continue;
+      }
 
       console.log("🔍 Checking bill:", {
         billId: billDoc.id,
-        customerId: bill.customerId,
-        customerNormalizedName: customer.normalizedName,
-        searchName: customerName,
-        billAmount: bill.totalAmount,
-        transactionAmount: amount,
+        customerName: customerNormalizedName,
+        description: normalizedDescription.substring(0, 50) + "..."
       });
 
-      // So sánh tên (không dấu) và số tiền (cho phép sai lệch 1000đ)
-      if (
-        customer.normalizedName === customerName &&
-        Math.abs(amount - bill.totalAmount) <= 1000
-      ) {
-        console.log("✅ Found matching bill:", billDoc.id);
+      // 3. Kiểm tra nội dung giao dịch có chứa tên khách hàng không
+      if (normalizedDescription.includes(customerNormalizedName)) {
+        console.log("✅ Found matching bill:", billDoc.id, "- Customer:", customerNormalizedName);
         return {id: billDoc.id, ...bill};
       }
     }
 
-    console.log("⚠️ No matching bill found for:", customerName, amount);
+    console.log("⚠️ No bills found with matching customer name in description");
     return null;
   } catch (error) {
-    console.error("❌ Error finding bill:", error);
+    console.error("❌ Error finding optimized bill:", error);
     return null;
   }
 }
