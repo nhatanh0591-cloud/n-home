@@ -1335,6 +1335,12 @@
                         <div class="p-6">
                             <div class="mb-4 flex gap-4 items-center flex-wrap">
                                 <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Chọn tòa nhà</label>
+                                    <select id="category-report-building" class="p-2.5 border rounded-lg bg-gray-50">
+                                        <option value="all">Tất cả tòa nhà</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Chọn tháng</label>
                                     <select id="category-report-month" class="p-2.5 border rounded-lg bg-gray-50">
                                         <option value="all">Tất cả tháng</option>
@@ -1354,14 +1360,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Chọn năm</label>
-                                    <select id="category-report-year" class="p-2.5 border rounded-lg bg-gray-50">
-                                        <option value="2025" selected>2025</option>
-                                        <option value="2024">2024</option>
-                                        <option value="2023">2023</option>
-                                        <option value="2022">2022</option>
-                                        <option value="2021">2021</option>
-                                        <option value="2020">2020</option>
-                                    </select>
+                                    <input type="number" id="category-report-year" class="p-2.5 border rounded-lg bg-gray-50 w-28" value="2025" min="2000" max="2100">
                                 </div>
                             </div>
                             

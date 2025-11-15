@@ -107,6 +107,8 @@ async function processTransaction(transaction) {
 
   if (!paymentInfo) {
     console.log("⚠️ Cannot parse payment description:", description);
+    // Tạo phiếu thu chưa duyệt để admin tự kiểm tra
+    await createUnverifiedTransaction(transaction, "Không parse được nội dung chuyển khoản");
     return;
   }
 
@@ -117,6 +119,8 @@ async function processTransaction(transaction) {
 
   if (!bill) {
     console.log("⚠️ No matching bill found for:", paymentInfo, "amount:", amount);
+    // Tạo phiếu thu chưa duyệt để admin tự kiểm tra
+    await createUnverifiedTransaction(transaction, `Không tìm thấy hóa đơn khớp cho khách hàng: ${paymentInfo.customerName}`);
     return;
   }
 
@@ -442,6 +446,63 @@ async function notifyAdminAboutMismatch(bill, transaction) {
     console.log("✅ Notified admin about amount mismatch");
   } catch (error) {
     console.error("❌ Error notifying admin:", error);
+  }
+}
+
+/**
+ * Tạo phiếu thu chưa duyệt khi không thể tự động xử lý
+ */
+async function createUnverifiedTransaction(cassoTransaction, reason) {
+  try {
+    const transactionCode = `PT${new Date().toISOString().replace(/\D/g, "").slice(0, 12)}`;
+    
+    const transactionData = {
+      type: "income",
+      code: transactionCode,
+      buildingId: "", // Để trống vì không xác định được
+      room: "",
+      customerId: "",
+      billId: "",
+      accountId: "", // Admin sẽ phải chọn sổ quỹ
+      title: `Thu tiền chuyển khoản - Cần kiểm tra`,
+      payer: cassoTransaction.description || "Không xác định",
+      date: new Date().toISOString().split("T")[0],
+      items: [{
+        description: `Chuyển khoản từ Casso - ${reason}`,
+        amount: cassoTransaction.amount || 0,
+        categoryId: null, // Admin sẽ phải chọn hạng mục
+      }],
+      totalAmount: cassoTransaction.amount || 0,
+      approved: false, // CHƯA DUYỆT - quan trọng nhất
+      paymentMethod: "bank_transfer",
+      cassoTransactionId: cassoTransaction.id,
+      cassoTransactionDescription: cassoTransaction.description,
+      note: `Tự động tạo từ Casso - ${reason}. Nội dung gốc: "${cassoTransaction.description}"`,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection("transactions").add(transactionData);
+    console.log("✅ Created unverified transaction:", transactionCode, "Reason:", reason);
+
+    // Tạo thông báo cho admin
+    const notificationData = {
+      type: "unverified_payment",
+      title: "💰 Thu tiền cần kiểm tra",
+      message: `Nhận chuyển khoản ${formatMoney(cassoTransaction.amount)} VNĐ - ${reason}. Vui lòng kiểm tra và duyệt phiếu thu.`,
+      transactionCode: transactionCode,
+      cassoTransactionId: cassoTransaction.id,
+      cassoDescription: cassoTransaction.description,
+      amount: cassoTransaction.amount,
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection("adminNotifications").add(notificationData);
+    console.log("✅ Created admin notification for unverified transaction");
+
+  } catch (error) {
+    console.error("❌ Error creating unverified transaction:", error);
   }
 }
 

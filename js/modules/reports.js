@@ -21,6 +21,7 @@ const reportsTableBody = document.getElementById('reports-table-body');
 // Category report elements
 const categoryReportMonthEl = document.getElementById('category-report-month');
 const categoryReportYearEl = document.getElementById('category-report-year');
+const categoryReportBuildingEl = document.getElementById('category-report-building');
 const categoryReportTableBody = document.getElementById('category-report-table-body');
 const categoryTotalIncomeEl = document.getElementById('category-total-income');
 const categoryTotalExpenseEl = document.getElementById('category-total-expense');
@@ -59,6 +60,12 @@ export function initReports() {
         }, 100);
     });
     
+    // Lắng nghe thay đổi buildings để cập nhật dropdown
+    document.addEventListener('store:buildings:updated', () => {
+        console.log('🔄 Store buildings updated - reloading buildings list...');
+        loadBuildingsList();
+    });
+    
     setupEventListeners();
     // Set current year as default
     const currentYear = new Date().getFullYear();
@@ -75,7 +82,50 @@ export function initReports() {
     }
     
     loadReportData();
+    loadBuildingsList(); // Load danh sách tòa nhà
     loadCategoryReport();
+}
+
+/**
+ * Load danh sách tòa nhà vào dropdown
+ */
+async function loadBuildingsList() {
+    if (!categoryReportBuildingEl) {
+        console.log('⚠️ categoryReportBuildingEl not found');
+        return;
+    }
+    
+    try {
+        console.log('🏢 Loading buildings list...');
+        const buildingsRef = collection(db, 'buildings');
+        const buildingsSnapshot = await getDocs(buildingsRef);
+        const buildings = buildingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        console.log('🏢 Found buildings:', buildings.length, buildings.map(b => b.code));
+        console.log('🏢 Building details:', buildings);
+        
+        // Sắp xếp theo code
+        buildings.sort((a, b) => {
+            const codeA = a.code || '';
+            const codeB = b.code || '';
+            return codeA.localeCompare(codeB);
+        });
+        
+        // Clear và thêm option mặc định
+        categoryReportBuildingEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
+        
+        // Thêm các tòa nhà
+        buildings.forEach(building => {
+            const option = document.createElement('option');
+            option.value = building.id;
+            option.textContent = building.code || 'N/A';
+            categoryReportBuildingEl.appendChild(option);
+        });
+        
+        console.log('✅ Buildings list loaded successfully');
+    } catch (error) {
+        console.error('❌ Error loading buildings:', error);
+    }
 }
 
 /**
@@ -85,6 +135,7 @@ function setupEventListeners() {
     reportYearEl?.addEventListener('change', loadReportData);
     categoryReportMonthEl?.addEventListener('change', loadCategoryReport);
     categoryReportYearEl?.addEventListener('change', loadCategoryReport);
+    categoryReportBuildingEl?.addEventListener('change', loadCategoryReport);
 }
 
 /**
@@ -339,8 +390,9 @@ async function loadCategoryReport() {
     try {
         const selectedMonth = categoryReportMonthEl?.value || 'all';
         const selectedYear = parseInt(categoryReportYearEl?.value) || new Date().getFullYear();
+        const selectedBuilding = categoryReportBuildingEl?.value || 'all';
 
-        console.log('Loading category report for:', { selectedMonth, selectedYear });
+        console.log('Loading category report for:', { selectedMonth, selectedYear, selectedBuilding });
         console.log('🔄 Loading fresh data from Firebase...');
 
         // Load trực tiếp từ Firebase
@@ -373,6 +425,7 @@ async function loadCategoryReport() {
 
             if (transactionYear !== selectedYear) return false;
             if (selectedMonth !== 'all' && transactionMonth !== parseInt(selectedMonth)) return false;
+            if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return false;
 
             return true;
         });
@@ -380,6 +433,9 @@ async function loadCategoryReport() {
         // Filter bills theo nhiều cách xác định tháng
         const filteredBills = bills.filter(bill => {
             if (bill.status !== 'paid') return false;
+            
+            // Lọc theo tòa nhà nếu được chọn
+            if (selectedBuilding !== 'all' && bill.buildingId !== selectedBuilding) return false;
             
             // DEBUG: In ra tất cả field của bill để xem
             console.log('🔍 BILL ID:', bill.id);

@@ -2037,9 +2037,13 @@ function handleServiceInputChange(e) {
                 const daysDiff = Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1; // +1 để tính cả ngày cuối
                 quantity = Math.max(0, daysDiff);
                 
-                // Với tiền nhà, tính theo tháng (30 ngày)
+                // Tính số ngày thực tế của tháng (không hardcode 30)
+                const currentDate = fromDate; // Hoặc toDate, lấy một trong hai để xác định tháng
+                const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+                
                 if (rowType === 'rent') {
-                    total = (quantity / 30) * unitPrice;
+                    // Với tiền nhà, tính theo tỷ lệ ngày thực tế và làm tròn
+                    total = Math.round((quantity / daysInMonth) * unitPrice);
                     
                     // Cập nhật hiển thị số ngày
                     const quantityDisplay = row.querySelector('.quantity-display');
@@ -2047,12 +2051,16 @@ function handleServiceInputChange(e) {
                         quantityDisplay.textContent = `${quantity} ngày`;
                     }
                 } else {
-                    // Dịch vụ khác theo số lượng
+                    // Dịch vụ khác: tính tổng tiền trước (đơn giá × số lượng), rồi mới áp dụng tỷ lệ ngày và làm tròn
                     const quantityInput = row.querySelector('.service-quantity');
+                    const serviceQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+                    const totalServiceAmount = unitPrice * serviceQuantity; // Tổng tiền dịch vụ
+                    total = Math.round((quantity / daysInMonth) * totalServiceAmount); // Áp dụng tỷ lệ ngày và làm tròn
+                    
+                    // Cập nhật số lượng input để hiển thị số ngày đã tính
                     if (quantityInput) {
-                        quantity = parseInt(quantityInput.value) || 1;
+                        quantityInput.value = quantity;
                     }
-                    total = quantity * unitPrice;
                 }
                 
                 console.log('Date-based calculation:', {
@@ -2078,13 +2086,80 @@ function handleServiceInputChange(e) {
         }
     } else if (target.classList.contains('service-quantity') || target.classList.contains('custom-service-price')) {
         // Thay đổi số lượng trực tiếp
-        quantity = parseInt(row.querySelector('.service-quantity')?.value) || 1;
-        total = quantity * unitPrice;
+        const quantityInput = row.querySelector('.service-quantity');
+        quantity = parseInt(quantityInput?.value) || 1;
+        
+        // Kiểm tra xem có ngày tháng không, nếu có thì tính theo ngày
+        const fromDateInput = row.querySelectorAll('input[type="text"]')[0];
+        const toDateInput = row.querySelectorAll('input[type="text"]')[1];
+        
+        if (fromDateInput && toDateInput && fromDateInput.value && toDateInput.value && rowType !== 'electric' && rowType !== 'water_meter') {
+            // Có ngày tháng và không phải tiền điện/nước đồng hồ -> tính theo ngày
+            const fromDate = parseDateInput(fromDateInput.value);
+            const toDate = parseDateInput(toDateInput.value);
+            
+            if (fromDate && toDate) {
+                const daysDiff = Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
+                const actualDays = Math.max(0, daysDiff);
+                const daysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
+                
+                if (rowType === 'rent') {
+                    // Tiền nhà: tính theo tỷ lệ ngày và làm tròn
+                    total = Math.round((actualDays / daysInMonth) * unitPrice);
+                } else {
+                    // Dịch vụ khác: tính tổng tiền trước, rồi áp dụng tỷ lệ ngày và làm tròn
+                    const totalServiceAmount = unitPrice * quantity; // quantity từ input
+                    total = Math.round((actualDays / daysInMonth) * totalServiceAmount);
+                }
+                console.log('Service quantity change with date calculation:', {
+                    service: row.querySelector('.service-name')?.textContent,
+                    fromDate: fromDateInput.value,
+                    toDate: toDateInput.value,
+                    daysDiff: actualDays,
+                    unitPrice,
+                    total
+                });
+            } else {
+                // Ngày không hợp lệ, tính theo số lượng
+                total = quantity * unitPrice;
+            }
+        } else {
+            // Không có ngày hoặc là tiền điện/nước -> tính theo số lượng
+            total = quantity * unitPrice;
+        }
     } else {
         // Fallback
         const quantityInput = row.querySelector('.service-quantity');
         quantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
-        total = quantity * unitPrice;
+        
+        // Kiểm tra xem có ngày tháng không để áp dụng công thức phù hợp
+        const fromDateInput = row.querySelectorAll('input[type="text"]')[0];
+        const toDateInput = row.querySelectorAll('input[type="text"]')[1];
+        
+        if (fromDateInput && toDateInput && fromDateInput.value && toDateInput.value && rowType !== 'electric' && rowType !== 'water_meter') {
+            // Có ngày tháng và không phải tiền điện/nước đồng hồ -> tính theo ngày
+            const fromDate = parseDateInput(fromDateInput.value);
+            const toDate = parseDateInput(toDateInput.value);
+            
+            if (fromDate && toDate) {
+                const daysDiff = Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
+                const actualDays = Math.max(0, daysDiff);
+                const daysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
+                
+                if (rowType === 'rent') {
+                    // Tiền nhà: tính theo tỷ lệ ngày và làm tròn
+                    total = Math.round((actualDays / daysInMonth) * unitPrice);
+                } else {
+                    // Dịch vụ khác: tính tổng tiền trước, rồi áp dụng tỷ lệ ngày và làm tròn
+                    const totalServiceAmount = unitPrice * quantity;
+                    total = Math.round((actualDays / daysInMonth) * totalServiceAmount);
+                }
+            } else {
+                total = quantity * unitPrice;
+            }
+        } else {
+            total = quantity * unitPrice;
+        }
     }
     
     row.querySelector('.service-total').textContent = formatMoney(total) + ' VNĐ';
