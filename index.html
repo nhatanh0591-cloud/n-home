@@ -62,6 +62,14 @@
 
         // Show custom install prompt
         function showInstallPrompt() {
+            console.log('Showing install prompt...');
+            
+            // Remove existing prompt if any
+            const existing = document.getElementById('pwa-install-prompt');
+            if (existing) {
+                existing.remove();
+            }
+            
             // Tạo popup install
             const installPrompt = document.createElement('div');
             installPrompt.id = 'pwa-install-prompt';
@@ -95,31 +103,52 @@
             // Cancel button click
             document.getElementById('pwa-cancel-btn').addEventListener('click', () => {
                 document.body.removeChild(installPrompt);
-                // Lưu trạng thái đã từ chối để không hiện lại trong 7 ngày
-                localStorage.setItem('pwa-install-dismissed', Date.now());
+                // Lưu trạng thái đã từ chối cho admin app riêng
+                localStorage.setItem('pwa-admin-install-dismissed', Date.now());
             });
         }
 
         // Check if should show install prompt
         window.addEventListener('load', () => {
-            // Không hiện prompt nếu đã cài đặt hoặc vừa từ chối
-            const dismissed = localStorage.getItem('pwa-install-dismissed');
+            console.log('Page loaded, checking install conditions...');
+            
+            // Không hiện prompt nếu đã cài đặt hoặc vừa từ chối (riêng cho admin)
+            const dismissed = localStorage.getItem('pwa-admin-install-dismissed');
             const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+            
+            console.log('Install conditions:', { dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
             
             if (!isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
+                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
                     if (deferredPrompt) {
+                        showInstallPrompt();
+                    } else {
+                        // Force show install prompt nếu không có beforeinstallprompt
+                        console.log('No beforeinstallprompt, force showing install prompt');
                         showInstallPrompt();
                     }
                 }, 2000);
             }
         });
+        
+        // Force show install button for testing (remove after testing)
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                // Thêm button test vào góc màn hình
+                const testBtn = document.createElement('button');
+                testBtn.innerHTML = '📱 Test Install';
+                testBtn.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;background:#16a34a;color:white;border:none;padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer;';
+                testBtn.onclick = () => showInstallPrompt();
+                document.body.appendChild(testBtn);
+            }, 1000);
+        });
 
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
-            console.log('PWA was installed successfully');
-            localStorage.removeItem('pwa-install-dismissed');
+            console.log('PWA Admin was installed successfully');
+            localStorage.removeItem('pwa-admin-install-dismissed');
         });
     </script>
 </head>
