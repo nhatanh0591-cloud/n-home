@@ -108,17 +108,25 @@
             });
         }
 
+        // Check if device is mobile
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   window.innerWidth <= 768 || 
+                   'ontouchstart' in window;
+        }
+
         // Check if should show install prompt
         window.addEventListener('load', () => {
             console.log('Page loaded, checking install conditions...');
             
-            // Không hiện prompt nếu đã cài đặt hoặc vừa từ chối (riêng cho admin)
+            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
+            const isMobile = isMobileDevice();
             const dismissed = localStorage.getItem('pwa-admin-install-dismissed');
             const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
             
-            console.log('Install conditions:', { dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
             
-            if (!isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
+            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
                     console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
