@@ -37,7 +37,7 @@ exports.cassoWebhook = functions.https.onRequest(async (req, res) => {
   // Luôn return 200 OK ngay để Casso biết đã nhận được webhook
   res.status(200).send("OK");
   // Diagnostic marker to confirm deployed handler revision
-  console.log("🔁 Webhook handler (rev-v2): processing with customer name logic...");
+  console.log("🔁 Webhook handler (rev-v3-optimized): NEW LOGIC - filter by amount+month first!");
 
     // Casso gửi data trong body
     const webhookData = req.body;
@@ -100,7 +100,10 @@ exports.cassoWebhook = functions.https.onRequest(async (req, res) => {
 async function processTransaction(transaction) {
   console.log("🔄 Processing transaction:", transaction);
 
-  const {id, description, amount, when} = transaction;
+  const {id, description, amount, when, transactionDateTime} = transaction;
+  const transactionTime = when || transactionDateTime; // Support both formats
+  
+  console.log("🕐 Raw transactionTime:", transactionTime);
 
   // Chuẩn hóa nội dung giao dịch để so khớp
   const normalizedDescription = description
@@ -112,15 +115,8 @@ async function processTransaction(transaction) {
   
   console.log("🔍 Normalized description:", normalizedDescription);
 
-  // Lấy tháng/năm từ thời gian giao dịch
-  const transactionDate = new Date(when);
-  const transactionMonth = transactionDate.getMonth() + 1; // 1-12
-  const transactionYear = transactionDate.getFullYear();
-  
-  console.log("📅 Transaction time:", {month: transactionMonth, year: transactionYear});
-
-  // Tìm hóa đơn theo logic mới: số tiền + tháng + tên khách hàng
-  const bill = await findMatchingBillOptimized(normalizedDescription, amount, transactionMonth, transactionYear);
+  // Tìm hóa đơn theo logic đơn giản: chỉ theo số tiền, không cần tháng/năm
+  const bill = await findMatchingBillByAmount(normalizedDescription, amount);
 
   if (!bill) {
     console.log("⚠️ No matching bill found for:", normalizedDescription, "amount:", amount);
@@ -152,28 +148,26 @@ async function processTransaction(transaction) {
 // Hàm parsePaymentDescription đã được thay thế bằng logic mới trong findMatchingBillOptimized
 
 /**
- * Tìm hóa đơn khớp với logic tối ưu: lọc theo số tiền + tháng trước, sau đó so khớp tên
+ * Tìm hóa đơn khớp theo số tiền đơn giản: không cần tháng/năm
  */
-async function findMatchingBillOptimized(normalizedDescription, amount, month, year) {
+async function findMatchingBillByAmount(normalizedDescription, amount) {
   try {
-    console.log("🔍 Searching bills with amount:", amount, "month:", month, "year:", year);
+    console.log("🔍 Searching bills with amount:", amount);
     
-    // 1. Lọc hóa đơn theo số tiền + tháng + trạng thái (NHANH!)
+    // 1. Lọc hóa đơn chỉ theo số tiền + trạng thái
     const billsRef = db.collection("bills");
     const snapshot = await billsRef
         .where("totalAmount", "==", amount)
         .where("status", "==", "unpaid")
         .where("approved", "==", true)
-        .where("period", "==", month)
-        .where("year", "==", year)
         .get();
 
     if (snapshot.empty) {
-      console.log("⚠️ No bills found matching amount + month + year");
+      console.log("⚠️ No bills found matching amount");
       return null;
     }
 
-    console.log("📋 Found", snapshot.docs.length, "bill(s) matching amount + time filter");
+    console.log("📋 Found", snapshot.docs.length, "bill(s) matching amount");
 
     // 2. Với mỗi hóa đơn, lấy tên khách hàng và so khớp
     for (const billDoc of snapshot.docs) {

@@ -488,6 +488,8 @@ input[type="date"]:hover::-webkit-calendar-picker-indicator {
         height: 100vh !important;
         margin: 0 !important;
         border-radius: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
     }
     
     /* Nút đóng to hơn, dễ bấm */
@@ -497,6 +499,7 @@ input[type="date"]:hover::-webkit-calendar-picker-indicator {
         background: white;
         z-index: 10;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        flex-shrink: 0;
     }
     
     #close-bill-detail-modal {
@@ -508,10 +511,36 @@ input[type="date"]:hover::-webkit-calendar-picker-indicator {
     /* Content có thể scroll và zoom */
     #bill-detail-printable {
         padding: 12px !important;
+        overflow-y: auto !important;
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch;
+        flex: 1 !important;
         /* Cho phép zoom bằng pinch */
         touch-action: pinch-zoom;
+        /* Fix height để đảm bảo scroll hoạt động */
+        height: auto !important;
+        min-height: 0 !important;
+    }
+    
+    /* Đảm bảo modal backdrop không chặn scroll */
+    #bill-detail-modal.modal-backdrop {
+        touch-action: none;
+    }
+    
+    /* Đảm bảo modal container có thể scroll */
+    #bill-detail-modal .modal-content {
+        touch-action: auto !important;
+        overflow-y: auto !important;
+    }
+    
+    /* Prevent iOS safari scroll issues */
+    #bill-detail-modal {
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    /* Fix scrolling cho tất cả scrollable elements trong modal */
+    #bill-detail-modal * {
+        -webkit-overflow-scrolling: touch;
     }
     
     #bill-detail-printable .border-2 {

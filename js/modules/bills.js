@@ -2424,6 +2424,23 @@ async function showBillDetail(billId) {
     }
 
     openModal(billDetailModal);
+    
+    // Fix scroll trên mobile
+    setTimeout(() => {
+        const printableDiv = document.getElementById('bill-detail-printable');
+        if (printableDiv && window.innerWidth <= 768) {
+            // Reset scroll position
+            printableDiv.scrollTop = 0;
+            // Force refresh layout để đảm bảo scroll hoạt động
+            printableDiv.style.overflow = 'hidden';
+            setTimeout(() => {
+                printableDiv.style.overflow = 'auto';
+                // Thêm focus để đảm bảo touch events hoạt động
+                printableDiv.focus();
+                printableDiv.tabIndex = -1;
+            }, 10);
+        }
+    }, 150);
 }
 
 // --- HÀM IMPORT/EXPORT ---
