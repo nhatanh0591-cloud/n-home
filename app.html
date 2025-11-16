@@ -1995,8 +1995,8 @@
             // Setup real-time listeners cho thông báo
             setupRealtimeListeners(customer.id);
             
-            // Request notification permission
-            requestNotificationPermission();
+            // Request notification permission - TẮT
+            // requestNotificationPermission();
         }
 
         function renderHomeData() {
@@ -2020,7 +2020,7 @@
                             <span class="font-bold text-gray-800">${contract.room || 'N/A'}</span>
                         </div>
                         <div class="flex justify-between items-start">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Address:' : 'Địa chỉ chi tiết:'}</span>
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Address:' : 'Địa chỉ:'}</span>
                             <span class="font-semibold text-gray-800 text-right">${building?.address || 'N/A'}</span>
                         </div>
                     </div>
@@ -3324,7 +3324,7 @@
                 }
 
                 localStorage.setItem('userPhone', phone);
-                requestNotificationPermission();
+                // requestNotificationPermission(); // TẮT POPUP THÔNG BÁO
                 await showHome(customer);
                 updateAppInteractionState(); // Enable interaction sau khi login
             } catch (error) {
@@ -3556,59 +3556,8 @@
         let shownPopupNotifications = new Set(); // Cache để tránh duplicate popup
 
         function requestNotificationPermission() {
-            console.log('🔔 Kiểm tra quyền thông báo...');
-            
-            if (!('Notification' in window)) {
-                console.log('❌ Trình duyệt không hỗ trợ push notifications');
-                return;
-            }
-            
-            const currentPermission = Notification.permission;
-            console.log('🔔 Quyền hiện tại:', currentPermission);
-            
-            if (currentPermission === 'granted') {
-                console.log('✅ Đã có quyền thông báo');
-                // Test notification để đảm bảo hoạt động - TẮT ĐI
-                // setTimeout(() => {
-                //     showNotification('N-Home', '🔔 Thông báo đã sẵn sàng! Bạn sẽ nhận được cập nhật khi có hóa đơn mới.');
-                // }, 1000);
-                return;
-            }
-            
-            if (currentPermission === 'default') {
-                // Hiện popup xác nhận thân thiện
-                setTimeout(() => {
-                    if (confirm('📱 Cho phép N-Home gửi thông báo để bạn không bỏ lỡ hóa đơn và cập nhật quan trọng?')) {
-                        console.log('🔄 Đang yêu cầu quyền thông báo...');
-                        Notification.requestPermission().then(permission => {
-                            console.log('🔔 Kết quả quyền:', permission);
-                            if (permission === 'granted') {
-                                showNotification('N-Home', '🎉 Tuyệt vời! Bạn sẽ nhận thông báo khi có cập nhật mới.');
-                                // Lưu trạng thái đã xin quyền
-                                localStorage.setItem('notificationPermissionAsked', 'true');
-                            } else {
-                                console.log('⚠️ Người dùng từ chối quyền thông báo');
-                                showToast('Bạn có thể bật thông báo trong cài đặt trình duyệt bất cứ lúc nào', 'info');
-                            }
-                        });
-                    } else {
-                        console.log('⚠️ Người dùng không muốn nhận thông báo');
-                        localStorage.setItem('notificationPermissionAsked', 'true');
-                    }
-                }, 2000); // Delay để app load xong
-                return;
-            }
-            
-            if (currentPermission === 'denied') {
-                console.log('❌ Quyền thông báo bị từ chối');
-                // Chỉ hiện thông báo hướng dẫn 1 lần
-                if (!localStorage.getItem('notificationDeniedNotified')) {
-                    setTimeout(() => {
-                        showToast('💡 Để nhận thông báo, hãy bật "Notifications" trong cài đặt trình duyệt', 'info');
-                        localStorage.setItem('notificationDeniedNotified', 'true');
-                    }, 3000);
-                }
-            }
+            console.log('🔇 Notification permissions disabled by user request');
+            return; // TẮT TẤT CẢ POPUP THÔNG BÁO
         }
 
         let lastNotificationTime = 0;
@@ -3631,14 +3580,10 @@
                 return;
             }
             
-            // Tự động yêu cầu quyền nếu chưa có
+            // Tự động yêu cầu quyền nếu chưa có - TẮT
             if (Notification.permission === 'default') {
-                Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
-                        displayPushNotification(title, body);
-                    }
-                });
-                return;
+                console.log('🔇 Auto notification request disabled');
+                return; // KHÔNG TỰ ĐỘNG XIN QUYỀN
             }
             
             if (Notification.permission === 'granted') {
@@ -4554,36 +4499,8 @@
 
         // Hàm xin quyền thông báo và lấy FCM token
         async function requestNotificationPermission() {
-            try {
-                if (!('Notification' in window)) {
-                    console.error('❌ Trình duyệt không hỗ trợ thông báo');
-                    return null;
-                }
-                
-                const permission = await Notification.requestPermission();
-                
-                if (permission === 'granted') {
-                    try {
-                        const token = await messaging.getToken({ vapidKey: vapidKey });
-                        
-                        if (token) {
-                            console.log('✅ FCM token nhận thành công');
-                            window.fcmToken = token;
-                            
-                            await saveFCMTokenToProfile(token);
-                            // showTestNotification(); // Tắt auto test notification
-                            return token;
-                        }
-                    } catch (tokenError) {
-                        console.error('❌ Lỗi FCM token:', tokenError);
-                    }
-                } else {
-                    console.log('⚠️ Cần quyền thông báo để nhận cập nhật');
-                }
-            } catch (error) {
-                console.error('❌ Lỗi requestNotificationPermission:', error);
-            }
-            return null;
+            console.log('🔇 FCM notifications disabled by user request');
+            return null; // TẮT TẤT CẢ POPUP THÔNG BÁO FCM
         }
 
         // Lưu FCM token vào hồ sơ khách hàng trong Firestore
@@ -4679,10 +4596,10 @@
                 const result = await originalLoadCustomerData(phone, password);
                 
                 if (result && window.customerData) {
-                    // Đợi 2 giây rồi xin quyền thông báo
-                    setTimeout(() => {
-                        requestNotificationPermission();
-                    }, 2000);
+                    // Đợi 2 giây rồi xin quyền thông báo - TẮT
+                    // setTimeout(() => {
+                    //     requestNotificationPermission();
+                    // }, 2000);
                 }
                 
                 return result;
