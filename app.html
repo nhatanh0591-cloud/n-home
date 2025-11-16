@@ -4468,12 +4468,12 @@
                     console.log('PWA Customer install outcome:', outcome);
                     deferredPrompt = null;
                 } else {
-                    // Fallback: Hướng dẫn cài manual khi không có deferredPrompt
-                    console.log('🔄 No deferredPrompt - showing manual install guide');
-                    alert('📱 Để cài đặt app:\n\n' +
-                          '🔹 Chrome: Bấm menu (⋮) → "Add to Home screen"\n' +
+                    // MANUAL INSTALL GUIDE - ĐỊT MẸ BROWSER KHÔNG CHO POPUP
+                    console.log('🔥 ĐỊT MẸ! Browser chặn popup - show manual guide');
+                    alert('📱 CÀI ĐẶT N-HOME APP:\n\n' +
+                          '🔹 Chrome/Edge: Bấm menu (⋮) → "Thêm vào màn hình chính"\n' +
                           '🔹 Safari: Bấm Share (📤) → "Add to Home Screen"\n' +
-                          '🔹 Edge: Bấm menu (⋯) → "Apps" → "Install this site as an app"');
+                          '🔹 Firefox: Bấm menu → "Cài đặt"');
                 }
                 document.body.removeChild(installPrompt);
             });
@@ -4510,22 +4510,20 @@
             return isStandalone || isFromHomeScreen || isFromPWA;
         }
 
-        // Simple load check - SAME AS ADMIN (no complex logic)
+        // FORCE SHOW POPUP - KHÔNG CHỜ GÌ HẾT
         window.addEventListener('load', () => {
             const isMobile = isMobileDevice();
             const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
             const isInstalled = isAppInstalled();
             
-            console.log('📱 Customer app check:', { isMobile, dismissed, isInstalled });
+            console.log('📱 FORCE SHOW CHECK:', { isMobile, dismissed, isInstalled });
             
-            // Simple condition: mobile + not installed + not recently dismissed
-            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
-                // Wait for user to see the page first
+            // FORCE SHOW trên mobile - không care gì hết
+            if (isMobile && !isInstalled) {
                 setTimeout(() => {
-                    if (deferredPrompt) {
-                        showCustomerInstallPrompt();
-                    }
-                }, 2000);
+                    console.log('🔥 FORCE SHOWING POPUP - ĐỊT MẸ BROWSER!!!!');
+                    showCustomerInstallPrompt();
+                }, 1000);
             }
         });
 
