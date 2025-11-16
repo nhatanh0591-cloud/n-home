@@ -1424,7 +1424,6 @@
                                         <th class="py-3 px-4" style="width: 25%; min-width: 200px;">Công việc</th>
                                         <th class="py-3 px-4" style="width: 120px;">Tòa nhà</th>
                                         <th class="py-3 px-4" style="width: 100px;">Phòng</th>
-                                        <th class="py-3 px-4" style="width: 150px;">Người báo sự cố</th>
                                         <th class="py-3 px-4" style="width: 140px; white-space: nowrap;">Ngày báo cáo</th>
                                         <th class="py-3 px-4" style="width: 110px;">Trạng thái</th>
                                     </tr>
@@ -2306,8 +2305,18 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="block mb-2 text-sm font-medium text-gray-700">Người báo sự cố</label>
-                    <input type="text" id="task-reporter" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                    <label class="block mb-2 text-sm font-medium text-gray-700">Hình ảnh/video sự cố (tùy chọn)</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                        <input type="file" id="task-media-input" multiple accept="image/*,video/*" class="hidden">
+                        <button type="button" onclick="document.getElementById('task-media-input').click()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                            Thêm ảnh/video
+                        </button>
+                        <p class="text-sm text-gray-500 mt-2">Chọn nhiều file ảnh hoặc video</p>
+                    </div>
+                    <div id="task-media-preview" class="mt-3 grid grid-cols-3 gap-2 hidden"></div>
                 </div>
 
                 <div class="flex justify-end gap-3">
@@ -2315,6 +2324,52 @@
                     <button type="submit" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Lưu</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Task Completion Modal -->
+    <div id="task-completion-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden opacity-0 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Hoàn thành công việc</h3>
+                <button id="close-completion-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label class="block mb-2 text-sm font-medium text-gray-700">Ảnh/video sau khi xử lý (tùy chọn)</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                        <input type="file" id="completion-media-input" multiple accept="image/*,video/*,.mp4,.mov,.avi,.webm,.jpg,.jpeg,.png,.gif" class="hidden">
+                        <button type="button" onclick="document.getElementById('completion-media-input').click()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                            Chọn ảnh/video hoàn thành
+                        </button>
+                        <p class="text-sm text-gray-500 mt-2">Chọn nhiều ảnh và video chứng minh đã hoàn thành</p>
+                    </div>
+                    <div id="completion-media-preview" class="mt-3 grid grid-cols-3 gap-2 hidden"></div>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" id="cancel-completion-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
+                    <button type="button" id="confirm-completion-btn" class="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700">Xác nhận hoàn thành</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Task Images Modal - Mobile Optimized -->
+    <div id="task-images-modal" class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 hidden opacity-0 modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl sm:max-w-5xl max-h-[95vh] sm:max-h-[90vh] modal-content transform scale-95">
+            <!-- Header - Mobile optimized -->
+            <div class="p-3 sm:p-5 border-b flex justify-between items-center">
+                <h3 id="task-images-title" class="text-sm sm:text-lg font-semibold truncate mr-2">Hình ảnh/video sự cố</h3>
+                <button id="close-images-modal" class="text-gray-500 hover:text-gray-800 w-8 h-8 flex items-center justify-center text-xl">&times;</button>
+            </div>
+            <!-- Content - Mobile scrollable -->
+            <div class="p-3 sm:p-6 overflow-y-auto" style="max-height: calc(95vh - 70px); -webkit-overflow-scrolling: touch;">
+                <div id="task-images-content"></div>
+            </div>
         </div>
     </div>
 

@@ -27,7 +27,9 @@ import {
 import { 
     getStorage, 
     ref, 
-    deleteObject 
+    deleteObject,
+    uploadBytes,
+    getDownloadURL
 } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
 // --- FIREBASE CONFIG (Lấy từ file gốc của bạn) ---
@@ -73,5 +75,7 @@ export {
     
     // Storage
     ref,
-    deleteObject
+    deleteObject,
+    uploadBytes,
+    getDownloadURL
 };

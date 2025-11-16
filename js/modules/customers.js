@@ -189,6 +189,45 @@ export function loadCustomers() {
         return true;
     });
 
+    // SẮP XẾP: Theo thời gian tạo khi không filter, theo phòng khi có filter tòa nhà
+    const hasBuildingFilter = filterBuilding && filterBuilding.trim() !== '';
+    
+    if (hasBuildingFilter) {
+        // Có filter tòa nhà -> sắp xếp theo phòng
+        customersCache_filtered.sort((a, b) => {
+            const roomA = a.roomName || '';
+            const roomB = b.roomName || '';
+            
+            // Xử lý phòng đặc biệt (có chữ)
+            const getSpecialOrder = (room) => {
+                if (room.toLowerCase().includes('sân thượng') || room.toLowerCase().includes('rooftop')) return 3;
+                if (isNaN(parseInt(room))) return 2; // Phòng có chữ
+                return 1; // Phòng số
+            };
+            
+            const orderA = getSpecialOrder(roomA);
+            const orderB = getSpecialOrder(roomB);
+            
+            if (orderA !== orderB) {
+                return orderA - orderB;
+            }
+            
+            // Cùng loại thì sắp xếp theo số hoặc chữ cái
+            if (orderA === 1) { // Cả hai đều là số
+                return parseInt(roomA) - parseInt(roomB);
+            } else {
+                return roomA.localeCompare(roomB);
+            }
+        });
+    } else {
+        // Không có filter tòa nhà -> sắp xếp theo thời gian tạo (mới nhất trước)
+        customersCache_filtered.sort((a, b) => {
+            const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+            const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+            return timeB - timeA; // Mới nhất trước
+        });
+    }
+
     // Cập nhật thống kê dựa trên data đã lọc
     const uniqueCustomers = new Set(customersCache_filtered.map(c => c.originalCustomerId || c.id)).size;
     updateCustomerStats(uniqueCustomers, customersCache_filtered);

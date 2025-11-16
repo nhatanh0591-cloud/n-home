@@ -456,25 +456,34 @@ async function loadCategoryReport() {
                 billYear = parseInt(bill.year);
                 console.log('✅ Found via period/year:', billMonth, billYear);
             }
-            // Cách 3: period string (VD: "Tháng 10", "10/2025")
-            else if (bill.period && typeof bill.period === 'string') {
+            // Cách 3: period string/number (VD: "11", "1", "12", "Tháng 10", "10/2025")
+            else if (bill.period) {
                 const periodStr = bill.period.toString().toLowerCase();
                 console.log('🔍 Checking period string:', periodStr);
                 
-                // Pattern "tháng X"
-                const monthMatch = periodStr.match(/tháng\s*(\d{1,2})/);
-                if (monthMatch) {
-                    billMonth = parseInt(monthMatch[1]);
+                // Pattern chỉ là số (VD: "11", "1", "2", "12")
+                const simpleNumMatch = periodStr.match(/^(\d{1,2})$/);
+                if (simpleNumMatch) {
+                    billMonth = parseInt(simpleNumMatch[1]);
                     billYear = selectedYear;
-                    console.log('✅ Found via period tháng:', billMonth, billYear);
+                    console.log('✅ Found via simple number:', billMonth, billYear);
                 }
-                // Pattern "X/YYYY" hoặc "XX/YYYY"
+                // Pattern "tháng X"
                 else {
-                    const dateMatch = periodStr.match(/(\d{1,2})\/(\d{4})/);
-                    if (dateMatch) {
-                        billMonth = parseInt(dateMatch[1]);
-                        billYear = parseInt(dateMatch[2]);
-                        console.log('✅ Found via period date:', billMonth, billYear);
+                    const monthMatch = periodStr.match(/tháng\s*(\d{1,2})/);
+                    if (monthMatch) {
+                        billMonth = parseInt(monthMatch[1]);
+                        billYear = selectedYear;
+                        console.log('✅ Found via period tháng:', billMonth, billYear);
+                    }
+                    // Pattern "X/YYYY" hoặc "XX/YYYY"
+                    else {
+                        const dateMatch = periodStr.match(/(\d{1,2})\/(\d{4})/);
+                        if (dateMatch) {
+                            billMonth = parseInt(dateMatch[1]);
+                            billYear = parseInt(dateMatch[2]);
+                            console.log('✅ Found via period date:', billMonth, billYear);
+                        }
                     }
                 }
             }
@@ -541,10 +550,12 @@ async function loadCategoryReport() {
             });
         });
 
-        // 💡 TÍNH TIỀN ĐIỆN/NƯỚC/NHÀ TỪ HÓA ĐƠN ĐÃ THANH TOÁN VÀ CỘNG VÀO HẠNG MỤC
+        // 💡 TÍNH TIỀN ĐIỆN/NƯỚC/NHÀ/CHI PHÍ KHÁC/HOA HỒNG TỪ HÓA ĐƠN ĐÃ THANH TOÁN 
         let totalElectricity = 0;
         let totalWater = 0;
         let totalHouse = 0;
+        let totalOther = 0;
+        let totalCommission = 0;
 
         filteredBills.forEach(bill => {
             if (!bill.services || !Array.isArray(bill.services)) return;
@@ -568,16 +579,32 @@ async function loadCategoryReport() {
                          serviceId.includes('nuoc')) {
                     totalWater += amount;
                 }
-                // Tìm dịch vụ tiền nhà (có thể có nhiều cách đặt tên)
-                else if (serviceName.includes('tiền nhà') || serviceName.includes('nhà') || 
-                         serviceName.includes('house') || serviceName.includes('rent') ||
-                         serviceId.includes('house') || serviceId.includes('rent')) {
+                // Tìm dịch vụ tiền nhà hoặc có từ khóa 'dịch vụ', 'xe' → vào hạng mục 'Tiền nhà'
+                else if (serviceName.includes('tiền nhà') || serviceName.includes('nhà') ||
+                         serviceName.includes('dịch vụ') || serviceName.includes('xe') ||
+                         serviceName.includes('service') || serviceName.includes('parking') ||
+                         serviceName.includes('house') || serviceName.includes('rent')) {
                     totalHouse += amount;
+                }
+                // Tìm dịch vụ có từ khóa 'cọc' → vào hạng mục 'Tiền hoa hồng'
+                else if (serviceName.includes('cọc') || serviceName.includes('deposit')) {
+                    totalCommission += amount;
+                }
+                // Các dịch vụ khác không khớp từ khóa → vào hạng mục 'Chi phí khác'
+                else {
+                    totalOther += amount;
                 }
             });
         });
 
-        // TÌM VÀ CỘNG VÀO HẠNG MỤC "TIỀN ĐIỆN", "TIỀN NƯỚC", VÀ "TIỀN NHÀ" CÓ SẴN
+        // KIỂM TRA XEM ĐÃ CÓ TRANSACTION TỪ BILLS CHƯA - NẾU CHƯA THÌ MỚI CỘNG
+        // Tìm xem có transaction nào từ bills không (thường có title chứa "Hóa đơn" hoặc billId)
+        const transactionsFromBills = filteredTransactions.filter(t => 
+            t.title?.toLowerCase().includes('hóa đơn') || 
+            t.billId || 
+            t.source === 'bill'
+        );
+        
         categories.forEach(category => {
             const categoryName = category.name.toLowerCase();
             
@@ -591,22 +618,41 @@ async function loadCategoryReport() {
                 };
             }
             
-            // Cộng tiền điện vào hạng mục "Tiền điện"
-            if ((categoryName.includes('tiền điện') || categoryName.includes('điện')) && totalElectricity > 0) {
-                categoryTotals[category.id].income += totalElectricity;
-                categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
-            }
+            // CHỈ CỘNG KHI KHÔNG CÓ TRANSACTION TỪ BILLS CHO HẠNG MỤC NÀY
+            const hasTransactionFromBills = transactionsFromBills.some(t => 
+                t.items?.some(item => item.categoryId === category.id)
+            );
             
-            // Cộng tiền nước vào hạng mục "Tiền nước"  
-            if ((categoryName.includes('tiền nước') || categoryName.includes('nước')) && totalWater > 0) {
-                categoryTotals[category.id].income += totalWater;
-                categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
-            }
-            
-            // Cộng tiền nhà vào hạng mục "Tiền nhà"
-            if ((categoryName.includes('tiền nhà') || categoryName.includes('nhà')) && totalHouse > 0) {
-                categoryTotals[category.id].income += totalHouse;
-                categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+            if (!hasTransactionFromBills) {
+                // Cộng tiền điện từ bills vào cột THU
+                if ((categoryName.includes('tiền điện') || categoryName.includes('điện')) && totalElectricity > 0) {
+                    categoryTotals[category.id].income += totalElectricity; 
+                    categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+                }
+                
+                // Cộng tiền nước từ bills vào cột THU
+                if ((categoryName.includes('tiền nước') || categoryName.includes('nước')) && totalWater > 0) {
+                    categoryTotals[category.id].income += totalWater;
+                    categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+                }
+                
+                // Cộng tiền nhà từ bills vào cột THU (bao gồm dịch vụ, xe)
+                if ((categoryName.includes('tiền nhà') || categoryName.includes('nhà')) && totalHouse > 0) {
+                    categoryTotals[category.id].income += totalHouse;
+                    categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+                }
+                
+                // Cộng chi phí khác từ bills vào cột THU
+                if ((categoryName.includes('chi phí khác') || categoryName.includes('chi phí khác')) && totalOther > 0) {
+                    categoryTotals[category.id].income += totalOther;
+                    categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+                }
+                
+                // Cộng tiền cọc từ bills vào cột THU của hạng mục 'Tiền hoa hồng'
+                if ((categoryName.includes('tiền hoa hồng') || categoryName.includes('hoa hồng')) && totalCommission > 0) {
+                    categoryTotals[category.id].income += totalCommission;
+                    categoryTotals[category.id].profit = categoryTotals[category.id].income - categoryTotals[category.id].expense;
+                }
             }
         });
 

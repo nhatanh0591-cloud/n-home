@@ -210,60 +210,66 @@ function applyBillFilters() {
         });
     }
 
+    // Kiểm tra xem có lọc theo tòa nhà cụ thể không
+    const isFilteringByBuilding = filterBuildingEl && filterBuildingEl.value && filterBuildingEl.value !== 'all';
+    
     billsCache_filtered = bills.sort((a, b) => {
-        // 1️⃣ SẮP XẾP THEO TÒA NHÀ TRƯỚC
-        const buildingA = getBuildings().find(bd => bd.id === a.buildingId);
-        const buildingB = getBuildings().find(bd => bd.id === b.buildingId);
-        
-        const buildingCodeA = buildingA ? buildingA.code : '';
-        const buildingCodeB = buildingB ? buildingB.code : '';
-        
-        const buildingCompare = buildingCodeA.localeCompare(buildingCodeB);
-        if (buildingCompare !== 0) {
-            return buildingCompare;
-        }
-        
-        // 2️⃣ TRONG CÙNG TÒA NHÀ - SẮP XẾP THEO PHÒNG
-        const roomA = a.room;
-        const roomB = b.room;
-        
-        // Hàm helper để phân loại và sắp xếp phòng (giống như ở template)
-        function getRoomSortKey(room) {
-            // Rooftop luôn ở cuối cùng
-            if (room.toLowerCase().includes('rooftop')) {
-                return [9999, room];
+        if (isFilteringByBuilding) {
+            // TRƯỜNG HỢP LỌC THEO TÒA NHÀ - SẮP XẾP THEO PHÒNG
+            const roomA = a.room;
+            const roomB = b.room;
+            
+            // Hàm helper để phân loại và sắp xếp phòng
+            function getRoomSortKey(room) {
+                // Rooftop luôn ở cuối cùng
+                if (room.toLowerCase().includes('rooftop')) {
+                    return [9999, room];
+                }
+                
+                // Kiểm tra phòng số (101, 102, 201, 202...)
+                const numMatch = room.match(/^(\d{3})$/);
+                if (numMatch) {
+                    return [parseInt(numMatch[1]), parseInt(numMatch[1])];
+                }
+                
+                // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...) 
+                // Đặt ở đầu (trước phòng 101)
+                return [0, room];
             }
             
-            // Kiểm tra phòng số (101, 102, 201, 202...)
-            const numMatch = room.match(/^(\d{3})$/);
-            if (numMatch) {
-                return [parseInt(numMatch[1]), parseInt(numMatch[1])];
+            const [categoryA, valueA] = getRoomSortKey(roomA);
+            const [categoryB, valueB] = getRoomSortKey(roomB);
+            
+            // So sánh theo category trước
+            if (categoryA !== categoryB) {
+                return categoryA - categoryB;
             }
             
-            // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...) 
-            // Đặt ở đầu (trước phòng 101)
-            return [0, room];
-        }
-        
-        const [categoryA, valueA] = getRoomSortKey(roomA);
-        const [categoryB, valueB] = getRoomSortKey(roomB);
-        
-        // So sánh theo category trước
-        if (categoryA !== categoryB) {
-            return categoryA - categoryB;
-        }
-        
-        // Trong cùng category, so sánh theo value
-        if (typeof valueA === 'number' && typeof valueB === 'number') {
-            const roomCompare = valueA - valueB;
-            if (roomCompare !== 0) return roomCompare;
+            // Trong cùng category, so sánh theo value
+            if (typeof valueA === 'number' && typeof valueB === 'number') {
+                return valueA - valueB;
+            } else {
+                return valueA.toString().localeCompare(valueB.toString());
+            }
         } else {
-            const roomCompare = valueA.toString().localeCompare(valueB.toString());
-            if (roomCompare !== 0) return roomCompare;
+            // TRƯỜNG HỢP KHÔNG LỌC - SẮP XẾP THEO THỜI GIAN TẠO (mới nhất trước)
+            const getCreatedTime = (bill) => {
+                if (bill.createdAt) {
+                    if (bill.createdAt.toDate) {
+                        // Firestore Timestamp
+                        return bill.createdAt.toDate().getTime();
+                    } else if (bill.createdAt instanceof Date) {
+                        return bill.createdAt.getTime();
+                    } else {
+                        return new Date(bill.createdAt).getTime();
+                    }
+                }
+                // Fallback về billDate nếu không có createdAt
+                return parseDateInput(bill.billDate) || 0;
+            };
+            
+            return getCreatedTime(b) - getCreatedTime(a);
         }
-        
-        // 3️⃣ NẾUI CÙNG TÒA NHÀ & CÙNG PHÒNG - SẮP XẾP THEO NGÀY (mới nhất trước)
-        return (parseDateInput(b.billDate) || 0) - (parseDateInput(a.billDate) || 0);
     });
     
     // Reset về trang 1 khi filter
@@ -316,7 +322,7 @@ function renderBillsTable(bills) {
             </td>
             <td class="py-4 px-4">
                 <div class="flex gap-3">
-                    <button data-id="${bill.id}" class="toggle-bill-approve-btn w-8 h-8 rounded flex items-center justify-center ${isApproved ? 'bg-gray-400 hover:bg-gray-500' : 'bg-green-500 hover:bg-green-600'}" title="${isApproved ? 'Bỏ duyệt' : 'Duyệt hóa đơn'}">
+                    <button data-id="${bill.id}" class="toggle-bill-approve-btn w-8 h-8 rounded flex items-center justify-center ${isApproved ? (bill.status === 'paid' ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-400 hover:bg-gray-500') : 'bg-green-500 hover:bg-green-600'}" title="${isApproved ? (bill.status === 'paid' ? 'Không thể bỏ duyệt hóa đơn đã thu tiền' : 'Bỏ duyệt') : 'Duyệt hóa đơn'}" ${isApproved && bill.status === 'paid' ? 'disabled' : ''}>
                         ${isApproved ? '<svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' : '<svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
                     </button>
                     <button data-id="${bill.id}" class="toggle-bill-status-btn w-8 h-8 rounded flex items-center justify-center ${!isApproved ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')}" title="${!isApproved ? 'Phải duyệt hóa đơn trước khi thu tiền' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Thu tiền')}" ${!isApproved ? 'disabled' : ''}>
@@ -391,7 +397,7 @@ function renderBillsTable(bills) {
                     </span>
                 </div>
                 <div class="mobile-card-actions">
-                    <button data-id="${bill.id}" class="toggle-bill-approve-btn ${isApproved ? 'bg-gray-400 hover:bg-gray-500' : 'bg-green-500 hover:bg-green-600'} text-white">
+                    <button data-id="${bill.id}" class="toggle-bill-approve-btn ${isApproved ? (bill.status === 'paid' ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-400 hover:bg-gray-500') : 'bg-green-500 hover:bg-green-600'} text-white" ${isApproved && bill.status === 'paid' ? 'disabled title="Không thể bỏ duyệt hóa đơn đã thu tiền"' : ''}>
                         ${isApproved ? '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' : '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
                         ${isApproved ? 'Bỏ duyệt' : 'Duyệt'}
                     </button>
@@ -726,18 +732,28 @@ function openBillModal(options = {}) {
             // Tải lại dịch vụ đã lưu
             console.log('Editing bill - services data:', bill.services);
             
-            // Trước khi render services, cần load building services để có đầy đủ thông tin
+            // Trước khi render services, cần load building services và contract để có đầy đủ thông tin
             const building = getBuildings().find(b => b.id === bill.buildingId);
+            const contract = getContracts().find(c => c.buildingId === bill.buildingId && c.room === bill.room);
+            
             if (building && building.services) {
                 // Merge dữ liệu từ building.services với bill.services
                 const mergedServices = (bill.services || []).map(billService => {
                     const buildingService = building.services.find(bs => bs.id === billService.serviceId);
+                    
+                    let finalUnitPrice = billService.unitPrice ?? (buildingService ? buildingService.price : 0);
+                    
+                    // ĐẶC BIỆT với tiền nhà: luôn lấy giá từ hợp đồng
+                    if (billService.type === 'rent' && contract) {
+                        finalUnitPrice = contract.rentPrice || 0;
+                    }
+                    
                     // GIỮ NGUYÊN tất cả dữ liệu từ billService, chỉ bổ sung thiếu từ buildingService
                     return {
                         ...billService, // Giữ nguyên TẤT CẢ: quantity, fromDate, toDate, oldReading, newReading, amount, v.v.
                         // CHỈ bổ sung nếu thiếu
-                        unitPrice: billService.unitPrice ?? (buildingService ? buildingService.price : 0),
-                        unit: billService.unit || (buildingService ? buildingService.unit : ''),
+                        unitPrice: finalUnitPrice,
+                        unit: billService.unit || (buildingService ? buildingService.unit : 'tháng'),
                         serviceId: billService.serviceId || (buildingService ? buildingService.id : ''),
                         type: billService.type || (buildingService ? buildingService.type : 'service')
                     };
@@ -944,6 +960,12 @@ async function toggleBillApproval(billId) {
         return;
     }
     console.log('📋 Found bill:', bill.id, 'current approved status:', bill.approved);
+    
+    // KIỂM TRA: Không cho phép bỏ duyệt hóa đơn đã thu tiền
+    if (bill.approved && bill.status === 'paid') {
+        showToast('Không thể bỏ duyệt hóa đơn đã thu tiền! Vui lòng hủy thu tiền trước.', 'error');
+        return;
+    }
     
     try {
         const newApproved = !bill.approved;
@@ -1174,6 +1196,20 @@ async function bulkApprove(approve) {
     }
     
     if (selected.length === 0) return;
+
+    // KIỂM TRA: Nếu bỏ duyệt, không cho phép bỏ duyệt hóa đơn đã thu tiền
+    if (!approve) {
+        const allBills = getBills();
+        const paidBills = selected.filter(billId => {
+            const bill = allBills.find(b => b.id === billId);
+            return bill && bill.status === 'paid';
+        });
+        
+        if (paidBills.length > 0) {
+            showToast(`Không thể bỏ duyệt ${paidBills.length} hóa đơn đã thu tiền! Vui lòng hủy thu tiền trước.`, 'error');
+            return;
+        }
+    }
 
     const confirmed = await showConfirm(
         `Bạn có chắc muốn ${approve ? 'duyệt' : 'bỏ duyệt'} ${selected.length} hóa đơn đã chọn?`,
@@ -1609,10 +1645,13 @@ function updateBulkApprovalButtons() {
     // Kiểm tra trạng thái thanh toán
     const allUnpaid = billsData.every(b => b.status !== 'paid');
     const allPaid = billsData.every(b => b.status === 'paid');
+    
+    // Kiểm tra hóa đơn đã thu tiền trong danh sách đã duyệt
+    const hasPaidApprovedBills = billsData.some(b => b.approved && b.status === 'paid');
 
     // Hiện/ẩn nút theo logic
     bulkApproveBtn.classList.toggle('hidden', !allUnapproved);
-    bulkUnapproveBtn.classList.toggle('hidden', !allApproved);
+    bulkUnapproveBtn.classList.toggle('hidden', !allApproved || hasPaidApprovedBills); // Ẩn nếu có hóa đơn đã thu tiền
     bulkCollectBtn.classList.toggle('hidden', !(allApproved && allUnpaid));
     bulkUncollectBtn.classList.toggle('hidden', !allPaid);
     
@@ -3049,53 +3088,63 @@ async function createTransactionItemsFromBillWithRealCategories(bill) {
         return category.id;
     };
     
-    // Đảm bảo hạng mục "Tiền hóa đơn" tồn tại
-    const billCategoryId = await ensureCategoryExists('Tiền hóa đơn', 'income');
+    // Đảm bảo các hạng mục tồn tại
     const electricCategoryId = await ensureCategoryExists('Tiền điện', 'income');  
     const waterCategoryId = await ensureCategoryExists('Tiền nước', 'income');
+    const houseCategoryId = await ensureCategoryExists('Tiền nhà', 'income');
+    const commissionCategoryId = await ensureCategoryExists('Tiền hoa hồng', 'income');
+    const otherCategoryId = await ensureCategoryExists('Chi phí khác', 'income');
     
     const items = [];
-    let totalMainAmount = 0; // Tổng tiền hóa đơn chính (không bao gồm điện/nước)
     
     if (bill.services && bill.services.length > 0) {
         bill.services.forEach(service => {
-            const serviceName = service.name || service.serviceName || '';
+            const serviceName = (service.name || service.serviceName || '').toLowerCase();
             
             // Phân loại theo tên service
-            if (serviceName.toLowerCase().includes('điện')) {
+            if (serviceName.includes('điện')) {
                 items.push({
-                    name: `Tiền điện (${serviceName})`,
+                    name: `Tiền điện (${service.name || service.serviceName})`,
                     amount: service.amount || 0,
                     categoryId: electricCategoryId
                 });
-            } else if (serviceName.toLowerCase().includes('nước')) {
+            } else if (serviceName.includes('nước')) {
                 items.push({
-                    name: `Tiền nước (${serviceName})`,
+                    name: `Tiền nước (${service.name || service.serviceName})`,
                     amount: service.amount || 0,
                     categoryId: waterCategoryId
                 });
+            } else if (serviceName.includes('tiền nhà') || serviceName.includes('nhà') ||
+                       serviceName.includes('dịch vụ') || serviceName.includes('xe') ||
+                       serviceName.includes('house') || serviceName.includes('rent')) {
+                items.push({
+                    name: `Tiền nhà (${service.name || service.serviceName})`,
+                    amount: service.amount || 0,
+                    categoryId: houseCategoryId
+                });
+            } else if (serviceName.includes('cọc') || serviceName.includes('deposit')) {
+                items.push({
+                    name: `Tiền hoa hồng (${service.name || service.serviceName})`,
+                    amount: service.amount || 0,
+                    categoryId: commissionCategoryId
+                });
             } else {
-                // Các dịch vụ khác gộp vào tiền hóa đơn
-                totalMainAmount += service.amount || 0;
+                // Các dịch vụ khác không khớp từ khóa → Chi phí khác
+                items.push({
+                    name: `Chi phí khác (${service.name || service.serviceName})`,
+                    amount: service.amount || 0,
+                    categoryId: otherCategoryId
+                });
             }
         });
     }
     
-    // Thêm item cho tiền hóa đơn
-    if (totalMainAmount > 0) {
-        items.unshift({
-            name: 'Tiền hóa đơn',
-            amount: totalMainAmount,
-            categoryId: billCategoryId
-        });
-    }
-    
-    // Nếu không có services hoặc tổng = 0, tạo 1 item mặc định
+    // Nếu không có services, tạo 1 item mặc định cho tiền nhà
     if (items.length === 0) {
         items.push({
-            name: 'Tiền hóa đơn',
+            name: 'Tiền nhà',
             amount: bill.totalAmount || 0,
-            categoryId: billCategoryId
+            categoryId: houseCategoryId
         });
     }
     

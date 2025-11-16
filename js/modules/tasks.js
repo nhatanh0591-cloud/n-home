@@ -16,7 +16,9 @@ import {
     orderBy,
     serverTimestamp,
     ref,
-    deleteObject
+    deleteObject,
+    uploadBytes,
+    getDownloadURL
 } from '../firebase.js';
 
 import { 
@@ -27,7 +29,7 @@ import {
     showConfirm
 } from '../utils.js';
 
-import { getCurrentUserRole } from '../auth.js';
+import { getCurrentUserRole, getCurrentUser } from '../auth.js';
 
 // Cache và biến global
 let tasksCache = [];
@@ -74,7 +76,6 @@ const taskTitleEl = document.getElementById('task-title');
 const taskDescriptionEl = document.getElementById('task-description');
 const taskBuildingEl = document.getElementById('task-building');
 const taskRoomEl = document.getElementById('task-room');
-const taskReporterEl = document.getElementById('task-reporter');
 
 // Stats elements
 const totalTasksEl = document.getElementById('total-tasks');
@@ -271,6 +272,21 @@ function setupEventListeners() {
     // Building change events
     taskBuildingEl?.addEventListener('change', handleBuildingChange);
     filterTaskBuildingEl?.addEventListener('change', handleFilterBuildingChange);
+    
+    // Media upload events
+    document.getElementById('task-media-input')?.addEventListener('change', handleTaskMediaInput);
+    document.getElementById('completion-media-input')?.addEventListener('change', handleCompletionMediaInput);
+    
+    // New modal events
+    document.getElementById('close-completion-modal')?.addEventListener('click', () => {
+        closeModal(document.getElementById('task-completion-modal'));
+    });
+    document.getElementById('cancel-completion-btn')?.addEventListener('click', () => {
+        closeModal(document.getElementById('task-completion-modal'));
+    });
+    document.getElementById('close-images-modal')?.addEventListener('click', () => {
+        closeModal(document.getElementById('task-images-modal'));
+    });
 }
 
 /**
@@ -493,22 +509,27 @@ function renderTasks(tasks = tasksCache) {
                                 ${task.status === 'pending' ? 'disabled' : ''}>
                             ${getApprovalIcon(task.status)}
                         </button>
-                        ${task.imageUrls && task.imageUrls.length > 0 ? `
-                            <button onclick="viewTaskImages('${task.id}')" class="w-8 h-8 rounded bg-blue-500 hover:bg-blue-600 flex items-center justify-center relative" title="Xem ${task.imageUrls.length} ảnh">
-                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                </svg>
-                                <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">${task.imageUrls.length}</span>
-                            </button>
-                        ` : ''}
-                        <!-- Nút sửa/xóa (sẽ bị ẩn bởi auth.js cho manager) -->
-                        <button onclick="editTask('${task.id}')" class="w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
+                        <!-- Luôn hiện icon xem ảnh -->
+                        <button onclick="viewTaskImages('${task.id}')" class="w-8 h-8 rounded bg-blue-500 hover:bg-blue-600 flex items-center justify-center relative" title="Xem hình ảnh (${(task.imageUrls && task.imageUrls.length) || 0} + ${(task.completionImages && task.completionImages.length) || 0})">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            ${(task.imageUrls && task.imageUrls.length) || (task.completionImages && task.completionImages.length) ? `<span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">${((task.imageUrls && task.imageUrls.length) || 0) + ((task.completionImages && task.completionImages.length) || 0)}</span>` : ''}
+                        </button>
+                        <!-- Nút sửa/xóa (sẽ bị ẩn bởi auth.js cho manager) -->
+                        <button onclick="editTask('${task.id}')" 
+                                class="w-8 h-8 rounded ${(task.status === 'pending-review' || task.status === 'completed') ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} flex items-center justify-center" 
+                                title="${(task.status === 'pending-review' || task.status === 'completed') ? 'Không thể sửa task đã hoàn thành' : 'Sửa'}" 
+                                ${(task.status === 'pending-review' || task.status === 'completed') ? 'disabled' : ''}>
+                            <svg class="w-4 h-4 ${(task.status === 'pending-review' || task.status === 'completed') ? 'text-gray-500' : 'text-white'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                             </svg>
                         </button>
-                        <button onclick="deleteTask('${task.id}')" class="w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button onclick="deleteTask('${task.id}')" 
+                                class="w-8 h-8 rounded ${(task.status === 'pending-review' || task.status === 'completed') ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} flex items-center justify-center" 
+                                title="${(task.status === 'pending-review' || task.status === 'completed') ? 'Không thể xóa task đã hoàn thành' : 'Xóa'}" 
+                                ${(task.status === 'pending-review' || task.status === 'completed') ? 'disabled' : ''}>
+                            <svg class="w-4 h-4 ${(task.status === 'pending-review' || task.status === 'completed') ? 'text-gray-500' : 'text-white'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
                         </button>
@@ -520,7 +541,6 @@ function renderTasks(tasks = tasksCache) {
                 </td>
                 <td class="py-3 px-4" style="white-space: nowrap;">${buildingName}</td>
                 <td class="py-3 px-4" style="white-space: nowrap;">${task.room || '-'}</td>
-                <td class="py-3 px-4" style="white-space: nowrap;">${task.reporter}</td>
                 <td class="py-3 px-4" style="white-space: nowrap;">${formatDateTime(task.createdAt)}</td>
                 <td class="py-3 px-4" style="white-space: nowrap;">
                     ${task.status === 'pending' ? 
@@ -571,10 +591,6 @@ function renderTasks(tasks = tasksCache) {
                     <span class="mobile-card-value">${task.room || '-'}</span>
                 </div>
                 <div class="mobile-card-row">
-                    <span class="mobile-card-label">Người báo:</span>
-                    <span class="mobile-card-value">${task.reporter}</span>
-                </div>
-                <div class="mobile-card-row">
                     <span class="mobile-card-label">Ngày báo cáo:</span>
                     <span class="mobile-card-value">${formatDateTime(task.createdAt)}</span>
                 </div>
@@ -584,17 +600,16 @@ function renderTasks(tasks = tasksCache) {
                         ${getStatusText(task.status, task.completedAt)}
                     </span>
                 </div>
-                ${task.imageUrls && task.imageUrls.length > 0 ? `
+                <!-- Luôn hiện icon xem ảnh -->
                 <div class="mobile-card-row">
-                    <span class="mobile-card-label">Hình ảnh:</span>
+                    <span class="mobile-card-label">Hình ảnh/video:</span>
                     <button onclick="viewTaskImages('${task.id}')" class="inline-flex items-center px-3 py-1 rounded-lg bg-blue-100 text-blue-800 text-sm font-medium hover:bg-blue-200">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                         </svg>
-                        ${task.imageUrls.length} ảnh
+                        ${((task.imageUrls && task.imageUrls.length) || 0) + ((task.completionImages && task.completionImages.length) || 0)} ảnh
                     </button>
                 </div>
-                ` : ''}
                 <div class="mobile-card-actions">
                     <!-- Nút 1: Trạng thái xử lý -->
                     <button onclick="toggleTaskStatus('${task.id}')" 
@@ -609,11 +624,15 @@ function renderTasks(tasks = tasksCache) {
                         ${getApprovalIcon(task.status)} ${task.status === 'completed' ? 'OK' : task.status === 'pending-review' ? 'Duyệt' : 'Chờ'}
                     </button>
                     <!-- Nút sửa/xóa mobile (sẽ bị ẩn bởi auth.js cho manager) -->
-                    <button onclick="editTask('${task.id}')" class="bg-gray-500 hover:bg-gray-600 text-white">
+                    <button onclick="editTask('${task.id}')" 
+                            class="${(task.status === 'pending-review' || task.status === 'completed') ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-gray-500 hover:bg-gray-600 text-white'}" 
+                            ${(task.status === 'pending-review' || task.status === 'completed') ? 'disabled' : ''}>
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                         Sửa
                     </button>
-                    <button onclick="deleteTask('${task.id}')" class="bg-red-500 hover:bg-red-600 text-white">
+                    <button onclick="deleteTask('${task.id}')" 
+                            class="${(task.status === 'pending-review' || task.status === 'completed') ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-red-500 hover:bg-red-600 text-white'}" 
+                            ${(task.status === 'pending-review' || task.status === 'completed') ? 'disabled' : ''}>
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
                         Xóa
                     </button>
@@ -733,7 +752,6 @@ function openTaskModal(taskData = null) {
         taskTitleEl.value = taskData.title;
         taskBuildingEl.value = taskData.buildingId || '';
         taskRoomEl.value = taskData.room || '';
-        taskReporterEl.value = taskData.reporter;
     }
     
     // 🔥 SỬA: Dùng helper openModal từ utils để xử lý animation đúng cách
@@ -751,12 +769,12 @@ async function handleTaskFormSubmit(e) {
         title: taskTitleEl.value.trim(),
         buildingId: taskBuildingEl.value,
         room: taskRoomEl.value.trim(),
-        reporter: taskReporterEl.value.trim(),
         status: 'pending'
     };
     
     try {
         const taskId = taskIdEl.value;
+        const mediaInput = document.getElementById('task-media-input');
         
         if (taskId) {
             // Update existing task
@@ -767,16 +785,32 @@ async function handleTaskFormSubmit(e) {
             // Add new task
             taskData.createdAt = serverTimestamp();
             taskData.updatedAt = serverTimestamp();
-            await addDoc(collection(db, 'tasks'), taskData);
+            
+            // Create task first to get ID
+            const docRef = await addDoc(collection(db, 'tasks'), taskData);
+            const newTaskId = docRef.id;
+            
+            // Upload media if any
+            if (mediaInput.files.length > 0) {
+                showToast('Đang tải ảnh...', 'info');
+                const imageUrls = await uploadMediaFiles(mediaInput.files, newTaskId, 'initial');
+                
+                // Update task with image URLs
+                await updateDoc(doc(db, 'tasks', newTaskId), {
+                    imageUrls: imageUrls
+                });
+            }
+            
             showToast('Thêm công việc thành công!', 'success');
         }
         
-        // 🔥 SỬA: Đóng modal và reset form TRƯỚC KHI load lại data
+        // Đóng modal và reset form
         closeModal(taskModal);
         taskForm.reset();
         taskIdEl.value = '';
+        document.getElementById('task-media-preview').classList.add('hidden');
         
-        // Load lại data sau khi đóng modal để tránh block UI (giữ nguyên filter)
+        // Load lại data
         filterTasks();
         
     } catch (error) {
@@ -791,6 +825,11 @@ async function handleTaskFormSubmit(e) {
 window.editTask = function(taskId) {
     const task = tasksCache.find(t => t.id === taskId);
     if (task) {
+        // Kiểm tra nếu task đã hoàn thành (pending-review) hoặc đã nghịệm thu (completed) thì không cho sửa
+        if (task.status === 'pending-review' || task.status === 'completed') {
+            showToast('Không thể sửa task đã hoàn thành!', 'error');
+            return;
+        }
         openTaskModal(task);
     }
 };
@@ -799,6 +838,12 @@ window.editTask = function(taskId) {
  * Delete task - global function
  */
 window.deleteTask = async function(taskId) {
+    const task = tasksCache.find(t => t.id === taskId);
+    if (task && (task.status === 'pending-review' || task.status === 'completed')) {
+        showToast('Không thể xóa task đã hoàn thành!', 'error');
+        return;
+    }
+    
     const confirmed = await showConfirm('Bạn có chắc chắn muốn xóa công việc này?', 'Xác nhận xóa');
     if (!confirmed) return;
     
@@ -909,48 +954,41 @@ window.toggleTaskStatus = async function(taskId) {
     const task = tasksCache.find(t => t.id === taskId);
     if (!task) return;
     
-    let newStatus;
-    let updateData = {
-        updatedAt: serverTimestamp()
-    };
-    
-    // Toggle giữa pending và pending-review
-    switch (task.status) {
-        case 'pending':
-            newStatus = 'pending-review';
-            updateData.completedAt = serverTimestamp(); // Lưu thời gian hoàn thành
-            break;
-        case 'pending-review':
-            newStatus = 'pending';
-            updateData.completedAt = null; // Xóa thời gian hoàn thành
-            break;
-        default:
-            newStatus = 'pending';
+    if (task.status === 'completed') {
+        showToast('Công việc đã hoàn thành!', 'info');
+        return;
     }
     
-    updateData.status = newStatus;
-    
-    try {
-        await updateDoc(doc(db, 'tasks', taskId), updateData);
-        
-        // Cập nhật cache ngay lập tức
-        const taskIndex = tasksCache.findIndex(t => t.id === taskId);
-        if (taskIndex !== -1) {
-            tasksCache[taskIndex] = { 
-                ...tasksCache[taskIndex], 
-                status: newStatus,
-                completedAt: updateData.completedAt,
-                updatedAt: new Date()
-            };
+    if (task.status === 'pending') {
+        // Hiện modal completion thay vì đổi trạng thái trực tiếp
+        showTaskCompletionModal(taskId);
+    } else {
+        // Chuyển về pending
+        try {
+            await updateDoc(doc(db, 'tasks', taskId), { 
+                status: 'pending',
+                completedAt: null,
+                updatedAt: serverTimestamp()
+            });
+            
+            // Cập nhật cache
+            const taskIndex = tasksCache.findIndex(t => t.id === taskId);
+            if (taskIndex !== -1) {
+                tasksCache[taskIndex] = { 
+                    ...tasksCache[taskIndex], 
+                    status: 'pending',
+                    completedAt: null,
+                    updatedAt: new Date()
+                };
+            }
+            
+            filterTasks();
+            showToast('Chuyển về trạng thái chờ xử lý!', 'success');
+            
+        } catch (error) {
+            console.error('Error updating task status:', error);
+            showToast('Lỗi khi cập nhật trạng thái!', 'error');
         }
-        
-        // Refresh table và stats (giữ nguyên filter)
-        filterTasks();
-        
-        showToast(`Đã cập nhật trạng thái thành ${newStatus === 'pending' ? 'Chưa xử lý' : 'Chờ nghiệm thu'}`, 'success');
-    } catch (error) {
-        console.error('Error updating task status:', error);
-        showToast('Lỗi khi cập nhật trạng thái', 'error');
     }
 };
 
@@ -1065,8 +1103,7 @@ function filterTasks() {
         const matchStatus = !statusFilter || task.status === statusFilter;
         const matchSearch = !searchText || 
             task.title.toLowerCase().includes(searchText) ||
-            (task.description && task.description.toLowerCase().includes(searchText)) ||
-            task.reporter.toLowerCase().includes(searchText);
+            (task.description && task.description.toLowerCase().includes(searchText));
         
         // Date filter (copy từ transactions)
         const taskDate = task.createdAt ? new Date(task.createdAt.seconds * 1000) : null;
@@ -1104,8 +1141,7 @@ function getFilteredTasks() {
         const matchStatus = !statusFilter || task.status === statusFilter;
         const matchSearch = !searchText || 
             task.title.toLowerCase().includes(searchText) ||
-            (task.description && task.description.toLowerCase().includes(searchText)) ||
-            task.reporter.toLowerCase().includes(searchText);
+            (task.description && task.description.toLowerCase().includes(searchText));
         
         const taskDate = task.createdAt ? new Date(task.createdAt.seconds * 1000) : null;
         if (startDate && (!taskDate || taskDate < startDate)) return false;
@@ -1215,46 +1251,544 @@ async function deleteRelatedNotifications(taskId) {
  */
 window.viewTaskImages = function(taskId) {
     const task = tasksCache.find(t => t.id === taskId);
-    if (!task || !task.imageUrls || task.imageUrls.length === 0) {
-        showToast('Không có ảnh nào!', 'info');
+    if (!task) {
+        showToast('Không tìm thấy công việc!', 'error');
         return;
     }
     
-    // Tạo modal hiển thị ảnh
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4';
-    modal.onclick = (e) => {
-        if (e.target === modal) modal.remove();
-    };
+    const modal = document.getElementById('task-images-modal');
+    const title = document.getElementById('task-images-title');
+    const content = document.getElementById('task-images-content');
     
-    const content = document.createElement('div');
-    content.className = 'bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-y-auto';
-    content.onclick = (e) => e.stopPropagation();
+    // Update title
+    title.textContent = `Hình ảnh/video: ${task.title}`;
     
-    content.innerHTML = `
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold">Hình ảnh sự cố (${task.imageUrls.length})</h3>
-            <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-            ${task.imageUrls.map((url, index) => `
-                <div class="relative">
-                    <img src="${url}" alt="Ảnh ${index + 1}" class="w-full h-64 object-cover rounded-lg border border-gray-300">
-                    <a href="${url}" target="_blank" class="absolute bottom-2 right-2 bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
-                        Mở ảnh gốc
-                    </a>
+    // Build content HTML
+    let contentHTML = '';
+    
+    // Phần 1: Ảnh trước khi xử lý
+    const beforeImages = task.imageUrls || [];
+    contentHTML += `
+        <div class="mb-6">
+            <!-- Mobile-responsive header -->
+            <div class="mb-3">
+                <h4 class="text-base sm:text-lg font-semibold text-blue-600 mb-2">Ảnh/video trước khi xử lý (${beforeImages.length})</h4>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <button onclick="uploadMoreImages('${task.id}')" class="w-full sm:w-auto bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm flex items-center justify-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        Thêm ảnh/video
+                    </button>
+                    <button onclick="closeTaskImagesModal()" class="w-full sm:w-auto bg-gray-500 text-white px-3 py-2 rounded-lg hover:bg-gray-600 text-sm">
+                        Hoàn tất
+                    </button>
                 </div>
-            `).join('')}
-        </div>
+            </div>
     `;
     
-    modal.appendChild(content);
-    document.body.appendChild(modal);
+    if (beforeImages.length > 0) {
+        contentHTML += `
+
+            <div class="space-y-2">
+                ${beforeImages.map((url, index) => {
+                    const isVideo = /\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(url) || url.includes('video');
+                    // Đếm số lượng ảnh và video trước index hiện tại
+                    const imageCount = beforeImages.slice(0, index).filter(u => !(/\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(u) || u.includes('video'))).length + 1;
+                    const videoCount = beforeImages.slice(0, index).filter(u => /\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(u) || u.includes('video')).length + 1;
+                    const displayName = isVideo ? `Video ${videoCount}` : `Ảnh ${imageCount}`;
+                    return `
+                    <!-- Mobile-responsive media item -->
+                    <div class="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg border">
+                        <div class="flex items-center flex-1 min-w-0">
+                            <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full ${isVideo ? 'bg-red-100' : 'bg-blue-100'} flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0">
+                                ${isVideo ? `
+                                    <svg class="w-3 h-3 sm:w-4 sm:h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                                    </svg>
+                                ` : `
+                                    <svg class="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                `}
+                            </div>
+                            <span class="text-xs sm:text-sm text-gray-700 truncate" title="${displayName}">${displayName}</span>
+                        </div>
+                        <div class="flex gap-1 sm:gap-2 flex-shrink-0">
+                            <a href="${url}" target="_blank" class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
+                                Xem
+                            </a>
+                            ${(() => {
+                                const currentUser = getCurrentUser();
+                                const isManager = currentUser && currentUser.email === 'quanly@gmail.com';
+                                return isManager ? '' : `
+                            <button onclick="deleteUploadedMedia('${task.id}', '${url}', 'imageUrls')" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+                                Xóa
+                            </button>`;
+                            })()}
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    } else {
+        contentHTML += `
+            <div class="text-gray-500 text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                Chưa có ảnh/video nào - Click nút "Thêm ảnh/video" để upload
+            </div>
+        `;
+    }
+    contentHTML += `</div>`;
+    
+    // Phần 2: Ảnh/video sau khi xử lý
+    const afterImages = task.completionImages || [];
+    if (afterImages.length > 0) {
+        contentHTML += `
+            <div class="mb-6">
+                <h4 class="text-base sm:text-lg font-semibold mb-3 text-green-600">Ảnh/video sau khi xử lý (${afterImages.length})</h4>
+                <div class="space-y-2">
+                    ${afterImages.map((url, index) => {
+                        const isVideo = /\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(url) || url.includes('video');
+                        // Đếm số lượng ảnh và video trước index hiện tại
+                        const imageCount = afterImages.slice(0, index).filter(u => !(/\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(u) || u.includes('video'))).length + 1;
+                        const videoCount = afterImages.slice(0, index).filter(u => /\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(u) || u.includes('video')).length + 1;
+                        const displayName = isVideo ? `Video ${videoCount}` : `Ảnh ${imageCount}`;
+                        return `
+                        <!-- Mobile-responsive completion media item -->
+                        <div class="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg border">
+                            <div class="flex items-center flex-1 min-w-0">
+                                <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full ${isVideo ? 'bg-red-100' : 'bg-green-100'} flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0">
+                                    ${isVideo ? `
+                                        <svg class="w-3 h-3 sm:w-4 sm:h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                                        </svg>
+                                    ` : `
+                                        <svg class="w-3 h-3 sm:w-4 sm:h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                    `}
+                                </div>
+                                <span class="text-xs sm:text-sm text-gray-700 truncate" title="${displayName}">${displayName}</span>
+                            </div>
+                            <div class="flex gap-1 sm:gap-2 flex-shrink-0">
+                                <a href="${url}" target="_blank" class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
+                                    Xem
+                                </a>
+                                ${(() => {
+                                    const currentUser = getCurrentUser();
+                                    const isManager = currentUser && currentUser.email === 'quanly@gmail.com';
+                                    return isManager ? '' : `
+                                <button onclick="deleteUploadedMedia('${task.id}', '${url}', 'completionImages')" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+                                    Xóa
+                                </button>`;
+                                })()}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        contentHTML += `
+            <div class="mb-6">
+                <h4 class="text-base sm:text-lg font-semibold mb-3 text-green-600">Ảnh/video sau khi xử lý</h4>
+                <div class="text-gray-500 text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                    Chưa có ảnh/video hoàn thành
+                </div>
+            </div>
+        `;
+    }
+    
+    content.innerHTML = contentHTML;
+    
+
+    
+    // Show modal
+    openModal(modal);
 };
+
+/**
+ * Upload more images for existing task
+ */
+window.uploadMoreImages = function(taskId) {
+    // Tạo input file tạm thời
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = 'image/*,video/*';
+    
+    input.onchange = async function() {
+        if (this.files.length > 0) {
+            try {
+                showToast('Đang tải ảnh...', 'info');
+                
+                // Upload files
+                const newUrls = await uploadMediaFiles(this.files, taskId, 'additional');
+                
+                // Update task with new images
+                const task = tasksCache.find(t => t.id === taskId);
+                const currentImages = task.imageUrls || [];
+                const updatedImages = [...currentImages, ...newUrls];
+                
+                await updateDoc(doc(db, 'tasks', taskId), {
+                    imageUrls: updatedImages
+                });
+                
+                // Update cache
+                const taskIndex = tasksCache.findIndex(t => t.id === taskId);
+                if (taskIndex !== -1) {
+                    tasksCache[taskIndex].imageUrls = updatedImages;
+                }
+                
+                showToast('Thêm ảnh/video thành công!', 'success');
+                
+                // Refresh modal
+                viewTaskImages(taskId);
+                
+            } catch (error) {
+                console.error('Error uploading images:', error);
+                showToast('Lỗi khi tải ảnh!', 'error');
+            }
+        }
+    };
+    
+    input.click();
+};
+
+/**
+ * Upload media files to Firebase Storage
+ */
+async function uploadMediaFiles(files, taskId, type = 'initial') {
+    const uploadPromises = [];
+    const timestamp = Date.now();
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileName = `${type}_${timestamp}_${i}_${file.name}`;
+        const storageRef = ref(storage, `maintenance-media/${taskId}/${fileName}`);
+        
+        uploadPromises.push(
+            uploadBytes(storageRef, file).then(snapshot => {
+                return getDownloadURL(snapshot.ref);
+            })
+        );
+    }
+    
+    return Promise.all(uploadPromises);
+}
+
+/**
+ * Handle task media input change
+ */
+function handleTaskMediaInput() {
+    const input = document.getElementById('task-media-input');
+    const preview = document.getElementById('task-media-preview');
+    
+    if (input.files.length > 0) {
+        preview.classList.remove('hidden');
+        preview.innerHTML = '';
+        
+        Array.from(input.files).forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'relative';
+            
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'w-full h-20 object-cover rounded border';
+                item.appendChild(img);
+            } else if (file.type.startsWith('video/')) {
+                const video = document.createElement('video');
+                video.src = URL.createObjectURL(file);
+                video.className = 'w-full h-20 object-cover rounded border';
+                video.muted = true;
+                video.preload = 'metadata';
+                video.style.display = 'none'; // Ẩn ban đầu
+                
+                // Tạo canvas để capture thumbnail
+                const canvas = document.createElement('canvas');
+                canvas.className = 'w-full h-20 object-cover rounded border';
+                canvas.width = 160;
+                canvas.height = 80;
+                
+                // Tạo thumbnail khi video load
+                video.addEventListener('loadedmetadata', () => {
+                    video.currentTime = 0.5;
+                });
+                
+                video.addEventListener('seeked', () => {
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                });
+                
+                const overlay = document.createElement('div');
+                overlay.className = 'absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded';
+                overlay.innerHTML = `
+                    <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                    </svg>
+                `;
+                
+                item.appendChild(canvas);
+                item.appendChild(video); // Hidden video for processing
+                item.appendChild(overlay);
+            } else {
+                item.innerHTML = `
+                    <div class="w-full h-20 bg-gray-200 rounded border flex items-center justify-center">
+                        <span class="text-xs text-gray-600">File</span>
+                    </div>
+                `;
+            }
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.innerHTML = '×';
+            removeBtn.className = 'absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs hover:bg-red-600';
+            removeBtn.onclick = () => {
+                item.remove();
+                // Remove from FileList (workaround)
+                const dt = new DataTransfer();
+                Array.from(input.files).forEach((f, i) => {
+                    if (i !== index) dt.items.add(f);
+                });
+                input.files = dt.files;
+                if (input.files.length === 0) preview.classList.add('hidden');
+            };
+            
+            item.appendChild(removeBtn);
+            preview.appendChild(item);
+        });
+    } else {
+        preview.classList.add('hidden');
+    }
+}
+
+/**
+ * Handle completion media input change
+ */
+function handleCompletionMediaInput() {
+    const input = document.getElementById('completion-media-input');
+    const preview = document.getElementById('completion-media-preview');
+    
+    if (input.files.length > 0) {
+        preview.classList.remove('hidden');
+        preview.innerHTML = '';
+        
+        Array.from(input.files).forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'relative';
+            
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'w-full h-20 object-cover rounded border';
+                item.appendChild(img);
+            } else if (file.type.startsWith('video/')) {
+                const video = document.createElement('video');
+                video.src = URL.createObjectURL(file);
+                video.className = 'w-full h-20 object-cover rounded border';
+                video.muted = true;
+                video.preload = 'metadata';
+                video.style.display = 'none'; // Ẩn ban đầu
+                
+                // Tạo canvas để capture thumbnail
+                const canvas = document.createElement('canvas');
+                canvas.className = 'w-full h-20 object-cover rounded border';
+                canvas.width = 160;
+                canvas.height = 80;
+                
+                // Tạo thumbnail khi video load
+                video.addEventListener('loadedmetadata', () => {
+                    video.currentTime = 0.5;
+                });
+                
+                video.addEventListener('seeked', () => {
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                });
+                
+                const overlay = document.createElement('div');
+                overlay.className = 'absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded';
+                overlay.innerHTML = `
+                    <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                    </svg>
+                `;
+                
+                item.appendChild(canvas);
+                item.appendChild(video);
+                item.appendChild(overlay);
+            } else {
+                item.innerHTML = `
+                    <div class="w-full h-20 bg-gray-200 rounded border flex items-center justify-center">
+                        <span class="text-xs text-gray-600">File</span>
+                    </div>
+                `;
+            }
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.innerHTML = '×';
+            removeBtn.className = 'absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs hover:bg-red-600';
+            removeBtn.onclick = () => {
+                item.remove();
+                const dt = new DataTransfer();
+                Array.from(input.files).forEach((f, i) => {
+                    if (i !== index) dt.items.add(f);
+                });
+                input.files = dt.files;
+                if (input.files.length === 0) preview.classList.add('hidden');
+            };
+            
+            item.appendChild(removeBtn);
+            preview.appendChild(item);
+        });
+    } else {
+        preview.classList.add('hidden');
+    }
+}
+
+/**
+ * Show task completion modal
+ */
+function showTaskCompletionModal(taskId) {
+    const modal = document.getElementById('task-completion-modal');
+    const confirmBtn = document.getElementById('confirm-completion-btn');
+    
+    // Reset form
+    document.getElementById('completion-media-input').value = '';
+    document.getElementById('completion-media-preview').classList.add('hidden');
+    
+    confirmBtn.onclick = () => completeTaskWithMedia(taskId);
+    openModal(modal);
+}
+
+/**
+ * Complete task with optional media
+ */
+async function completeTaskWithMedia(taskId) {
+    try {
+        const mediaInput = document.getElementById('completion-media-input');
+        const confirmBtn = document.getElementById('confirm-completion-btn');
+        
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Đang xử lý...';
+        
+        let completionImages = [];
+        
+        // Upload completion images if any
+        if (mediaInput.files.length > 0) {
+            showToast('Đang tải ảnh hoàn thành...', 'info');
+            completionImages = await uploadMediaFiles(mediaInput.files, taskId, 'completion');
+        }
+        
+        // Update task
+        const taskRef = doc(db, 'tasks', taskId);
+        const updateData = {
+            status: 'pending-review',
+            completedAt: serverTimestamp()
+        };
+        
+        if (completionImages.length > 0) {
+            updateData.completionImages = completionImages;
+        }
+        
+        await updateDoc(taskRef, updateData);
+        
+        // Create notification
+        await addDoc(collection(db, 'adminNotifications'), {
+            type: 'task-completed',
+            taskId: taskId,
+            message: `Công việc đã hoàn thành: ${tasksCache.find(t => t.id === taskId)?.title}`,
+            timestamp: serverTimestamp(),
+            read: false
+        });
+        
+        showToast('Đánh dấu hoàn thành thành công!', 'success');
+        closeModal(document.getElementById('task-completion-modal'));
+        
+        // Refresh data
+        await loadTasks();
+        renderTasks();
+        
+    } catch (error) {
+        console.error('Error completing task:', error);
+        showToast('Lỗi khi hoàn thành công việc!', 'error');
+    } finally {
+        const confirmBtn = document.getElementById('confirm-completion-btn');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Xác nhận hoàn thành';
+    }
+}
+
+/**
+ * Delete uploaded media file
+ */
+window.deleteUploadedMedia = async function(taskId, mediaUrl, fieldName) {
+    try {
+        const confirmed = await showConfirm('Bạn có chắc chắn muốn xóa file này?', 'Xác nhận xóa');
+        if (!confirmed) return;
+        
+        const task = tasksCache.find(t => t.id === taskId);
+        if (!task) {
+            showToast('Không tìm thấy công việc!', 'error');
+            return;
+        }
+        
+        // Delete from Firebase Storage
+        try {
+            const fileRef = ref(storage, mediaUrl);
+            await deleteObject(fileRef);
+            console.log('✅ Deleted from Firebase Storage:', mediaUrl);
+        } catch (storageError) {
+            if (storageError.code === 'storage/object-not-found') {
+                console.log('⚠️ File already deleted or does not exist:', mediaUrl);
+            } else {
+                console.error('❌ Storage deletion error:', storageError);
+            }
+        }
+        
+        // Update Firestore - remove URL from array
+        const taskRef = doc(db, 'tasks', taskId);
+        const currentUrls = task[fieldName] || [];
+        const updatedUrls = currentUrls.filter(url => url !== mediaUrl);
+        
+        const updateData = {
+            [fieldName]: updatedUrls,
+            updatedAt: serverTimestamp()
+        };
+        
+        await updateDoc(taskRef, updateData);
+        
+        // Update cache immediately
+        const taskIndex = tasksCache.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+            tasksCache[taskIndex][fieldName] = updatedUrls;
+        }
+        
+        showToast('Xóa file thành công!', 'success');
+        
+        // Refresh modal immediately with updated cache
+        viewTaskImages(taskId);
+        
+        // Also refresh task list to update counters
+        renderTasks();
+        
+    } catch (error) {
+        console.error('Error deleting media:', error);
+        showToast('Lỗi khi xóa file!', 'error');
+    }
+};
+
+/**
+ * Close task images modal
+ */
+window.closeTaskImagesModal = function() {
+    const modal = document.getElementById('task-images-modal');
+    closeModal(modal);
+};
+
+
 
 /**
  * Cập nhật trạng thái hiển thị nút bỏ chọn hàng loạt
@@ -1349,3 +1883,4 @@ window.changeTasksPage = function(page) {
     const filtered = getFilteredTasks(); // Dùng helper không reset page
     renderTasks(filtered);
 };
+

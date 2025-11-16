@@ -208,68 +208,65 @@ function applyContractFilters(contracts = null) {
         return true;
     });
     
-    // Sắp xếp theo: Ngày import MỚI NHẤT → Tòa nhà → Phòng (để dễ phát hiện hợp đồng vừa import)
+    // Kiểm tra xem có lọc theo tòa nhà cụ thể không
+    const isFilteringByBuilding = filterBuildingEl && filterBuildingEl.value && filterBuildingEl.value !== '';
+    
+    // Sắp xếp theo logic mới
     contractsCache_filtered.sort((a, b) => {
-        // 1️⃣ SẮP XẾP THEO NGÀY IMPORT TRƯỚC (mới nhất lên đầu, không tính giờ phút giây)
-        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
-        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
-        
-        // Lấy chỉ ngày, bỏ giờ phút giây để nhóm các hợp đồng import cùng ngày
-        const dayA = new Date(dateA.getFullYear(), dateA.getMonth(), dateA.getDate());
-        const dayB = new Date(dateB.getFullYear(), dateB.getMonth(), dateB.getDate());
-        
-        const dayCompare = dayB - dayA;
-        if (dayCompare !== 0) {
-            return dayCompare;
-        }
-
-        // 2️⃣ CÙNG NGÀY IMPORT - SẮP XẾP THEO TÒA NHÀ
-        const buildingA = getBuildings().find(bd => bd.id === a.buildingId);
-        const buildingB = getBuildings().find(bd => bd.id === b.buildingId);
-        
-        const buildingCodeA = buildingA ? buildingA.code : '';
-        const buildingCodeB = buildingB ? buildingB.code : '';
-        
-        const buildingCompare = buildingCodeA.localeCompare(buildingCodeB);
-        if (buildingCompare !== 0) {
-            return buildingCompare;
-        }
-        
-        // 3️⃣ CÙNG TÒA NHÀ - SẮP XẾP THEO PHÒNG
-        const roomA = a.room;
-        const roomB = b.room;
-        
-        // Hàm helper để phân loại và sắp xếp phòng
-        function getRoomSortKey(room) {
-            // Rooftop luôn ở cuối cùng
-            if (room.toLowerCase().includes('rooftop')) {
-                return [9999, room];
+        if (isFilteringByBuilding) {
+            // TRƯỜNG HỢP LỌC THEO TÒA NHÀ - SẮP XẾP THEO PHÒNG
+            const roomA = a.room;
+            const roomB = b.room;
+            
+            // Hàm helper để phân loại và sắp xếp phòng
+            function getRoomSortKey(room) {
+                // Rooftop luôn ở cuối cùng
+                if (room.toLowerCase().includes('rooftop')) {
+                    return [9999, room];
+                }
+                
+                // Kiểm tra phòng số (101, 102, 201, 202...)
+                const numMatch = room.match(/^(\d{3})$/);
+                if (numMatch) {
+                    return [parseInt(numMatch[1]), parseInt(numMatch[1])];
+                }
+                
+                // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...) 
+                // Đặt ở đầu (trước phòng 101)
+                return [0, room];
             }
             
-            // Kiểm tra phòng số (101, 102, 201, 202...)
-            const numMatch = room.match(/^(\d{3})$/);
-            if (numMatch) {
-                return [parseInt(numMatch[1]), parseInt(numMatch[1])];
+            const [categoryA, valueA] = getRoomSortKey(roomA);
+            const [categoryB, valueB] = getRoomSortKey(roomB);
+            
+            // So sánh theo category trước
+            if (categoryA !== categoryB) {
+                return categoryA - categoryB;
             }
             
-            // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...) 
-            // Đặt ở đầu (trước phòng 101)
-            return [0, room];
-        }
-        
-        const [categoryA, valueA] = getRoomSortKey(roomA);
-        const [categoryB, valueB] = getRoomSortKey(roomB);
-        
-        // So sánh theo category trước
-        if (categoryA !== categoryB) {
-            return categoryA - categoryB;
-        }
-        
-        // Trong cùng category, so sánh theo value
-        if (typeof valueA === 'number' && typeof valueB === 'number') {
-            return valueA - valueB;
+            // Trong cùng category, so sánh theo value
+            if (typeof valueA === 'number' && typeof valueB === 'number') {
+                return valueA - valueB;
+            } else {
+                return valueA.toString().localeCompare(valueB.toString());
+            }
         } else {
-            return valueA.toString().localeCompare(valueB.toString());
+            // TRƯỜNG HỢP KHÔNG LỌC - SẮP XẾP THEO THỜI GIAN TẠO (mới nhất trước)
+            const getCreatedTime = (contract) => {
+                if (contract.createdAt) {
+                    if (contract.createdAt.toDate) {
+                        // Firestore Timestamp
+                        return contract.createdAt.toDate().getTime();
+                    } else if (contract.createdAt instanceof Date) {
+                        return contract.createdAt.getTime();
+                    } else {
+                        return new Date(contract.createdAt).getTime();
+                    }
+                }
+                return 0;
+            };
+            
+            return getCreatedTime(b) - getCreatedTime(a);
         }
     });
 

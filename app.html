@@ -1734,12 +1734,6 @@
             let isFirstTransactionLoad = true;
             
             onSnapshot(transactionsQuery, (snapshot) => {
-                if (isFirstTransactionLoad) {
-                    console.log('💰 First transaction load, skipping notifications');
-                    isFirstTransactionLoad = false;
-                    return;
-                }
-                
                 snapshot.docChanges().forEach((change) => {
                     const transactionData = { id: change.doc.id, ...change.doc.data() };
                     
@@ -1752,27 +1746,37 @@
                             ? transactionData.items.reduce((sum, item) => sum + (item.amount || 0), 0)
                             : 0;
                             
-                        // Tạo notification trong app (không push)
-                        const notification = {
-                            id: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                            type: 'payment_received',
-                            title: 'Xác nhận thanh toán',
-                            message: `Chúng tôi đã nhận được khoản thanh toán ${formatCurrency(totalAmount)} của bạn. Xin cảm ơn!`,
-                            createdAt: new Date(),
-                            isRead: false,
-                            data: { 
-                                transactionId: transactionData.id, 
-                                billId: transactionData.billId, 
-                                amount: totalAmount 
+                        // Kiểm tra xem đã có thông báo cho transaction này chưa
+                        const existingPaymentNotification = notifications.find(n => n.data?.transactionId === transactionData.id);
+                        if (!existingPaymentNotification) {
+                            // Tạo notification trong app (không push)
+                            const notification = {
+                                id: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                type: 'payment_received',
+                                title: 'Xác nhận thanh toán',
+                                message: `Chúng tôi đã nhận được khoản thanh toán ${formatCurrency(totalAmount)} của bạn. Xin cảm ơn!`,
+                                createdAt: transactionData.createdAt?.toDate ? transactionData.createdAt.toDate() : new Date(),
+                                isRead: isFirstTransactionLoad ? true : false, // Đánh dấu đã đọc nếu là load lần đầu
+                                data: { 
+                                    transactionId: transactionData.id, 
+                                    billId: transactionData.billId, 
+                                    amount: totalAmount 
+                                }
+                            };
+                            
+                            // Thêm vào danh sách notifications
+                            notifications.unshift(notification);
+                            
+                            // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
+                            if (!isFirstTransactionLoad) {
+                                showInAppNotification('Xác nhận thanh toán', notification.message);
                             }
-                        };
-                        
-                        // Thêm vào danh sách notifications
-                        notifications.unshift(notification);
-                        saveNotificationsToStorage();
-                        renderNotificationsList();
-                        
-                        console.log('✅ Created in-app payment notification (no push)');
+                            
+                            saveNotificationsToStorage();
+                            renderNotificationsList();
+                            
+                            console.log('✅ Created in-app payment notification, isFirstLoad:', isFirstTransactionLoad);
+                        }
                     }
                     
                     // 🗑️ XỬ LÝ KHI TRANSACTION BỊ XÓA (HỦY THU TIỀN)
@@ -1794,6 +1798,12 @@
                         }
                     }
                 });
+                
+                // Đánh dấu đã load xong lần đầu
+                if (isFirstTransactionLoad) {
+                    console.log('✅ First transaction load completed');
+                    isFirstTransactionLoad = false;
+                }
             });
 
             // 3. LẮNG NGHE TASKS - BẮT TRÚNG KHI WEB DUYỆT SỰ CỐ (toggleTaskStatus)
@@ -1806,11 +1816,6 @@
             let isFirstTaskLoad = true;
             
             onSnapshot(tasksQuery, (snapshot) => {
-                if (isFirstTaskLoad) {
-                    console.log('🔧 First task load, skipping notifications');
-                    isFirstTaskLoad = false;
-                    return;
-                }
                 
                 snapshot.docChanges().forEach((change) => {
                     const taskData = { id: change.doc.id, ...change.doc.data() };
@@ -1819,15 +1824,41 @@
                         // YÊU CẦU 4: KHI WEB DUYỆT SỰ CỐ (status: pending -> completed)
                         if (taskData.status === 'completed') {
                             console.log('✅ Task completed by admin:', taskData.id, taskData.title);
-                            createNotification(
-                                'issue_resolved',
-                                'Sự cố đã được giải quyết',
-                                `Sự cố "${taskData.title}" đã được xử lý hoàn thành. Cảm ơn bạn đã phản hồi!`,
-                                { taskId: taskData.id }
-                            );
+                            
+                            // Kiểm tra xem đã có thông báo cho task này chưa
+                            const existingTaskNotification = notifications.find(n => n.data?.taskId === taskData.id);
+                            if (!existingTaskNotification) {
+                                const notification = {
+                                    id: `task_resolved_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                    type: 'issue_resolved',
+                                    title: 'Sự cố đã được giải quyết',
+                                    message: `Sự cố "${taskData.title}" đã được xử lý hoàn thành. Cảm ơn bạn đã phản hồi!`,
+                                    createdAt: taskData.updatedAt?.toDate ? taskData.updatedAt.toDate() : new Date(),
+                                    isRead: isFirstTaskLoad ? true : false, // Đánh dấu đã đọc nếu là load lần đầu
+                                    data: { taskId: taskData.id }
+                                };
+                                
+                                notifications.unshift(notification);
+                                
+                                // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
+                                if (!isFirstTaskLoad) {
+                                    showInAppNotification('Sự cố đã được giải quyết', notification.message);
+                                }
+                                
+                                saveNotificationsToStorage();
+                                renderNotificationsList();
+                                
+                                console.log('✅ Created task completion notification, isFirstLoad:', isFirstTaskLoad);
+                            }
                         }
                     }
                 });
+                
+                // Đánh dấu đã load xong lần đầu
+                if (isFirstTaskLoad) {
+                    console.log('✅ First task load completed');
+                    isFirstTaskLoad = false;
+                }
             });
 
             // 5. LẮNG NGHE THÔNG BÁO ADMIN - adminNotifications collection
@@ -1854,11 +1885,7 @@
                 // console.log('🔔 Document change detected:', change.type, change.doc.id, 'isFirstLoad:', isFirstNotificationLoad);
                 
                 const notificationData = { id: change.doc.id, ...change.doc.data() };
-                // console.log('📋 Notification data:', notificationData);                    // Skip TẤT CẢ thông báo trong lần đầu load (tránh hiển thị notification cũ khi khởi động)
-                    if (isFirstNotificationLoad) {
-                        // console.log('⏭️ Skipping all notifications on first load:', change.doc.id);
-                        return;
-                    }
+                // console.log('📋 Notification data:', notificationData);
                     
                     // Skip modified events để tránh spam khi mark as read
                     if (change.type === 'modified') {
@@ -1911,19 +1938,36 @@
                         // Chỉ tạo thông báo nếu chưa tồn tại (tránh ghi đè trạng thái đã đọc)
                         const localExistingNotification = notifications.find(n => n.data?.firebaseId === change.doc.id);
                         if (!localExistingNotification) {
-                            console.log('✅ Showing notification type:', notificationData.type);
-                            createNotification(
-                                notificationData.type,
-                                notificationData.title,
-                                messageToShow,
-                                { 
+                            console.log('✅ Adding notification type:', notificationData.type, 'isFirstLoad:', isFirstNotificationLoad);
+                            
+                            // Tạo notification object
+                            const notification = {
+                                id: `${notificationData.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                type: notificationData.type,
+                                title: notificationData.title,
+                                message: messageToShow,
+                                createdAt: notificationData.createdAt?.toDate ? notificationData.createdAt.toDate() : new Date(),
+                                isRead: isFirstNotificationLoad ? true : false, // Đánh dấu đã đọc nếu là load lần đầu
+                                data: { 
                                     billId: notificationData.billId,
                                     amount: notificationData.amount,
                                     taskId: notificationData.taskId,
                                     transactionId: notificationData.transactionId,
                                     firebaseId: change.doc.id // Lưu Firebase ID để có thể xóa sau
                                 }
-                            );
+                            };
+                            
+                            // Thêm vào danh sách
+                            notifications.unshift(notification);
+                            
+                            // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
+                            if (!isFirstNotificationLoad) {
+                                showInAppNotification(notificationData.title, messageToShow);
+                            }
+                            
+                            // Lưu và render
+                            saveNotificationsToStorage();
+                            renderNotificationsList();
                         } else {
                             // console.log('⏭️ Notification already exists locally, skipping creation to preserve read status');
                         }
@@ -3226,8 +3270,6 @@
                     status: 'pending', // Trạng thái chờ xử lý
                     type: 'issue', // Loại sự cố từ khách
                     contact: representativePhone,
-                    reporter: representativeName, // Tên người đại diện - ĐÚNG FIELD NAME WEB ĐỌC
-                    reportedBy: representativeName, // Backup field
                     images: imageUrls.length, // Số lượng ảnh
                     imageUrls: imageUrls, // Array URLs của ảnh đã upload
                     createdAt: new Date(),
@@ -3255,7 +3297,6 @@
                     createdAt: new Date(),
                     // Metadata để web có thể filter theo building/room
                     metadata: {
-                        reportedBy: representativeName,
                         customerPhone: representativePhone,
                         buildingCode: building?.code || 'N/A',
                         issueDescription: description, // Lưu toàn bộ mô tả không cắt bớt
@@ -4008,9 +4049,16 @@
                 return;
             }
 
+            // Sắp xếp theo thời gian tạo (mới nhất trước)
+            const sortedNotifications = [...notifications].sort((a, b) => {
+                const timeA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+                const timeB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+                return timeB - timeA; // Mới nhất trước
+            });
+
             // Virtual scrolling cho danh sách dài
             const maxVisible = 50; // Chỉ render tối đa 50 items
-            const visibleNotifications = notifications.slice(0, maxVisible);
+            const visibleNotifications = sortedNotifications.slice(0, maxVisible);
             
             listEl.innerHTML = visibleNotifications.map(notification => {
                 const dateTime = formatDateTime(notification.createdAt);
