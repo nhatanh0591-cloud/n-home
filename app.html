@@ -3540,13 +3540,9 @@
                 return;
             }
             
-            // Tự động yêu cầu quyền nếu chưa có
+            // TẮT tự động yêu cầu quyền notification - gây spam popup
             if (Notification.permission === 'default') {
-                Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
-                        displayPushNotification(title, body);
-                    }
-                });
+                console.log('🔕 Notification permission chưa có - không tự động hỏi để tránh spam');
                 return;
             }
             
@@ -4360,9 +4356,19 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration cho Firebase Messaging
+        // Service Worker Registration cho Customer App PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // Register customer service worker for PWA
+                navigator.serviceWorker.register('/customer-sw.js')
+                    .then(registration => {
+                        console.log('✅ N-Home Customer SW registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('❌ Customer SW registration failed:', error);
+                    });
+                
+                // Also register Firebase messaging SW (không conflict)
                 navigator.serviceWorker.register('/firebase-messaging-sw.js')
                     .then(registration => {
                         console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
@@ -4455,7 +4461,9 @@
                     return null;
                 }
                 
-                const permission = await Notification.requestPermission();
+                // TẮT auto request notification permission để tránh spam popup
+                // const permission = await Notification.requestPermission();
+                const permission = Notification.permission;
                 
                 if (permission === 'granted') {
                     try {

@@ -1,39 +1,20 @@
-// admin-sw.js
-// Service Worker cho N-Home Admin PWA
+// customer-sw.js
+// Service Worker cho N-Home Customer App
 
-const CACHE_NAME = 'n-home-admin-v3';
+const CACHE_NAME = 'n-home-customer-v2';
 const urlsToCache = [
-    '/index.html',
-    '/styles.css',
-    '/js/main.js',
-    '/js/auth.js',
-    '/js/firebase.js',
-    '/js/navigation.js',
-    '/js/store.js',
-    '/js/utils.js',
-    '/js/modules/dashboard.js',
-    '/js/modules/bills.js',
-    '/js/modules/customers.js',
-    '/js/modules/buildings.js',
-    '/js/modules/contracts.js',
-    '/js/modules/services.js',
-    '/js/modules/transactions.js',
-    '/js/modules/accounts.js',
-    '/js/modules/reports.js',
-    '/js/modules/notifications.js',
-    '/js/modules/tasks.js',
-    '/js/modules/transaction-categories.js',
+    '/app.html',
     '/icon-nen-xanh.jpg',
-    '/manifest.json'
+    '/manifest-customer.json'
 ];
 
 // Install Service Worker
 self.addEventListener('install', (event) => {
-    console.log('N-Home Admin SW: Installing...');
+    console.log('N-Home Customer SW: Installing...');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('N-Home Admin SW: Caching files');
+                console.log('N-Home Customer SW: Caching files');
                 return cache.addAll(urlsToCache);
             })
     );
@@ -41,13 +22,13 @@ self.addEventListener('install', (event) => {
 
 // Activate Service Worker
 self.addEventListener('activate', (event) => {
-    console.log('N-Home Admin SW: Activating...');
+    console.log('N-Home Customer SW: Activating...');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
                     if (cacheName !== CACHE_NAME) {
-                        console.log('N-Home Admin SW: Deleting old cache:', cacheName);
+                        console.log('N-Home Customer SW: Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
@@ -78,4 +59,4 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-console.log('✅ N-Home Admin Service Worker loaded');
+console.log('✅ N-Home Customer Service Worker loaded');
