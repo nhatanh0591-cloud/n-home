@@ -4339,13 +4339,54 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
+        // 🔮 BROWSER DECEPTION TRICKS - Make this app appear completely different
+        // Change user agent to trick browser
+        Object.defineProperty(navigator, 'userAgent', {
+            get: function() { return navigator.userAgent + ' CustomerApp/1.0'; }
+        });
+        
+        // Different app name in navigator
+        Object.defineProperty(navigator, 'appName', {
+            get: function() { return 'N-Home Customer'; }
+        });
+        
+        // Modify window name
+        window.name = 'n-home-customer-app';
+        
+        // Different localStorage prefix
+        const originalSetItem = localStorage.setItem;
+        const originalGetItem = localStorage.getItem;
+        localStorage.setItem = function(key, value) {
+            return originalSetItem.call(this, 'customer_' + key, value);
+        };
+        localStorage.getItem = function(key) {
+            return originalGetItem.call(this, 'customer_' + key);
+        };
+        
         // Service Worker Registration cho Customer App PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Register customer service worker for PWA
+                // FORCE clear all old caches first
+                if ('caches' in window) {
+                    caches.keys().then(names => {
+                        names.forEach(name => {
+                            if (name.includes('n-home')) {
+                                console.log('🗑️ Force clearing cache:', name);
+                                caches.delete(name);
+                            }
+                        });
+                    });
+                }
+                
+                // Register customer service worker for PWA with force update
                 navigator.serviceWorker.register('/customer-sw.js')
                     .then(registration => {
                         console.log('✅ N-Home Customer SW registered:', registration.scope);
+                        // Force update service worker
+                        registration.update();
+                        if (registration.waiting) {
+                            registration.waiting.postMessage({type: 'SKIP_WAITING'});
+                        }
                     })
                     .catch(error => {
                         console.log('❌ Customer SW registration failed:', error);
@@ -4379,19 +4420,21 @@
             });
         }
 
-        // PWA Install Prompt - Customer App
+        // PWA Install Prompt - Customer App (SIMPLIFIED LIKE ADMIN)
         let deferredPrompt;
 
-        // PWA Install Prompt event
+        // PWA Install Prompt event - SAME AS ADMIN
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('📱 PWA Install prompt event fired (Customer)');
+            console.log('PWA Install prompt event fired (Customer)');
             e.preventDefault();
             deferredPrompt = e;
             showCustomerInstallPrompt();
         });
 
-        // Show custom install prompt for customer app
+        // Show custom install prompt - EXACT COPY OF ADMIN
         function showCustomerInstallPrompt() {
+            console.log('Showing customer install prompt...');
+            
             // Remove existing prompt if any
             const existing = document.getElementById('pwa-customer-install-prompt');
             if (existing) {
@@ -4424,6 +4467,13 @@
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log('PWA Customer install outcome:', outcome);
                     deferredPrompt = null;
+                } else {
+                    // Fallback: Hướng dẫn cài manual khi không có deferredPrompt
+                    console.log('🔄 No deferredPrompt - showing manual install guide');
+                    alert('📱 Để cài đặt app:\n\n' +
+                          '🔹 Chrome: Bấm menu (⋮) → "Add to Home screen"\n' +
+                          '🔹 Safari: Bấm Share (📤) → "Add to Home Screen"\n' +
+                          '🔹 Edge: Bấm menu (⋯) → "Apps" → "Install this site as an app"');
                 }
                 document.body.removeChild(installPrompt);
             });
@@ -4436,8 +4486,15 @@
             });
         }
 
-        // Check if app is installed
-        function isCustomerAppInstalled() {
+        // Check if device is mobile - EXACT COPY OF ADMIN
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   window.innerWidth <= 768 || 
+                   'ontouchstart' in window;
+        }
+
+        // Check if app is installed - EXACT COPY OF ADMIN
+        function isAppInstalled() {
             // Method 1: Check display-mode
             const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
             
@@ -4448,52 +4505,31 @@
             const urlParams = new URLSearchParams(window.location.search);
             const isFromPWA = urlParams.get('source') === 'pwa';
             
-            console.log('🔍 Customer app install check:', { isStandalone, isFromHomeScreen, isFromPWA });
+            console.log('🔍 App install check:', { isStandalone, isFromHomeScreen, isFromPWA });
             
             return isStandalone || isFromHomeScreen || isFromPWA;
         }
 
-        // Check if device is mobile
-        function isMobileDevice() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                   window.innerWidth <= 768 || 
-                   'ontouchstart' in window;
-        }
-
-        // Check if should show install prompt
+        // Simple load check - SAME AS ADMIN (no complex logic)
         window.addEventListener('load', () => {
-            console.log('📱 Customer app loaded, checking install conditions...');
-            
-            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
             const isMobile = isMobileDevice();
             const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
-            const isInstalled = isCustomerAppInstalled();
+            const isInstalled = isAppInstalled();
             
-            console.log('📱 Customer install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            console.log('📱 Customer app check:', { isMobile, dismissed, isInstalled });
             
-            // Chỉ show khi: mobile + chưa cài + chưa dismiss (hoặc đã hết hạn dismiss)
+            // Simple condition: mobile + not installed + not recently dismissed
             if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
-                // Delay 2 seconds để user load xong trang
+                // Wait for user to see the page first
                 setTimeout(() => {
-                    console.log('⏰ Customer timeout reached, checking deferredPrompt:', !!deferredPrompt);
                     if (deferredPrompt) {
-                        console.log('✅ Showing customer install prompt with beforeinstallprompt');
                         showCustomerInstallPrompt();
-                    } else {
-                        console.log('⚠️ No beforeinstallprompt event for customer app');
-                        // KHÔNG force show nếu không có beforeinstallprompt
                     }
                 }, 2000);
-            } else {
-                console.log('❌ Not showing customer install prompt:', { 
-                    notMobile: !isMobile, 
-                    alreadyInstalled: isInstalled, 
-                    recentlyDismissed: dismissed && Date.now() - dismissed < 7 * 24 * 60 * 60 * 1000 
-                });
             }
         });
 
-        // Track if app was installed
+        // Track if app was installed - SAME AS ADMIN
         window.addEventListener('appinstalled', (evt) => {
             console.log('✅ PWA Customer was installed successfully');
             localStorage.removeItem('pwa-customer-install-dismissed');

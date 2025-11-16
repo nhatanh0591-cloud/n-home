@@ -1,7 +1,7 @@
 // customer-sw.js
 // Service Worker cho N-Home Customer App
 
-const CACHE_NAME = 'n-home-customer-v4';
+const CACHE_NAME = 'n-home-customer-v6';
 const urlsToCache = [
     '/app.html',
     '/icon-nen-xanh.jpg',

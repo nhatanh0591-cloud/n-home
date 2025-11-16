@@ -42,9 +42,26 @@
         // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // FORCE clear all old caches first
+                if ('caches' in window) {
+                    caches.keys().then(names => {
+                        names.forEach(name => {
+                            if (name.includes('n-home')) {
+                                console.log('🗑️ Force clearing cache:', name);
+                                caches.delete(name);
+                            }
+                        });
+                    });
+                }
+                
                 navigator.serviceWorker.register('/admin-sw.js')
                     .then((registration) => {
                         console.log('N-Home Admin SW registered successfully:', registration.scope);
+                        // Force update service worker
+                        registration.update();
+                        if (registration.waiting) {
+                            registration.waiting.postMessage({type: 'SKIP_WAITING'});
+                        }
                     })
                     .catch((error) => {
                         console.log('N-Home Admin SW registration failed:', error);
