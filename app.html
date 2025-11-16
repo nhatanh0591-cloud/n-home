@@ -2002,8 +2002,8 @@
             // Setup real-time listeners cho thông báo
             setupRealtimeListeners(customer.id);
             
-            // TẮT auto request notification permission - gây spam popup
-            // requestNotificationPermission();
+            // Request notification permission
+            requestNotificationPermission();
         }
 
         function renderHomeData() {
@@ -3485,9 +3485,26 @@
             }
             
             if (currentPermission === 'default') {
-                // TẮT popup confirm notification - gây khó chịu
-                console.log('🔕 Notification permission default - không tự động hỏi để tránh spam popup');
-                localStorage.setItem('notificationPermissionAsked', 'true');
+                // Hiện popup xác nhận thân thiện
+                setTimeout(() => {
+                    if (confirm('📱 Cho phép N-Home gửi thông báo để bạn không bỏ lỡ hóa đơn và cập nhật quan trọng?')) {
+                        console.log('🔄 Đang yêu cầu quyền thông báo...');
+                        Notification.requestPermission().then(permission => {
+                            console.log('🔔 Kết quả quyền:', permission);
+                            if (permission === 'granted') {
+                                showNotification('N-Home', '🎉 Tuyệt vời! Bạn sẽ nhận thông báo khi có cập nhật mới.');
+                                // Lưu trạng thái đã xin quyền
+                                localStorage.setItem('notificationPermissionAsked', 'true');
+                            } else {
+                                console.log('⚠️ Người dùng từ chối quyền thông báo');
+                                showToast('Bạn có thể bật thông báo trong cài đặt trình duyệt bất cứ lúc nào', 'info');
+                            }
+                        });
+                    } else {
+                        console.log('⚠️ Người dùng không muốn nhận thông báo');
+                        localStorage.setItem('notificationPermissionAsked', 'true');
+                    }
+                }, 2000); // Delay để app load xong
                 return;
             }
             
@@ -3523,9 +3540,13 @@
                 return;
             }
             
-            // TẮT tự động yêu cầu quyền notification - gây spam popup
+            // Tự động yêu cầu quyền nếu chưa có
             if (Notification.permission === 'default') {
-                console.log('🔕 Notification permission chưa có - không tự động hỏi để tránh spam');
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        displayPushNotification(title, body);
+                    }
+                });
                 return;
             }
             
@@ -4339,64 +4360,9 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // 🔥 FORCE RESET PWA STATE - ĐỊT MẸ BROWSER!
-        // Clear all PWA related storage
-        if ('localStorage' in window) {
-            // Clear all PWA install states
-            Object.keys(localStorage).forEach(key => {
-                if (key.includes('pwa') || key.includes('install') || key.includes('app')) {
-                    localStorage.removeItem(key);
-                }
-            });
-        }
-        
-        // Clear service worker registrations
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                registrations.forEach(reg => {
-                    if (reg.scope.includes('customer') || reg.scope.includes('app')) {
-                        reg.unregister();
-                    }
-                });
-            });
-        }
-        
-        // Force reload manifest
-        const manifestLink = document.querySelector('link[rel="manifest"]');
-        if (manifestLink) {
-            manifestLink.href = '/manifest-customer.json?t=' + Date.now();
-        }
-        
-        // Service Worker Registration cho Customer App PWA
+        // Service Worker Registration cho Firebase Messaging
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // FORCE clear all old caches first
-                if ('caches' in window) {
-                    caches.keys().then(names => {
-                        names.forEach(name => {
-                            if (name.includes('n-home')) {
-                                console.log('🗑️ Force clearing cache:', name);
-                                caches.delete(name);
-                            }
-                        });
-                    });
-                }
-                
-                // Register customer service worker for PWA with force update
-                navigator.serviceWorker.register('/customer-sw.js')
-                    .then(registration => {
-                        console.log('✅ N-Home Customer SW registered:', registration.scope);
-                        // Force update service worker
-                        registration.update();
-                        if (registration.waiting) {
-                            registration.waiting.postMessage({type: 'SKIP_WAITING'});
-                        }
-                    })
-                    .catch(error => {
-                        console.log('❌ Customer SW registration failed:', error);
-                    });
-                
-                // Also register Firebase messaging SW (không conflict)
                 navigator.serviceWorker.register('/firebase-messaging-sw.js')
                     .then(registration => {
                         console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
@@ -4405,135 +4371,52 @@
                         if (messaging) {
                             messaging.useServiceWorker(registration);
                         }
-                    });
-                
-                // FORCE clear app cache để đồng bộ data cũ
-                if ('caches' in window) {
-                    caches.keys().then(cacheNames => {
-                        cacheNames.forEach(cacheName => {
-                            if (cacheName.includes('customer') && !cacheName.includes('v4')) {
-                                console.log('🗑️ Clearing old customer cache:', cacheName);
-                                caches.delete(cacheName);
-                            }
-                        });
-                    });
-                }
+                    })
                     .catch(error => {
                         console.log('❌ Service Worker registration failed:', error);
                     });
             });
         }
 
-        // PWA Install Prompt - Customer App (SIMPLIFIED LIKE ADMIN)
+        // PWA Install Prompt
         let deferredPrompt;
+        const installPrompt = document.getElementById('install-prompt');
+        const installButton = document.getElementById('install-button');
 
-        // PWA Install Prompt event - SAME AS ADMIN
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA Install prompt event fired (Customer)');
             e.preventDefault();
             deferredPrompt = e;
-            showCustomerInstallPrompt();
+            
+            // Show install prompt
+            if (installPrompt) {
+                installPrompt.classList.remove('hidden');
+            }
         });
 
-        // Show custom install prompt - EXACT COPY OF ADMIN
-        function showCustomerInstallPrompt() {
-            console.log('Showing customer install prompt...');
-            
-            // Remove existing prompt if any
-            const existing = document.getElementById('pwa-customer-install-prompt');
-            if (existing) {
-                existing.remove();
-            }
-            
-            // Create popup install
-            const installPrompt = document.createElement('div');
-            installPrompt.id = 'pwa-customer-install-prompt';
-            installPrompt.innerHTML = `
-                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-                    <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-                        <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
-                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">🔥 CÀI N-HOME CUSTOMER</h3>
-                        <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn và nhận thông báo</p>
-                        <div style="display: flex; gap: 12px;">
-                            <button id="pwa-customer-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
-                            <button id="pwa-customer-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(installPrompt);
-
-            // Install button click
-            document.getElementById('pwa-customer-install-btn').addEventListener('click', async () => {
+        if (installButton) {
+            installButton.addEventListener('click', async () => {
                 if (deferredPrompt) {
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    console.log('PWA Customer install outcome:', outcome);
+                    console.log(`User response: ${outcome}`);
                     deferredPrompt = null;
-                } else {
-                    // MANUAL INSTALL GUIDE - ĐỊT MẸ BROWSER KHÔNG CHO POPUP
-                    console.log('🔥 ĐỊT MẸ! Browser chặn popup - show manual guide');
-                    alert('📱 CÀI ĐẶT N-HOME APP:\n\n' +
-                          '🔹 Chrome/Edge: Bấm menu (⋮) → "Thêm vào màn hình chính"\n' +
-                          '🔹 Safari: Bấm Share (📤) → "Add to Home Screen"\n' +
-                          '🔹 Firefox: Bấm menu → "Cài đặt"');
+                    installPrompt.classList.add('hidden');
                 }
-                document.body.removeChild(installPrompt);
-            });
-
-            // Cancel button click
-            document.getElementById('pwa-customer-cancel-btn').addEventListener('click', () => {
-                document.body.removeChild(installPrompt);
-                // Lưu trạng thái đã từ chối cho customer app riêng
-                localStorage.setItem('pwa-customer-install-dismissed', Date.now());
             });
         }
 
-        // Check if device is mobile - EXACT COPY OF ADMIN
-        function isMobileDevice() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                   window.innerWidth <= 768 || 
-                   'ontouchstart' in window;
-        }
-
-        // Check if app is installed - EXACT COPY OF ADMIN
-        function isAppInstalled() {
-            // Method 1: Check display-mode
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-            
-            // Method 2: Check if opened from home screen
-            const isFromHomeScreen = window.navigator.standalone === true;
-            
-            // Method 3: Check URL params
-            const urlParams = new URLSearchParams(window.location.search);
-            const isFromPWA = urlParams.get('source') === 'pwa';
-            
-            console.log('🔍 App install check:', { isStandalone, isFromHomeScreen, isFromPWA });
-            
-            return isStandalone || isFromHomeScreen || isFromPWA;
-        }
-
-        // 🔥 FORCE SHOW POPUP NGAY LẬP TỨC - KHÔNG CHỜ GÌ HẾT!
-        window.addEventListener('load', () => {
-            console.log('🔥🔥🔥 PAGE LOADED - FORCE SHOWING POPUP IN 500MS!');
-            
-            // FORCE SHOW ngay lập tức - không check điều kiện gì hết
-            setTimeout(() => {
-                console.log('🔥 ĐỊT MẸ BROWSER - SHOWING POPUP NOW!!!!');
-                showCustomerInstallPrompt();
-            }, 500);
-        });
-
-        // Track if app was installed - SAME AS ADMIN
-        window.addEventListener('appinstalled', (evt) => {
-            console.log('✅ PWA Customer was installed successfully');
-            localStorage.removeItem('pwa-customer-install-dismissed');
+        // Hide install prompt when already installed
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ PWA installed successfully!');
+            if (installPrompt) {
+                installPrompt.classList.add('hidden');
+            }
+            deferredPrompt = null;
         });
 
         // Check if running as PWA
         if (window.matchMedia('(display-mode: standalone)').matches) {
-            console.log('✅ Customer app running as PWA!');
+            console.log('✅ Running as PWA!');
         }
     </script>
 
@@ -4572,9 +4455,7 @@
                     return null;
                 }
                 
-                // TẮT auto request notification permission để tránh spam popup
-                // const permission = await Notification.requestPermission();
-                const permission = Notification.permission;
+                const permission = await Notification.requestPermission();
                 
                 if (permission === 'granted') {
                     try {
@@ -4686,15 +4567,17 @@
 
 
 
-        // TẮT tự động xin quyền thông báo khi login - gây spam popup
+        // Tự động xin quyền thông báo khi khách hàng đăng nhập thành công
         const originalLoadCustomerData = window.loadCustomerData;
         if (originalLoadCustomerData) {
             window.loadCustomerData = async function(phone, password) {
                 const result = await originalLoadCustomerData(phone, password);
                 
                 if (result && window.customerData) {
-                    // KHÔNG tự động xin quyền thông báo - tránh popup
-                    console.log('🔕 Login successful - skipping auto notification permission request');
+                    // Đợi 2 giây rồi xin quyền thông báo
+                    setTimeout(() => {
+                        requestNotificationPermission();
+                    }, 2000);
                 }
                 
                 return result;

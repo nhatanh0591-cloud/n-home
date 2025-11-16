@@ -42,26 +42,9 @@
         // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // FORCE clear all old caches first
-                if ('caches' in window) {
-                    caches.keys().then(names => {
-                        names.forEach(name => {
-                            if (name.includes('n-home')) {
-                                console.log('🗑️ Force clearing cache:', name);
-                                caches.delete(name);
-                            }
-                        });
-                    });
-                }
-                
                 navigator.serviceWorker.register('/admin-sw.js')
                     .then((registration) => {
                         console.log('N-Home Admin SW registered successfully:', registration.scope);
-                        // Force update service worker
-                        registration.update();
-                        if (registration.waiting) {
-                            registration.waiting.postMessage({type: 'SKIP_WAITING'});
-                        }
                     })
                     .catch((error) => {
                         console.log('N-Home Admin SW registration failed:', error);
@@ -132,23 +115,6 @@
                    'ontouchstart' in window;
         }
 
-        // Check if app is installed by checking localStorage or other methods
-        function isAppInstalled() {
-            // Method 1: Check display-mode
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-            
-            // Method 2: Check if opened from home screen
-            const isFromHomeScreen = window.navigator.standalone === true;
-            
-            // Method 3: Check URL params
-            const urlParams = new URLSearchParams(window.location.search);
-            const isFromPWA = urlParams.get('source') === 'pwa';
-            
-            console.log('🔍 App install check:', { isStandalone, isFromHomeScreen, isFromPWA });
-            
-            return isStandalone || isFromHomeScreen || isFromPWA;
-        }
-
         // Check if should show install prompt
         window.addEventListener('load', () => {
             console.log('Page loaded, checking install conditions...');
@@ -156,29 +122,22 @@
             // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
             const isMobile = isMobileDevice();
             const dismissed = localStorage.getItem('pwa-admin-install-dismissed');
-            const isInstalled = isAppInstalled();
+            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
             
-            console.log('📱 Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
             
-            // Chỉ show khi: mobile + chưa cài + chưa dismiss (hoặc đã hết hạn dismiss)
             if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
-                    console.log('⏰ Timeout reached, checking deferredPrompt:', !!deferredPrompt);
+                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
                     if (deferredPrompt) {
-                        console.log('✅ Showing install prompt with beforeinstallprompt');
                         showInstallPrompt();
                     } else {
-                        console.log('⚠️ No beforeinstallprompt event - app may already be installable or installed');
-                        // KHÔNG force show nếu không có beforeinstallprompt
+                        // Force show install prompt nếu không có beforeinstallprompt
+                        console.log('No beforeinstallprompt, force showing install prompt');
+                        showInstallPrompt();
                     }
                 }, 2000);
-            } else {
-                console.log('❌ Not showing install prompt:', { 
-                    notMobile: !isMobile, 
-                    alreadyInstalled: isInstalled, 
-                    recentlyDismissed: dismissed && Date.now() - dismissed < 7 * 24 * 60 * 60 * 1000 
-                });
             }
         });
         // Track if app was installed

@@ -1,7 +1,7 @@
 // admin-sw.js
 // Service Worker cho N-Home Admin PWA
 
-const CACHE_NAME = 'n-home-admin-v6';
+const CACHE_NAME = 'n-home-admin-v2';
 const urlsToCache = [
     '/index.html',
     '/styles.css',
@@ -56,56 +56,15 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Fetch từ cache hoặc network - FORCE BYPASS cache cho mọi Firebase requests  
+// Fetch từ cache hoặc network
 self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
-    
-    // BYPASS cache hoàn toàn cho Firebase để đồng bộ data real-time
-    if (url.hostname.includes('firestore') || 
-        url.hostname.includes('firebase') || 
-        url.hostname.includes('googleapis') ||
-        url.pathname.includes('/api/') ||
-        event.request.method !== 'GET') {
-        
-        // Force network-first, no cache
-        event.respondWith(
-            fetch(event.request.clone(), {
-                cache: 'no-cache',
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                }
-            }).catch(() => {
-                // Fallback nếu network fail
-                return new Response('{"error": "Network unavailable"}', {
-                    status: 503,
-                    headers: { 'Content-Type': 'application/json' }
-                });
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                // Trả về từ cache nếu có, hoặc fetch từ network
+                return response || fetch(event.request);
             })
-        );
-        return;
-    }
-    
-    // Chỉ cache static files (HTML, CSS, JS, images)
-    if (url.pathname.endsWith('.html') || 
-        url.pathname.endsWith('.css') ||
-        url.pathname.endsWith('.js') ||
-        url.pathname.endsWith('.jpg') ||
-        url.pathname.endsWith('.png') ||
-        url.pathname.endsWith('.json')) {
-        
-        event.respondWith(
-            caches.match(event.request)
-                .then((response) => {
-                    return response || fetch(event.request);
-                })
-        );
-        return;
-    }
-    
-    // Tất cả requests khác - network first
-    event.respondWith(fetch(event.request));
+    );
 });
 
 console.log('✅ N-Home Admin Service Worker loaded');
