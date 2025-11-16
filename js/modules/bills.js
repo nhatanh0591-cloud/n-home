@@ -784,8 +784,10 @@ async function handleBillFormSubmit(e) {
     
     const services = [];
     document.querySelectorAll('#bill-services-list tr').forEach(row => {
+        // Lấy tên dịch vụ: với dịch vụ tùy chỉnh thì lấy từ input, với dịch vụ thường thì lấy từ textContent
         const serviceNameEl = row.querySelector('td:first-child');
-        const serviceName = serviceNameEl ? serviceNameEl.textContent : 'Unknown Service';
+        const serviceNameInput = serviceNameEl?.querySelector('input.service-name');
+        const serviceName = serviceNameInput ? serviceNameInput.value.trim() : (serviceNameEl ? serviceNameEl.textContent.trim() : 'Unknown Service');
         const totalText = row.querySelector('.service-total').textContent;
         const amount = parseFormattedNumber(totalText);
         
@@ -797,7 +799,9 @@ async function handleBillFormSubmit(e) {
             rowDataset: row.dataset,
             rowHtml: row.outerHTML.substring(0, 200) + '...'
         });
-        const [fromDateEl, toDateEl] = row.querySelectorAll('input[type="text"]');
+        // Lấy input ngày tháng: ưu tiên từ class specific, fallback về querySelectorAll
+        const fromDateEl = row.querySelector('.custom-from-date') || row.querySelectorAll('input[type="text"]')[0];
+        const toDateEl = row.querySelector('.custom-to-date') || row.querySelectorAll('input[type="text"]')[1];
         
         const unitPrice = parseFloat(row.dataset.price) || parseFormattedNumber(row.querySelector('.custom-service-price')?.value) || 0;
         
@@ -818,7 +822,8 @@ async function handleBillFormSubmit(e) {
         }
         
         const serviceDetail = {
-            serviceName,
+            name: serviceName, // Thêm trường name để lưu tên dịch vụ
+            serviceName, // Giữ lại để tương thích
             amount,
             fromDate: formattedFromDate,
             toDate: formattedToDate,
@@ -835,7 +840,27 @@ async function handleBillFormSubmit(e) {
             serviceDetail.newReading = parseInt(row.querySelector('.electric-new-reading').value) || 0;
             serviceDetail.quantity = serviceDetail.newReading - serviceDetail.oldReading;
         } else {
-            serviceDetail.quantity = parseInt(row.querySelector('.service-quantity')?.value) || 1;
+            // LẤY SỐ LƯỢNG GỐC TỪ HỢP ĐỒNG, KHÔNG TỪ INPUT (có thể đã bị thay đổi)
+            const buildingId = billBuildingSelect.value;
+            const roomValue = billRoomSelect.value;
+            const contract = getContracts().find(c => c.buildingId === buildingId && c.room === roomValue);
+            
+            let originalQuantity = parseInt(row.querySelector('.service-quantity')?.value) || 1; // Mặc định từ input
+            
+            // Nếu có hợp đồng, lấy số lượng từ hợp đồng
+            if (contract && contract.services) {
+                const serviceName = row.querySelector('.service-name')?.textContent?.trim() || '';
+                const contractService = contract.services.find(s => 
+                    s.id === serviceDetail.serviceId || 
+                    s.serviceId === serviceDetail.serviceId ||
+                    (s.name && s.name.toLowerCase() === serviceName.toLowerCase())
+                );
+                if (contractService && contractService.quantity) {
+                    originalQuantity = contractService.quantity; // SỐ LƯỢNG TỪ HỢP ĐỒNG
+                }
+            }
+            
+            serviceDetail.quantity = originalQuantity;
             
             // Đặc biệt với tiền nhà, đảm bảo unitPrice đúng
             if (serviceDetail.type === 'rent' && serviceDetail.quantity > 0) {
@@ -1901,7 +1926,15 @@ function renderSavedBillServices(services) {
     console.log('Rendering saved services:', services);
     billServicesListEl.innerHTML = '';
     services.forEach(item => {
-        console.log('Adding service with quantity:', item.serviceName, item.quantity, item);
+        console.log('Adding service:', {
+            name: item.serviceName,
+            type: item.type, 
+            fromDate: item.fromDate,
+            toDate: item.toDate,
+            quantity: item.quantity,
+            amount: item.amount,
+            unitPrice: item.unitPrice
+        });
         addServiceRow(item);
     });
     calculateBillTotal();
@@ -1950,9 +1983,9 @@ function addServiceRow(item) {
         row.classList.add('bg-yellow-50');
         rowHTML = `
             <td class="py-2 px-3"><input type="text" value="${item.serviceName}" class="w-full text-xs p-1 border rounded font-medium service-name" placeholder="Tên phí"></td>
-            <td class="py-2 px-3"><input type="text" value="${formatMoney(item.unitPrice)}" class="w-20 text-xs p-1 border rounded custom-service-price money-input"></td>
-            <td class="py-2 px-3"><input type="text" value="${item.fromDate ? formatDateDisplay(item.fromDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input" placeholder="dd-mm-yyyy" title="Định dạng: dd-mm-yyyy"></td>
-            <td class="py-2 px-3"><input type="text" value="${item.toDate ? formatDateDisplay(item.toDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input" placeholder="dd-mm-yyyy" title="Định dạng: dd-mm-yyyy"></td>
+            <td class="py-2 px-3"><input type="text" value="${formatMoney(item.unitPrice)}" class="w-20 text-xs p-1 border rounded custom-service-price money-input" data-original-price="${item.unitPrice}"></td>
+            <td class="py-2 px-3"><input type="text" value="${item.fromDate ? formatDateDisplay(item.fromDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input custom-from-date" placeholder="dd-mm-yyyy" title="Định dạng: dd-mm-yyyy"></td>
+            <td class="py-2 px-3"><input type="text" value="${item.toDate ? formatDateDisplay(item.toDate) : ''}" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" class="w-28 text-xs p-1 border rounded date-input custom-to-date" placeholder="dd-mm-yyyy" title="Định dạng: dd-mm-yyyy"></td>
             <td class="py-2 px-3"><input type="number" value="${item.quantity !== undefined && item.quantity !== null ? item.quantity : 1}" class="w-20 text-xs p-1 border rounded service-quantity"></td>
         `;
     }
@@ -1970,6 +2003,18 @@ function addServiceRow(item) {
     
     row.innerHTML = rowHTML;
     billServicesListEl.appendChild(row);
+    
+    // Với dịch vụ tùy chỉnh có ngày tháng, tự động tính toán lại amount
+    if (item.type === 'custom' && item.fromDate && item.toDate) {
+        // Trigger tính toán lại sau khi DOM được cập nhật
+        setTimeout(() => {
+            const fromDateInput = row.querySelector('.custom-from-date');
+            if (fromDateInput) {
+                // Trigger event để tính toán lại
+                fromDateInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }, 50);
+    }
 }
 
 function addCustomServiceRow() {
@@ -2036,10 +2081,10 @@ function handleServiceInputChange(e) {
             unitPrice,
             total
         });
-    } else if (target.classList.contains('date-input')) {
-        // Tiền nhà hoặc thay đổi ngày - tính theo số ngày
-        const fromDateInput = row.querySelectorAll('input[type="text"]')[0];
-        const toDateInput = row.querySelectorAll('input[type="text"]')[1];
+    } else if (target.classList.contains('date-input') || target.classList.contains('custom-from-date') || target.classList.contains('custom-to-date')) {
+        // Thay đổi ngày - tính theo số ngày
+        const fromDateInput = row.querySelector('.custom-from-date') || row.querySelectorAll('input[type="text"]')[0];
+        const toDateInput = row.querySelector('.custom-to-date') || row.querySelectorAll('input[type="text"]')[1];
         
         if (fromDateInput && toDateInput && fromDateInput.value && toDateInput.value) {
             const fromDate = parseDateInput(fromDateInput.value);
@@ -2047,39 +2092,48 @@ function handleServiceInputChange(e) {
             
             if (fromDate && toDate) {
                 const daysDiff = Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1; // +1 để tính cả ngày cuối
-                quantity = Math.max(0, daysDiff);
+                const actualDays = Math.max(0, daysDiff);
                 
                 // Tính số ngày thực tế của tháng (không hardcode 30)
-                const currentDate = fromDate; // Hoặc toDate, lấy một trong hai để xác định tháng
-                const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+                const daysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
                 
                 if (rowType === 'rent') {
                     // Với tiền nhà, tính theo tỷ lệ ngày thực tế và làm tròn
-                    total = Math.round((quantity / daysInMonth) * unitPrice);
+                    total = Math.round((actualDays / daysInMonth) * unitPrice);
                     
                     // Cập nhật hiển thị số ngày
                     const quantityDisplay = row.querySelector('.quantity-display');
                     if (quantityDisplay) {
-                        quantityDisplay.textContent = `${quantity} ngày`;
+                        quantityDisplay.textContent = `${actualDays} ngày`;
                     }
+                } else if (rowType === 'custom') {
+                    // Dịch vụ tùy chỉnh: tính tổng tiền trước (đơn giá × số lượng), rồi mới áp dụng tỷ lệ ngày
+                    const quantityInput = row.querySelector('.service-quantity');
+                    const serviceQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+                    const totalServiceAmount = unitPrice * serviceQuantity; // Tổng tiền dịch vụ
+                    total = Math.round((actualDays / daysInMonth) * totalServiceAmount); // Áp dụng tỷ lệ ngày và làm tròn
+                    
+                    console.log('Custom service date calculation:', {
+                        serviceQuantity,
+                        unitPrice,
+                        totalServiceAmount,
+                        daysUsed: actualDays,
+                        daysInMonth,
+                        ratio: actualDays / daysInMonth,
+                        finalTotal: total
+                    });
                 } else {
                     // Dịch vụ khác: tính tổng tiền trước (đơn giá × số lượng), rồi mới áp dụng tỷ lệ ngày và làm tròn
                     const quantityInput = row.querySelector('.service-quantity');
                     const serviceQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
                     const totalServiceAmount = unitPrice * serviceQuantity; // Tổng tiền dịch vụ
-                    total = Math.round((quantity / daysInMonth) * totalServiceAmount); // Áp dụng tỷ lệ ngày và làm tròn
-                    
-                    // Cập nhật số lượng input để hiển thị số ngày đã tính
-                    if (quantityInput) {
-                        quantityInput.value = quantity;
-                    }
+                    total = Math.round((actualDays / daysInMonth) * totalServiceAmount); // Áp dụng tỷ lệ ngày và làm tròn
                 }
                 
                 console.log('Date-based calculation:', {
                     fromDate: fromDateInput.value,
                     toDate: toDateInput.value,
-                    daysDiff,
-                    quantity,
+                    actualDays,
                     unitPrice,
                     total,
                     type: rowType
@@ -2097,13 +2151,13 @@ function handleServiceInputChange(e) {
             total = quantity * unitPrice;
         }
     } else if (target.classList.contains('service-quantity') || target.classList.contains('custom-service-price')) {
-        // Thay đổi số lượng trực tiếp
+        // Thay đổi số lượng hoặc đơn giá
         const quantityInput = row.querySelector('.service-quantity');
         quantity = parseInt(quantityInput?.value) || 1;
         
         // Kiểm tra xem có ngày tháng không, nếu có thì tính theo ngày
-        const fromDateInput = row.querySelectorAll('input[type="text"]')[0];
-        const toDateInput = row.querySelectorAll('input[type="text"]')[1];
+        const fromDateInput = row.querySelector('.custom-from-date') || row.querySelectorAll('input[type="text"]')[0];
+        const toDateInput = row.querySelector('.custom-to-date') || row.querySelectorAll('input[type="text"]')[1];
         
         if (fromDateInput && toDateInput && fromDateInput.value && toDateInput.value && rowType !== 'electric' && rowType !== 'water_meter') {
             // Có ngày tháng và không phải tiền điện/nước đồng hồ -> tính theo ngày
@@ -2118,19 +2172,25 @@ function handleServiceInputChange(e) {
                 if (rowType === 'rent') {
                     // Tiền nhà: tính theo tỷ lệ ngày và làm tròn
                     total = Math.round((actualDays / daysInMonth) * unitPrice);
+                } else if (rowType === 'custom') {
+                    // Dịch vụ tùy chỉnh: tính tổng tiền trước, rồi áp dụng tỷ lệ ngày
+                    const totalServiceAmount = unitPrice * quantity; // quantity từ input
+                    total = Math.round((actualDays / daysInMonth) * totalServiceAmount);
+                    
+                    console.log('Custom service quantity/price change with dates:', {
+                        quantity,
+                        unitPrice,
+                        totalServiceAmount,
+                        actualDays,
+                        daysInMonth,
+                        ratio: actualDays / daysInMonth,
+                        finalTotal: total
+                    });
                 } else {
                     // Dịch vụ khác: tính tổng tiền trước, rồi áp dụng tỷ lệ ngày và làm tròn
                     const totalServiceAmount = unitPrice * quantity; // quantity từ input
                     total = Math.round((actualDays / daysInMonth) * totalServiceAmount);
                 }
-                console.log('Service quantity change with date calculation:', {
-                    service: row.querySelector('.service-name')?.textContent,
-                    fromDate: fromDateInput.value,
-                    toDate: toDateInput.value,
-                    daysDiff: actualDays,
-                    unitPrice,
-                    total
-                });
             } else {
                 // Ngày không hợp lệ, tính theo số lượng
                 total = quantity * unitPrice;
@@ -2140,38 +2200,10 @@ function handleServiceInputChange(e) {
             total = quantity * unitPrice;
         }
     } else {
-        // Fallback
+        // Fallback - các trường hợp khác
         const quantityInput = row.querySelector('.service-quantity');
         quantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
-        
-        // Kiểm tra xem có ngày tháng không để áp dụng công thức phù hợp
-        const fromDateInput = row.querySelectorAll('input[type="text"]')[0];
-        const toDateInput = row.querySelectorAll('input[type="text"]')[1];
-        
-        if (fromDateInput && toDateInput && fromDateInput.value && toDateInput.value && rowType !== 'electric' && rowType !== 'water_meter') {
-            // Có ngày tháng và không phải tiền điện/nước đồng hồ -> tính theo ngày
-            const fromDate = parseDateInput(fromDateInput.value);
-            const toDate = parseDateInput(toDateInput.value);
-            
-            if (fromDate && toDate) {
-                const daysDiff = Math.round((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
-                const actualDays = Math.max(0, daysDiff);
-                const daysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
-                
-                if (rowType === 'rent') {
-                    // Tiền nhà: tính theo tỷ lệ ngày và làm tròn
-                    total = Math.round((actualDays / daysInMonth) * unitPrice);
-                } else {
-                    // Dịch vụ khác: tính tổng tiền trước, rồi áp dụng tỷ lệ ngày và làm tròn
-                    const totalServiceAmount = unitPrice * quantity;
-                    total = Math.round((actualDays / daysInMonth) * totalServiceAmount);
-                }
-            } else {
-                total = quantity * unitPrice;
-            }
-        } else {
-            total = quantity * unitPrice;
-        }
+        total = quantity * unitPrice;
     }
     
     row.querySelector('.service-total').textContent = formatMoney(total) + ' VNĐ';
@@ -2206,9 +2238,9 @@ async function showBillDetail(billId) {
     setEl('bill-detail-date', formatDateDisplay(bill.billDate));
     
     let dueDate = 'N/A';
-    if(contract) {
+    if(bill.dueDate && bill.period && bill.billDate) {
         const billYear = parseDateInput(bill.billDate).getFullYear();
-        dueDate = `${String(contract.paymentDay).padStart(2, '0')}-${String(bill.period).padStart(2, '0')}-${billYear}`;
+        dueDate = `${String(bill.dueDate).padStart(2, '0')}-${String(bill.period).padStart(2, '0')}-${billYear}`;
     }
     setEl('bill-detail-due-date', dueDate);
 
@@ -2228,7 +2260,8 @@ async function showBillDetail(billId) {
         const row = document.createElement('tr');
         row.className = 'border-b';
         
-        let content = item.serviceName;
+        // Sử dụng trường name hoặc serviceName để hiển thị tên dịch vụ
+        let content = item.name || item.serviceName || 'Dịch vụ không xác định';
         let unitPrice = item.unitPrice || 0;
         let quantity = item.quantity;
         let extraInfo = '';
@@ -2243,11 +2276,25 @@ async function showBillDetail(billId) {
             if (unitPrice === 0 && item.amount && quantity > 0) {
                 unitPrice = item.amount / quantity;
             }
-            // Thêm khoảng thời gian cho tiền nhà
-            const billDate = parseDateInput(bill.billDate);
-            const startDay = 1;
-            const endDay = new Date(billDate.getFullYear(), billDate.getMonth() + 1, 0).getDate(); // Ngày cuối tháng
-            extraInfo = `(Từ ngày ${startDay}-${String(bill.period).padStart(2, '0')} đến ${endDay}-${String(bill.period).padStart(2, '0')})`;
+            // Thêm khoảng thời gian cho tiền nhà - LẤY TỪ FROMDATE/TODATE THỰC TẾ
+            if (item.fromDate && item.toDate) {
+                // Có ngày tháng cụ thể - ĐỊNH DẠNG NGẮN (DD-MM)
+                const fromDateShort = formatDateDisplay(item.fromDate).substring(0, 5); // DD-MM
+                const toDateShort = formatDateDisplay(item.toDate).substring(0, 5); // DD-MM
+                extraInfo = `(Từ ${fromDateShort} đến ${toDateShort})`;
+            } else {
+                // Cả tháng
+                const billDate = parseDateInput(bill.billDate);
+                const startDay = 1;
+                const endDay = new Date(billDate.getFullYear(), billDate.getMonth() + 1, 0).getDate();
+                extraInfo = `(Từ ngày ${startDay}-${String(bill.period).padStart(2, '0')} đến ${endDay}-${String(bill.period).padStart(2, '0')})`;
+            }
+            content += `<br><span class="text-xs text-gray-500">${extraInfo}</span>`;
+        } else if (item.type === 'custom' && item.fromDate && item.toDate) {
+            // Dịch vụ tùy chỉnh có ngày tháng - ĐỊNH DẠNG NGẮN (DD-MM)
+            const fromDateShort = formatDateDisplay(item.fromDate).substring(0, 5); // DD-MM
+            const toDateShort = formatDateDisplay(item.toDate).substring(0, 5); // DD-MM
+            extraInfo = `(Từ ${fromDateShort} đến ${toDateShort})`;
             content += `<br><span class="text-xs text-gray-500">${extraInfo}</span>`;
         }
         
@@ -2268,7 +2315,7 @@ async function showBillDetail(billId) {
             mobileCard.className = 'mobile-card';
             mobileCard.innerHTML = `
                 <div class="flex justify-between items-start mb-2">
-                    <span class="font-semibold text-gray-900">${index + 1}. ${item.serviceName}</span>
+                    <span class="font-semibold text-gray-900">${index + 1}. ${item.name || item.serviceName || 'Dịch vụ không xác định'}</span>
                     <span class="font-bold text-green-600">${formatMoney(item.amount)} VNĐ</span>
                 </div>
                 ${extraInfo ? `<div class="text-xs text-gray-500 mb-2">${extraInfo}</div>` : ''}
@@ -3012,18 +3059,18 @@ async function createTransactionItemsFromBillWithRealCategories(bill) {
     
     if (bill.services && bill.services.length > 0) {
         bill.services.forEach(service => {
-            const serviceName = service.name || '';
+            const serviceName = service.name || service.serviceName || '';
             
             // Phân loại theo tên service
             if (serviceName.toLowerCase().includes('điện')) {
                 items.push({
-                    name: `Tiền điện (${service.name})`,
+                    name: `Tiền điện (${serviceName})`,
                     amount: service.amount || 0,
                     categoryId: electricCategoryId
                 });
             } else if (serviceName.toLowerCase().includes('nước')) {
                 items.push({
-                    name: `Tiền nước (${service.name})`,
+                    name: `Tiền nước (${serviceName})`,
                     amount: service.amount || 0,
                     categoryId: waterCategoryId
                 });
@@ -3065,20 +3112,20 @@ function createTransactionItemsFromBill(bill) {
     
     if (bill.services && bill.services.length > 0) {
         bill.services.forEach(service => {
-            const serviceName = service.name || '';
+            const serviceName = service.name || service.serviceName || '';
             let categoryId = 'tien-hoa-don';
             
             if (serviceName.toLowerCase().includes('điện')) {
                 categoryId = 'tien-dien';
                 items.push({
-                    name: `Tiền điện (${service.name})`,
+                    name: `Tiền điện (${serviceName})`,
                     amount: service.amount || 0,
                     categoryId: categoryId
                 });
             } else if (serviceName.toLowerCase().includes('nước')) {
                 categoryId = 'tien-nuoc';
                 items.push({
-                    name: `Tiền nước (${service.name})`,
+                    name: `Tiền nước (${serviceName})`,
                     amount: service.amount || 0,
                     categoryId: categoryId
                 });

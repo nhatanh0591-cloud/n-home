@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -2213,7 +2213,7 @@
                             
                             <!-- Chi tiết dịch vụ -->
                             <div class="space-y-2 mb-4 text-sm">
-                                ${bill.services?.slice(0, 4).map(service => {
+                                ${bill.services?.map(service => {
                                     const serviceName = service.serviceName || service.name;
                                     const translatedName = translateBillServiceName(serviceName);
                                     return `
@@ -2325,22 +2325,26 @@
                 createdDate = parseDate(bill.createdAt, 'createdAt') || new Date();
             }
             
-            // Lấy hạn thanh toán từ dueDate
-            let dueDate = parseDate(bill.dueDate, 'dueDate');
-            
-            // Nếu không có dueDate hoặc parse sai, tính từ contract paymentDay
-            if (!dueDate || dueDate.getFullYear() < 2000) {
-                if (contract && contract.paymentDay) {
-                    const year = createdDate.getFullYear();
-                    const month = parseInt(bill.period) || createdDate.getMonth() + 1;
-                    dueDate = new Date(year, month - 1, contract.paymentDay);
-                    console.log(`✅ dueDate calculated from contract paymentDay:`, dueDate);
-                } else {
-                    // Fallback: +3 ngày từ ngày tạo
-                    dueDate = new Date(createdDate);
-                    dueDate.setDate(dueDate.getDate() + 3);
-                    console.log(`⚠️ dueDate fallback (+3 days):`, dueDate);
-                }
+            // Lấy hạn thanh toán từ bill.dueDate (ngày đã nhập)
+            let dueDate;
+            if (bill.dueDate && bill.period && createdDate) {
+                // Tạo dueDate từ bill.dueDate, bill.period và năm từ createdDate
+                const year = createdDate.getFullYear();
+                const month = parseInt(bill.period) || createdDate.getMonth() + 1;
+                const day = parseInt(bill.dueDate) || 1;
+                dueDate = new Date(year, month - 1, day);
+                console.log(`✅ dueDate from bill.dueDate:`, dueDate);
+            } else if (contract && contract.paymentDay) {
+                // Fallback: lấy từ contract paymentDay
+                const year = createdDate.getFullYear();
+                const month = parseInt(bill.period) || createdDate.getMonth() + 1;
+                dueDate = new Date(year, month - 1, contract.paymentDay);
+                console.log(`✅ dueDate calculated from contract paymentDay:`, dueDate);
+            } else {
+                // Fallback: +3 ngày từ ngày tạo
+                dueDate = new Date(createdDate);
+                dueDate.setDate(dueDate.getDate() + 3);
+                console.log(`⚠️ dueDate fallback (+3 days):`, dueDate);
             }
             
             console.log('📅 Final createdDate:', createdDate);
@@ -2400,9 +2404,105 @@
                     <div class="space-y-3">
                         ${services.map((service, index) => {
                             const serviceName = service.serviceName || service.name || `Dịch vụ ${index + 1}`;
-                            const unitPrice = service.unitPrice || service.price || 0;
+                            const displayedUnitPrice = service.unitPrice || service.price || 0;
                             const quantity = service.quantity !== undefined ? service.quantity : (service.usage !== undefined ? service.usage : 1);
-                            const amount = service.amount !== undefined ? service.amount : (unitPrice * quantity);
+                            const amount = service.amount !== undefined ? service.amount : (displayedUnitPrice * quantity);
+                            
+                            // TÍNH ĐƠN GIÁ GỐC từ dữ liệu thực tế
+                            let originalUnitPrice = displayedUnitPrice;
+                            if (service.type === 'rent' && service.fromDate && service.toDate && amount > 0) {
+                                // TIỀN NHÀ: Tính ngược từ amount và số ngày THỰC TẾ
+                                const fromDate = new Date(service.fromDate);
+                                const toDate = new Date(service.toDate);
+                                const dayCount = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
+                                
+                                // SỐ NGÀY THỰC TẾ TRONG THÁNG (28/29/30/31)
+                                const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
+                                
+                                originalUnitPrice = Math.round((amount * totalDaysInMonth) / dayCount);
+                            }
+                            
+                            // Tạo ghi chú chi tiết
+                            let detailNote = '';
+                            if (service.type === 'rent') {
+                                // TIỀN NHÀ: Chỉ hiển thị đơn giá gốc + khoảng thời gian với tỷ lệ
+                                detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
+                                if (service.fromDate && service.toDate) {
+                                    const fromDateShort = service.fromDate.split('-').slice(1).reverse().join('-'); // DD-MM
+                                    const toDateShort = service.toDate.split('-').slice(1).reverse().join('-'); // DD-MM
+                                    const dayCount = Math.ceil((new Date(service.toDate) - new Date(service.fromDate)) / (1000 * 60 * 60 * 24)) + 1;
+                                    
+                                    // TÍNH SỐ NGÀY TRONG THÁNG THỰC TẾ (28/29/30/31)  
+                                    const fromDate = new Date(service.fromDate);
+                                    const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
+                                    
+                                    detailNote += `<br>(Từ ${fromDateShort} đến ${toDateShort}) = ${dayCount}/${totalDaysInMonth} ngày`;
+                                }
+                            } else if (service.type === 'electric' && service.oldReading !== undefined && service.newReading !== undefined) {
+                                // TIỀN ĐIỆN: KHÔI PHỤC LOGIC CŨ - Hiển thị đơn giá × số lượng điện + chỉ số
+                                const electricUsage = service.newReading - service.oldReading;
+                                detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${electricUsage}`;
+                                detailNote += `<br>${currentLanguage === 'en' ? 'Reading:' : 'Chỉ số:'} ${service.oldReading} → ${service.newReading}`;
+                            } else if (service.type === 'water_meter' && service.oldReading !== undefined && service.newReading !== undefined) {
+                                // TIỀN NƯỚC: Hiển thị đơn giá × số lượng nước + chỉ số
+                                const waterUsage = service.newReading - service.oldReading;
+                                if (waterUsage > 0) {
+                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${waterUsage}`;
+                                } else {
+                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
+                                }
+                                detailNote += `<br>${currentLanguage === 'en' ? 'Reading:' : 'Chỉ số:'} ${service.oldReading} → ${service.newReading}`;
+                            } else if (service.type === 'custom' && service.fromDate && service.toDate) {
+                                // DỊCH VỤ TÙY CHỈNH: Kiểm tra có phải tròn tháng không
+                                const fromDate = new Date(service.fromDate);
+                                const toDate = new Date(service.toDate);
+                                const isFullMonth = (fromDate.getDate() === 1) && 
+                                    (toDate.getDate() === new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).getDate());
+                                
+                                if (quantity > 1) {
+                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${quantity}`;
+                                } else {
+                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
+                                }
+                                
+                                // CHỈ HIỂN THỊ KHOẢNG THỜI GIAN KHI KHÔNG PHẢI TRÒN THÁNG
+                                if (!isFullMonth) {
+                                    const fromDateShort = service.fromDate.split('-').slice(1).reverse().join('-'); // DD-MM
+                                    const toDateShort = service.toDate.split('-').slice(1).reverse().join('-'); // DD-MM
+                                    const dayCount = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
+                                    
+                                    // TÍNH SỐ NGÀY TRONG THÁNG THỰC TẾ (28/29/30/31)
+                                    const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
+                                    
+                                    detailNote += `<br>(Từ ${fromDateShort} đến ${toDateShort}) = ${dayCount}/${totalDaysInMonth} ngày`;
+                                }
+                            } else {
+                                // DỊCH VỤ KHÁC: Kiểm tra có fromDate/toDate không và có phải tròn tháng không
+                                if (quantity > 1) {
+                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${quantity}`;
+                                } else {
+                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
+                                }
+                                
+                                // HIỂN THỊ KHOẢNG THỜI GIAN NÉU CÓ VÀ KHÔNG PHẢI TRÒN THÁNG
+                                if (service.fromDate && service.toDate) {
+                                    const fromDate = new Date(service.fromDate);
+                                    const toDate = new Date(service.toDate);
+                                    const isFullMonth = (fromDate.getDate() === 1) && 
+                                        (toDate.getDate() === new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).getDate());
+                                    
+                                    if (!isFullMonth) {
+                                        const fromDateShort = service.fromDate.split('-').slice(1).reverse().join('-'); // DD-MM
+                                        const toDateShort = service.toDate.split('-').slice(1).reverse().join('-'); // DD-MM
+                                        const dayCount = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
+                                        
+                                        // TÍNH SỐ NGÀY TRONG THÁNG THỰC TẾ (28/29/30/31)
+                                        const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
+                                        
+                                        detailNote += `<br>(Từ ${fromDateShort} đến ${toDateShort}) = ${dayCount}/${totalDaysInMonth} ngày`;
+                                    }
+                                }
+                            }
                             
                             return `
                                 <div class="bg-gray-50 rounded-lg p-3">
@@ -2411,9 +2511,7 @@
                                         <span class="font-bold text-gray-900">${formatCurrency(amount)}</span>
                                     </div>
                                     <div class="text-xs text-gray-500">
-                                        <span>${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(unitPrice)} × ${quantity}</span>
-                                        ${service.type === 'electric' && service.oldReading && service.newReading ? 
-                                            `<br>${currentLanguage === 'en' ? 'Reading:' : 'Chỉ số:'} ${service.oldReading} → ${service.newReading}` : ''}
+                                        ${detailNote}
                                     </div>
                                 </div>
                             `;
