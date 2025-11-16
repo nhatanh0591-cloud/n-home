@@ -2002,8 +2002,8 @@
             // Setup real-time listeners cho thông báo
             setupRealtimeListeners(customer.id);
             
-            // Request notification permission
-            requestNotificationPermission();
+            // TẮT auto request notification permission - gây spam popup
+            // requestNotificationPermission();
         }
 
         function renderHomeData() {
@@ -3485,26 +3485,9 @@
             }
             
             if (currentPermission === 'default') {
-                // Hiện popup xác nhận thân thiện
-                setTimeout(() => {
-                    if (confirm('📱 Cho phép N-Home gửi thông báo để bạn không bỏ lỡ hóa đơn và cập nhật quan trọng?')) {
-                        console.log('🔄 Đang yêu cầu quyền thông báo...');
-                        Notification.requestPermission().then(permission => {
-                            console.log('🔔 Kết quả quyền:', permission);
-                            if (permission === 'granted') {
-                                showNotification('N-Home', '🎉 Tuyệt vời! Bạn sẽ nhận thông báo khi có cập nhật mới.');
-                                // Lưu trạng thái đã xin quyền
-                                localStorage.setItem('notificationPermissionAsked', 'true');
-                            } else {
-                                console.log('⚠️ Người dùng từ chối quyền thông báo');
-                                showToast('Bạn có thể bật thông báo trong cài đặt trình duyệt bất cứ lúc nào', 'info');
-                            }
-                        });
-                    } else {
-                        console.log('⚠️ Người dùng không muốn nhận thông báo');
-                        localStorage.setItem('notificationPermissionAsked', 'true');
-                    }
-                }, 2000); // Delay để app load xong
+                // TẮT popup confirm notification - gây khó chịu
+                console.log('🔕 Notification permission default - không tự động hỏi để tránh spam popup');
+                localStorage.setItem('notificationPermissionAsked', 'true');
                 return;
             }
             
@@ -4377,52 +4360,148 @@
                         if (messaging) {
                             messaging.useServiceWorker(registration);
                         }
-                    })
+                    });
+                
+                // FORCE clear app cache để đồng bộ data cũ
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            if (cacheName.includes('customer') && !cacheName.includes('v4')) {
+                                console.log('🗑️ Clearing old customer cache:', cacheName);
+                                caches.delete(cacheName);
+                            }
+                        });
+                    });
+                }
                     .catch(error => {
                         console.log('❌ Service Worker registration failed:', error);
                     });
             });
         }
 
-        // PWA Install Prompt
+        // PWA Install Prompt - Customer App
         let deferredPrompt;
-        const installPrompt = document.getElementById('install-prompt');
-        const installButton = document.getElementById('install-button');
 
+        // PWA Install Prompt event
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('📱 PWA Install prompt event fired (Customer)');
             e.preventDefault();
             deferredPrompt = e;
-            
-            // Show install prompt
-            if (installPrompt) {
-                installPrompt.classList.remove('hidden');
-            }
+            showCustomerInstallPrompt();
         });
 
-        if (installButton) {
-            installButton.addEventListener('click', async () => {
+        // Show custom install prompt for customer app
+        function showCustomerInstallPrompt() {
+            // Remove existing prompt if any
+            const existing = document.getElementById('pwa-customer-install-prompt');
+            if (existing) {
+                existing.remove();
+            }
+            
+            // Create popup install
+            const installPrompt = document.createElement('div');
+            installPrompt.id = 'pwa-customer-install-prompt';
+            installPrompt.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                    <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+                        <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home</h3>
+                        <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn và nhận thông báo</p>
+                        <div style="display: flex; gap: 12px;">
+                            <button id="pwa-customer-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
+                            <button id="pwa-customer-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(installPrompt);
+
+            // Install button click
+            document.getElementById('pwa-customer-install-btn').addEventListener('click', async () => {
                 if (deferredPrompt) {
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`User response: ${outcome}`);
+                    console.log('PWA Customer install outcome:', outcome);
                     deferredPrompt = null;
-                    installPrompt.classList.add('hidden');
                 }
+                document.body.removeChild(installPrompt);
+            });
+
+            // Cancel button click
+            document.getElementById('pwa-customer-cancel-btn').addEventListener('click', () => {
+                document.body.removeChild(installPrompt);
+                // Lưu trạng thái đã từ chối cho customer app riêng
+                localStorage.setItem('pwa-customer-install-dismissed', Date.now());
             });
         }
 
-        // Hide install prompt when already installed
-        window.addEventListener('appinstalled', () => {
-            console.log('✅ PWA installed successfully!');
-            if (installPrompt) {
-                installPrompt.classList.add('hidden');
+        // Check if app is installed
+        function isCustomerAppInstalled() {
+            // Method 1: Check display-mode
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            
+            // Method 2: Check if opened from home screen
+            const isFromHomeScreen = window.navigator.standalone === true;
+            
+            // Method 3: Check URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            const isFromPWA = urlParams.get('source') === 'pwa';
+            
+            console.log('🔍 Customer app install check:', { isStandalone, isFromHomeScreen, isFromPWA });
+            
+            return isStandalone || isFromHomeScreen || isFromPWA;
+        }
+
+        // Check if device is mobile
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   window.innerWidth <= 768 || 
+                   'ontouchstart' in window;
+        }
+
+        // Check if should show install prompt
+        window.addEventListener('load', () => {
+            console.log('📱 Customer app loaded, checking install conditions...');
+            
+            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
+            const isMobile = isMobileDevice();
+            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
+            const isInstalled = isCustomerAppInstalled();
+            
+            console.log('📱 Customer install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            
+            // Chỉ show khi: mobile + chưa cài + chưa dismiss (hoặc đã hết hạn dismiss)
+            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
+                // Delay 2 seconds để user load xong trang
+                setTimeout(() => {
+                    console.log('⏰ Customer timeout reached, checking deferredPrompt:', !!deferredPrompt);
+                    if (deferredPrompt) {
+                        console.log('✅ Showing customer install prompt with beforeinstallprompt');
+                        showCustomerInstallPrompt();
+                    } else {
+                        console.log('⚠️ No beforeinstallprompt event for customer app');
+                        // KHÔNG force show nếu không có beforeinstallprompt
+                    }
+                }, 2000);
+            } else {
+                console.log('❌ Not showing customer install prompt:', { 
+                    notMobile: !isMobile, 
+                    alreadyInstalled: isInstalled, 
+                    recentlyDismissed: dismissed && Date.now() - dismissed < 7 * 24 * 60 * 60 * 1000 
+                });
             }
-            deferredPrompt = null;
+        });
+
+        // Track if app was installed
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('✅ PWA Customer was installed successfully');
+            localStorage.removeItem('pwa-customer-install-dismissed');
         });
 
         // Check if running as PWA
         if (window.matchMedia('(display-mode: standalone)').matches) {
-            console.log('✅ Running as PWA!');
+            console.log('✅ Customer app running as PWA!');
         }
     </script>
 
@@ -4575,17 +4654,15 @@
 
 
 
-        // Tự động xin quyền thông báo khi khách hàng đăng nhập thành công
+        // TẮT tự động xin quyền thông báo khi login - gây spam popup
         const originalLoadCustomerData = window.loadCustomerData;
         if (originalLoadCustomerData) {
             window.loadCustomerData = async function(phone, password) {
                 const result = await originalLoadCustomerData(phone, password);
                 
                 if (result && window.customerData) {
-                    // Đợi 2 giây rồi xin quyền thông báo
-                    setTimeout(() => {
-                        requestNotificationPermission();
-                    }, 2000);
+                    // KHÔNG tự động xin quyền thông báo - tránh popup
+                    console.log('🔕 Login successful - skipping auto notification permission request');
                 }
                 
                 return result;
