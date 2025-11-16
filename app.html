@@ -4339,29 +4339,33 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // 🔮 BROWSER DECEPTION TRICKS - Make this app appear completely different
-        // Change user agent to trick browser
-        Object.defineProperty(navigator, 'userAgent', {
-            get: function() { return navigator.userAgent + ' CustomerApp/1.0'; }
-        });
+        // 🔥 FORCE RESET PWA STATE - ĐỊT MẸ BROWSER!
+        // Clear all PWA related storage
+        if ('localStorage' in window) {
+            // Clear all PWA install states
+            Object.keys(localStorage).forEach(key => {
+                if (key.includes('pwa') || key.includes('install') || key.includes('app')) {
+                    localStorage.removeItem(key);
+                }
+            });
+        }
         
-        // Different app name in navigator
-        Object.defineProperty(navigator, 'appName', {
-            get: function() { return 'N-Home Customer'; }
-        });
+        // Clear service worker registrations
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(reg => {
+                    if (reg.scope.includes('customer') || reg.scope.includes('app')) {
+                        reg.unregister();
+                    }
+                });
+            });
+        }
         
-        // Modify window name
-        window.name = 'n-home-customer-app';
-        
-        // Different localStorage prefix
-        const originalSetItem = localStorage.setItem;
-        const originalGetItem = localStorage.getItem;
-        localStorage.setItem = function(key, value) {
-            return originalSetItem.call(this, 'customer_' + key, value);
-        };
-        localStorage.getItem = function(key) {
-            return originalGetItem.call(this, 'customer_' + key);
-        };
+        // Force reload manifest
+        const manifestLink = document.querySelector('link[rel="manifest"]');
+        if (manifestLink) {
+            manifestLink.href = '/manifest-customer.json?t=' + Date.now();
+        }
         
         // Service Worker Registration cho Customer App PWA
         if ('serviceWorker' in navigator) {
@@ -4448,7 +4452,7 @@
                 <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
                     <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
                         <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
-                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home</h3>
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">🔥 CÀI N-HOME CUSTOMER</h3>
                         <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn và nhận thông báo</p>
                         <div style="display: flex; gap: 12px;">
                             <button id="pwa-customer-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
@@ -4510,21 +4514,15 @@
             return isStandalone || isFromHomeScreen || isFromPWA;
         }
 
-        // FORCE SHOW POPUP - KHÔNG CHỜ GÌ HẾT
+        // 🔥 FORCE SHOW POPUP NGAY LẬP TỨC - KHÔNG CHỜ GÌ HẾT!
         window.addEventListener('load', () => {
-            const isMobile = isMobileDevice();
-            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
-            const isInstalled = isAppInstalled();
+            console.log('🔥🔥🔥 PAGE LOADED - FORCE SHOWING POPUP IN 500MS!');
             
-            console.log('📱 FORCE SHOW CHECK:', { isMobile, dismissed, isInstalled });
-            
-            // FORCE SHOW trên mobile - không care gì hết
-            if (isMobile && !isInstalled) {
-                setTimeout(() => {
-                    console.log('🔥 FORCE SHOWING POPUP - ĐỊT MẸ BROWSER!!!!');
-                    showCustomerInstallPrompt();
-                }, 1000);
-            }
+            // FORCE SHOW ngay lập tức - không check điều kiện gì hết
+            setTimeout(() => {
+                console.log('🔥 ĐỊT MẸ BROWSER - SHOWING POPUP NOW!!!!');
+                showCustomerInstallPrompt();
+            }, 500);
         });
 
         // Track if app was installed - SAME AS ADMIN
