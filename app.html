@@ -2043,80 +2043,108 @@
                 // console.log('All contract fields:', Object.keys(contract));
                 // console.log('Contract data:', contract);
                 
+                // Organize services by priority order
+                let orderedServices = [];
+                let bgIndex = 2; // Start from 2 since rent and deposit are 0 and 1
+                
+                // Find electricity service
+                const electricService = contract.serviceDetails?.find(sd => {
+                    const service = services.find(s => s.id === sd.serviceId);
+                    return service && service.name.toLowerCase().includes('điện');
+                });
+                
+                // Find water service  
+                const waterService = contract.serviceDetails?.find(sd => {
+                    const service = services.find(s => s.id === sd.serviceId);
+                    return service && service.name.toLowerCase().includes('nước');
+                });
+                
+                // Find other services (excluding electricity, water, and parking-related)
+                const otherServices = contract.serviceDetails?.filter(sd => {
+                    const service = services.find(s => s.id === sd.serviceId);
+                    if (!service) return false;
+                    const name = service.name.toLowerCase();
+                    return !name.includes('điện') && !name.includes('nước') && !name.includes('xe');
+                }) || [];
+                
+                // Helper functions
+                const translateServiceName = (name) => {
+                    if (currentLanguage === 'en') {
+                        if (name.toLowerCase().includes('điện')) return 'Electricity';
+                        if (name.toLowerCase().includes('nước')) return 'Water';
+                        if (name.toLowerCase().includes('dịch vụ chung')) return 'Common Service';
+                        if (name.toLowerCase().includes('xe')) return 'Parking';
+                        return name;
+                    }
+                    return name;
+                };
+                
+                const translateUnit = (unit) => {
+                    if (currentLanguage === 'en') {
+                        if (unit === 'Người') return 'Person';
+                        if (unit === 'Phòng') return 'Room';
+                        if (unit === 'xe') return 'Vehicle';
+                        return unit;
+                    }
+                    return unit;
+                };
+                
+                const renderService = (serviceDetail, bgClass) => {
+                    const service = services.find(s => s.id === serviceDetail.serviceId);
+                    if (!service) return '';
+                    
+                    const isElectric = service.name.toLowerCase().includes('điện');
+                    const isWater = service.name.toLowerCase().includes('nước');
+                    
+                    return `
+                    <div class="py-3 px-5 ${bgClass} break-words">
+                        <div class="mb-1">
+                            <span class="font-medium text-gray-800">${translateServiceName(service.name)}: </span>
+                            <span class="font-bold text-gray-800">${formatCurrency(service.price || 0)} / ${translateUnit(service.unit || 'đơn vị')}</span>
+                        </div>
+                        ${isElectric && serviceDetail.initialReading ? `<div class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Initial reading: ' : 'Chỉ số đầu: '}${serviceDetail.initialReading}</div>` : 
+                         isWater && serviceDetail.quantity ? `<div class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity: ' : 'Số lượng: '}${serviceDetail.quantity}</div>` :
+                         serviceDetail.quantity > 1 ? `<div class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity: ' : 'Số lượng: '}${serviceDetail.quantity}</div>` : ''}
+                    </div>
+                    `;
+                };
+
                 rentInfo.innerHTML = `
                     <div class="space-y-0 -mx-5 -my-5">
-                        <div class="flex justify-between items-center py-3 px-5 bg-white">
-                            <div>
-                                <p class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Rent' : 'Tiền nhà'}</p>
-                            </div>
-                            <p class="font-bold text-gray-800">${formatCurrency(contract.rentPrice || contract.roomPrice || 0)} / ${currentLanguage === 'en' ? 'month' : 'tháng'}</p>
+                        <!-- 1. Tiền nhà -->
+                        <div class="py-3 px-5 bg-white break-words">
+                            <span class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Rent: ' : 'Tiền nhà: '}</span>
+                            <span class="font-bold text-gray-800">${formatCurrency(contract.rentPrice || contract.roomPrice || 0)} / ${currentLanguage === 'en' ? 'month' : 'tháng'}</span>
                         </div>
                         
-                        <div class="flex justify-between items-center py-3 px-5 bg-gray-50">
-                            <div>
-                                <p class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Deposit' : 'Tiền cọc'}</p>
-                            </div>
-                            <p class="font-bold text-gray-800">${formatCurrency(contract.deposit || 0)}</p>
+                        <!-- 2. Tiền cọc -->
+                        <div class="py-3 px-5 bg-gray-50 break-words">
+                            <span class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Deposit: ' : 'Tiền cọc: '}</span>
+                            <span class="font-bold text-gray-800">${formatCurrency(contract.deposit || 0)}</span>
                         </div>
                         
-
+                        <!-- 3. Tiền điện -->
+                        ${electricService ? renderService(electricService, bgIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50') : ''}
                         
+                        <!-- 4. Tiền nước -->
+                        ${waterService ? renderService(waterService, (bgIndex + (electricService ? 1 : 0)) % 2 === 0 ? 'bg-white' : 'bg-gray-50') : ''}
+                        
+                        <!-- 5. Tiền xe -->
                         ${contract.vehiclePrice ? `
-                        <div class="flex justify-between items-center py-3 px-5 bg-white">
-                            <div>
-                                <p class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Parking Fee' : 'Tiền xe'}</p>
-                                <p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity:' : 'Số lượng:'} ${contract.vehicleCount || 1}</p>
+                        <div class="py-3 px-5 ${(bgIndex + (electricService ? 1 : 0) + (waterService ? 1 : 0)) % 2 === 0 ? 'bg-white' : 'bg-gray-50'} break-words">
+                            <div class="mb-1">
+                                <span class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Parking Fee: ' : 'Tiền xe: '}</span>
+                                <span class="font-bold text-gray-800">${formatCurrency(contract.vehiclePrice)} / ${currentLanguage === 'en' ? 'vehicle' : 'xe'}</span>
                             </div>
-                            <p class="font-bold text-gray-800">${formatCurrency(contract.vehiclePrice)} / ${currentLanguage === 'en' ? 'vehicle' : 'xe'}</p>
+                            <div class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity: ' : 'Số lượng: '}${contract.vehicleCount || 1}</div>
                         </div>
                         ` : ''}
                         
-                        ${contract.serviceDetails && contract.serviceDetails.length > 0 ? 
-                            contract.serviceDetails.map((serviceDetail, index) => {
-                                const service = services.find(s => s.id === serviceDetail.serviceId);
-                                if (service) {
-                                    const isElectric = service.name.toLowerCase().includes('điện');
-                                    const isWater = service.name.toLowerCase().includes('nước');
-                                    const isMetered = isElectric || (isWater && (service.unit === 'm³' || service.unit === 'khối'));
-                                    const bgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                                    
-                                    // Translate service name
-                                    const translateServiceName = (name) => {
-                                        if (currentLanguage === 'en') {
-                                            if (name.toLowerCase().includes('điện')) return 'Electricity';
-                                            if (name.toLowerCase().includes('nước')) return 'Water';
-                                            if (name.toLowerCase().includes('dịch vụ chung')) return 'Common Service';
-                                            if (name.toLowerCase().includes('xe')) return 'Parking';
-                                            return name; // Keep original if no translation
-                                        }
-                                        return name;
-                                    };
-                                    
-                                    const translateUnit = (unit) => {
-                                        if (currentLanguage === 'en') {
-                                            if (unit === 'Người') return 'Person';
-                                            if (unit === 'Phòng') return 'Room';
-                                            if (unit === 'xe') return 'Vehicle';
-                                            return unit;
-                                        }
-                                        return unit;
-                                    };
-                                    
-                                    return `
-                                    <div class="flex justify-between items-center py-3 px-5 ${bgClass}">
-                                        <div>
-                                            <p class="font-medium text-gray-800">${translateServiceName(service.name)}</p>
-                                            ${isElectric && serviceDetail.initialReading ? `<p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Initial reading:' : 'Chỉ số đầu:'} ${serviceDetail.initialReading}</p>` : 
-                                             isWater && serviceDetail.quantity ? `<p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity:' : 'Số lượng:'} ${serviceDetail.quantity}</p>` :
-                                             serviceDetail.quantity > 1 ? `<p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity:' : 'Số lượng:'} ${serviceDetail.quantity}</p>` : ''}
-                                        </div>
-                                        <p class="font-bold text-gray-800">${formatCurrency(service.price || 0)} / ${translateUnit(service.unit || 'đơn vị')}</p>
-                                    </div>
-                                    `;
-                                }
-                                return '';
-                            }).join('')
-                        : ''}
+                        <!-- 6. Các dịch vụ còn lại -->
+                        ${otherServices.map((serviceDetail, index) => {
+                            const currentBgIndex = bgIndex + (electricService ? 1 : 0) + (waterService ? 1 : 0) + (contract.vehiclePrice ? 1 : 0) + index;
+                            return renderService(serviceDetail, currentBgIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50');
+                        }).join('')}
                     </div>
                 `;
             } else {
@@ -2132,12 +2160,12 @@
             if (currentUser) {
                 tenantInfo.innerHTML = `
                     <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Full Name:' : 'Họ tên:'}</span>
+                        <div class="break-words">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Full Name: ' : 'Họ tên: '}</span>
                             <span class="font-bold text-gray-800">${currentUser.name || 'N/A'}</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Phone Number:' : 'Số điện thoại:'}</span>
+                        <div class="break-words">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Phone Number: ' : 'Số điện thoại: '}</span>
                             <span class="font-bold text-gray-800">${currentUser.phone || 'N/A'}</span>
                         </div>
                     </div>
@@ -2380,20 +2408,20 @@
                 
                 <!-- Thông tin cơ bản -->
                 <div class="mb-4 text-sm space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Room:' : 'Phòng:'}</span>
+                    <div class="break-words">
+                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Room: ' : 'Phòng: '}</span>
                         <span class="font-semibold">${bill.room || contract?.room}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Bill Number:' : 'Số hóa đơn:'}</span>
+                    <div class="break-words">
+                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Bill Number: ' : 'Số hóa đơn: '}</span>
                         <span class="font-semibold text-green-600">${bill.code || `INV${bill.id?.slice(-6)?.toUpperCase()}`}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Created Date:' : 'Ngày tạo:'}</span>
+                    <div class="break-words">
+                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Created Date: ' : 'Ngày tạo: '}</span>
                         <span class="font-semibold">${formatDateVN(createdDate)}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Due Date:' : 'Hạn thanh toán:'}</span>
+                    <div class="break-words">
+                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Due Date: ' : 'Hạn thanh toán: '}</span>
                         <span class="font-semibold">${formatDateVN(dueDate)}</span>
                     </div>
                 </div>
@@ -2522,16 +2550,16 @@
                 <!-- Tổng kết -->
                 <div class="border-t pt-4 mb-4">
                     <div class="space-y-2 text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Total:' : 'Tổng cộng:'}</span>
+                        <div class="break-words">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Total: ' : 'Tổng cộng: '}</span>
                             <span class="font-semibold">${formatCurrency(bill.totalAmount || 0)}</span>
                         </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Paid:' : 'Đã thanh toán:'}</span>
+                        <div class="break-words">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Paid: ' : 'Đã thanh toán: '}</span>
                             <span class="font-semibold">${formatCurrency(bill.paidAmount || 0)}</span>
                         </div>
-                        <div class="flex justify-between items-center py-2 border-t">
-                            <span class="font-bold text-lg ${(bill.status === 'paid' || (bill.paidAmount || 0) >= (bill.totalAmount || 0)) ? 'text-green-600' : 'text-red-600'}">${currentLanguage === 'en' ? 'Remaining:' : 'Còn lại:'}</span>
+                        <div class="py-2 border-t break-words">
+                            <span class="font-bold text-lg ${(bill.status === 'paid' || (bill.paidAmount || 0) >= (bill.totalAmount || 0)) ? 'text-green-600' : 'text-red-600'}">${currentLanguage === 'en' ? 'Remaining: ' : 'Còn lại: '}</span>
                             <span class="font-bold text-xl ${(bill.status === 'paid' || (bill.paidAmount || 0) >= (bill.totalAmount || 0)) ? 'text-green-600' : 'text-red-600'}">${formatCurrency((bill.totalAmount || 0) - (bill.paidAmount || 0))}</span>
                         </div>
                     </div>
