@@ -428,22 +428,15 @@
         </div>
 
         <!-- Install Button (Hidden by default) -->
-        <div id="install-prompt" class="hidden fixed top-4 left-4 right-4 bg-white rounded-lg shadow-lg p-4 z-50 animate-bounce">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                        <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L9 5.414V17a1 1 0 102 0V5.414l5.293 5.293a1 1 0 001.414-1.414l-7-7z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-800">Cài đặt ứng dụng</p>
-                        <p class="text-xs text-gray-600">Truy cập nhanh hơn</p>
-                    </div>
+        <div id="install-prompt" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center;">
+            <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+                <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt ứng dụng</h3>
+                <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn</p>
+                <div style="display: flex; gap: 12px;">
+                    <button id="install-button" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
+                    <button id="install-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
                 </div>
-                <button id="install-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">
-                    Cài đặt
-                </button>
             </div>
         </div>
 
@@ -4373,7 +4366,7 @@
                         }
                     })
                     .catch(error => {
-                        console.log('❌ Service Worker registration failed:', error);
+                        console.log('❌ Firebase Messaging SW registration failed:', error);
                     });
             });
         }
@@ -4382,14 +4375,18 @@
         let deferredPrompt;
         const installPrompt = document.getElementById('install-prompt');
         const installButton = document.getElementById('install-button');
+        const installCancelBtn = document.getElementById('install-cancel-btn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
             
-            // Show install prompt
-            if (installPrompt) {
-                installPrompt.classList.remove('hidden');
+            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
+            const isLocalhost = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1';
+            
+            if (!isLocalhost && installPrompt) {
+                installPrompt.style.display = 'flex';
             }
         });
 
@@ -4400,7 +4397,17 @@
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log(`User response: ${outcome}`);
                     deferredPrompt = null;
-                    installPrompt.classList.add('hidden');
+                }
+                if (installPrompt) {
+                    installPrompt.style.display = 'none';
+                }
+            });
+        }
+
+        if (installCancelBtn) {
+            installCancelBtn.addEventListener('click', () => {
+                if (installPrompt) {
+                    installPrompt.style.display = 'none';
                 }
             });
         }
@@ -4409,7 +4416,7 @@
         window.addEventListener('appinstalled', () => {
             console.log('✅ PWA installed successfully!');
             if (installPrompt) {
-                installPrompt.classList.add('hidden');
+                installPrompt.style.display = 'none';
             }
             deferredPrompt = null;
         });
