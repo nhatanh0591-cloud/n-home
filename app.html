@@ -1589,14 +1589,18 @@
                 
                 const cacheData = JSON.parse(cached);
                 
+                // 🔥 CACHE EXPIRY NGẮN HƠN CHO REALTIME DATA
+                const SHORT_CACHE_EXPIRY = 3 * 60 * 1000; // 3 phút cho critical data như bills
+                const age = Date.now() - cacheData.timestamp;
+                
                 // Kiểm tra version và hạn sử dụng
-                if (cacheData.version !== CACHE_VERSION || 
-                    (Date.now() - cacheData.timestamp) > CACHE_EXPIRY) {
+                if (cacheData.version !== CACHE_VERSION || age > SHORT_CACHE_EXPIRY) {
+                    console.log(`⏰ Cache hết hạn hoặc cũ (${Math.round(age / 1000 / 60)} phút), xóa cache`);
                     localStorage.removeItem(`n_home_user_${customerId}`);
                     return null;
                 }
                 
-                console.log(`📖 Load data user ${customerId} từ máy tính (${new Date(cacheData.timestamp).toLocaleString()})`);
+                console.log(`📖 Load data user ${customerId} từ cache (${Math.round(age / 1000 / 60)} phút tuổi)`);
                 return cacheData.data;
                 
             } catch (error) {
@@ -1664,21 +1668,18 @@
                 console.log(`📊 Bills changes: ${snapshot.docChanges().length} reads`);
                 
                 if (isFirstBillLoad) {
-                    // Nếu đã có cache thì skip load lần đầu
-                    if (cachedData) {
-                        isFirstBillLoad = false;
-                        return;
-                    }
-                    
                     bills = snapshot.docs
                         .map(doc => ({ id: doc.id, ...doc.data() }))
                         .filter(bill => bill.approved === true)
                         .sort((a, b) => new Date(b.createdAt?.toDate?.() || b.createdAt || 0) - new Date(a.createdAt?.toDate?.() || a.createdAt || 0));
+                    
+                    // 🔥 LUÔN RENDER DỮ LIỆU MỚI NHẤT TỪ FIREBASE (KHÔNG SKIP)
+                    console.log('🔄 First load - rendering fresh data from Firebase');
                     renderHomeData();
                     renderBillsList();
                     isFirstBillLoad = false;
                     
-                    // 💾 Lưu vào cache
+                    // 💾 Lưu vào cache SAU KHI ĐÃ RENDER
                     saveUserDataToCache(customerId, { 
                         bills, 
                         notifications,
@@ -1701,8 +1702,12 @@
                     });
                 
                 if (hasChanges) {
-                    console.log('🔄 Bills updated - status changes detected');
+                    console.log('🔄 Bills updated - status changes detected, FORCE UPDATE UI');
                     bills = newBills;
+                    
+                    // 🔥 CRITICAL: Force clear cache cũ để tránh conflict
+                    localStorage.removeItem(`n_home_user_${customerId}`);
+                    localStorage.removeItem(`userData_${customerId}`);
                     
                     // Force refresh UI to show payment status changes
                     renderHomeData();
@@ -1711,7 +1716,7 @@
                     // Update notification badge if needed
                     updateNotificationBadge();
                     
-                    // 💾 Lưu vào cache
+                    // 💾 Lưu cache mới với timestamp mới
                     saveUserDataToCache(customerId, { 
                         bills, 
                         notifications,
@@ -2017,6 +2022,17 @@
         async function showHome(customer) {
             currentUser = customer;
             customerData = customer; // Set global customerData for language system
+            
+            // 🔥 FORCE CLEAR CACHE KHI LOGIN ĐỂ LOAD DỮ LIỆU MỚI
+            console.log('🗑️ Clearing cache on login to force fresh data load');
+            localStorage.removeItem(`userData_${customer.id}`);
+            
+            // Clear app state
+            bills = [];
+            notifications = [];
+            buildings = [];
+            contracts = [];
+            services = [];
             
             // Notifications are loaded from unified cache in setupRealtimeListeners
             // No need for separate loadNotificationsFromStorage() call
@@ -2902,10 +2918,27 @@
 
         async function refreshData() {
             if (currentUser) {
+                // 🔥 FORCE REFRESH: XÓA CACHE VÀ LOAD DỮ LIỆU MỚI
+                console.log('🔄 Force refresh - clearing all cache');
+                
+                // Clear cache
+                localStorage.removeItem(`n_home_user_${currentUser.id}`);
+                localStorage.removeItem(`userData_${currentUser.id}`);
+                
+                // Clear app state
+                bills = [];
+                notifications = [];
+                buildings = [];
+                contracts = [];
+                services = [];
+                
+                // Reload fresh data from Firebase
                 await loadUserData(currentUser.id);
                 renderHomeData();
                 renderBillsList();
-                alert('Đã làm mới dữ liệu!');
+                renderNotificationsList();
+                
+                alert('✅ Đã làm mới dữ liệu từ server!');
             }
         }
 

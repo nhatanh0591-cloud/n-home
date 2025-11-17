@@ -65,6 +65,7 @@ const filterBuildingEl = document.getElementById('filter-bill-building');
 const filterRoomEl = document.getElementById('filter-bill-room');
 const filterMonthEl = document.getElementById('filter-bill-month');
 const filterStatusEl = document.getElementById('filter-bill-status');
+const filterApprovalEl = document.getElementById('filter-bill-approval');
 const searchEl = document.getElementById('bill-search');
 const selectAllCheckbox = document.getElementById('select-all-bills');
 
@@ -136,6 +137,7 @@ export function initBills() {
     filterRoomEl.addEventListener('change', applyBillFilters);
     filterMonthEl.addEventListener('change', applyBillFilters);
     filterStatusEl.addEventListener('change', applyBillFilters);
+    filterApprovalEl.addEventListener('change', applyBillFilters);
     searchEl.addEventListener('input', applyBillFilters);
 
     // Lắng nghe select all
@@ -181,6 +183,7 @@ function applyBillFilters() {
     const roomFilter = filterRoomEl.value;
     const monthFilter = filterMonthEl.value;
     const statusFilter = filterStatusEl.value;
+    const approvalFilter = filterApprovalEl.value;
     const searchText = searchEl.value.toLowerCase();
 
     if (buildingFilter) {
@@ -194,6 +197,13 @@ function applyBillFilters() {
     }
     if (statusFilter) {
         bills = bills.filter(bill => bill.status === statusFilter);
+    }
+    if (approvalFilter) {
+        if (approvalFilter === 'approved') {
+            bills = bills.filter(bill => bill.approved === true);
+        } else if (approvalFilter === 'unapproved') {
+            bills = bills.filter(bill => bill.approved !== true);
+        }
     }
     if (searchText) {
         const buildings = getBuildings();
@@ -325,10 +335,10 @@ function renderBillsTable(bills) {
                     <button data-id="${bill.id}" class="toggle-bill-approve-btn w-8 h-8 rounded flex items-center justify-center ${isApproved ? (bill.status === 'paid' ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-400 hover:bg-gray-500') : 'bg-green-500 hover:bg-green-600'}" title="${isApproved ? (bill.status === 'paid' ? 'Không thể bỏ duyệt hóa đơn đã thu tiền' : 'Bỏ duyệt') : 'Duyệt hóa đơn'}" ${isApproved && bill.status === 'paid' ? 'disabled' : ''}>
                         ${isApproved ? '<svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' : '<svg class="w-5 h-5 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
                     </button>
-                    <button data-id="${bill.id}" class="toggle-bill-status-btn w-8 h-8 rounded flex items-center justify-center ${!isApproved ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')}" title="${!isApproved ? 'Phải duyệt hóa đơn trước khi thu tiền' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Thu tiền')}" ${!isApproved ? 'disabled' : ''}>
+                    <button data-id="${bill.id}" class="toggle-bill-status-btn w-8 h-8 rounded flex items-center justify-center ${(!isApproved || bill.isTerminationBill) ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')}" title="${bill.isTerminationBill ? 'Không thể thu tiền hóa đơn thanh lý' : (!isApproved ? 'Phải duyệt hóa đơn trước khi thu tiền' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Thu tiền'))}" ${(!isApproved || bill.isTerminationBill) ? 'disabled' : ''}>
                         ${bill.status === 'paid' ? '<svg class="w-5 h-5 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>' : '<svg class="w-5 h-5 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>'}
                     </button>
-                    <button data-id="${bill.id}" class="edit-bill-btn w-8 h-8 rounded ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} flex items-center justify-center" title="${isApproved ? 'Không thể sửa hóa đơn đã duyệt' : 'Sửa'}" ${isApproved ? 'disabled' : ''}>
+                    <button data-id="${bill.id}" class="edit-bill-btn w-8 h-8 rounded ${(isApproved || bill.isTerminationBill) ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} flex items-center justify-center" title="${bill.isTerminationBill ? 'Không thể sửa hóa đơn thanh lý' : (isApproved ? 'Không thể sửa hóa đơn đã duyệt' : 'Sửa')}" ${(isApproved || bill.isTerminationBill) ? 'disabled' : ''}>
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                     </button>
                     <button data-id="${bill.id}" class="delete-bill-btn w-8 h-8 rounded ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} flex items-center justify-center" title="${isApproved ? 'Không thể xóa hóa đơn đã duyệt' : 'Xóa'}" ${isApproved ? 'disabled' : ''}>
@@ -347,8 +357,8 @@ function renderBillsTable(bills) {
             <td class="py-4 px-4">${getPaymentDueDate(bill)}</td>
             <td class="py-4 px-4">${formatMoney(bill.totalAmount)} VNĐ</td>
             <td class="py-4 px-4">
-                <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                    ${bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? 'bg-gray-100 text-gray-800' : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
+                    ${bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
                 </span>
             </td>
         `;
@@ -391,8 +401,8 @@ function renderBillsTable(bills) {
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
                     <span class="mobile-card-value">
-                        <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                            ${bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? 'bg-gray-100 text-gray-800' : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
+                            ${bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
                         </span>
                     </span>
                 </div>
@@ -401,11 +411,11 @@ function renderBillsTable(bills) {
                         ${isApproved ? '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' : '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'}
                         ${isApproved ? 'Bỏ duyệt' : 'Duyệt'}
                     </button>
-                    <button data-id="${bill.id}" class="toggle-bill-status-btn ${!isApproved ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')} text-white" ${!isApproved ? 'disabled' : ''}>
+                    <button data-id="${bill.id}" class="toggle-bill-status-btn ${(!isApproved || bill.isTerminationBill) ? 'bg-gray-300 cursor-not-allowed' : (bill.status === 'paid' ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600')} text-white" ${(!isApproved || bill.isTerminationBill) ? 'disabled' : ''}>
                         ${bill.status === 'paid' ? '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>' : '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>'}
                         ${bill.status === 'paid' ? 'Đã thu' : 'Thu tiền'}
                     </button>
-                    <button data-id="${bill.id}" class="edit-bill-btn ${isApproved ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} text-white" ${isApproved ? 'disabled' : ''}>
+                    <button data-id="${bill.id}" class="edit-bill-btn ${(isApproved || bill.isTerminationBill) ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-500 hover:bg-gray-600'} text-white" ${(isApproved || bill.isTerminationBill) ? 'disabled' : ''}>
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                         Sửa
                     </button>
@@ -944,8 +954,37 @@ async function handleBillFormSubmit(e) {
 
 async function deleteBill(billId) {
     try {
+        const bill = getBills().find(b => b.id === billId);
+        
+        // Nếu là hóa đơn thanh lý, cập nhật lại hợp đồng
+        if (bill && bill.isTerminationBill && bill.contractId) {
+            const contract = getContracts().find(c => c.id === bill.contractId);
+            if (contract) {
+                // Tính toán trạng thái hợp đồng mới dựa trên ngày hết hạn
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const endDate = new Date(contract.endDate);
+                endDate.setHours(0, 0, 0, 0);
+                
+                let newStatus = 'active';
+                const diffTime = endDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays < 0) newStatus = 'expired';
+                else if (diffDays <= 30) newStatus = 'expiring';
+                
+                // Cập nhật hợp đồng về trạng thái chưa thanh lý
+                await setDoc(doc(db, 'contracts', bill.contractId), {
+                    status: newStatus,
+                    terminatedAt: null,
+                    terminationBillId: null,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            }
+        }
+        
         await deleteDoc(doc(db, 'bills', billId));
-        showToast('Đã xóa hóa đơn thành công!');
+        showToast(bill && bill.isTerminationBill ? 'Đã xóa hóa đơn thanh lý và khôi phục hợp đồng!' : 'Đã xóa hóa đơn thành công!');
         // Store listener tự động cập nhật
     } catch (error) {
         showToast('Lỗi xóa hóa đơn: ' + error.message, 'error');
@@ -3032,7 +3071,7 @@ function handleExport() {
             'Kỳ': `Tháng ${bill.period}`,
             'Ngày lập': formatDateDisplay(bill.billDate),
             'Tổng tiền': formatMoney(bill.totalAmount),
-            'Trạng thái': bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán',
+            'Trạng thái': bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'),
             'Duyệt': bill.approved ? 'Đã duyệt' : 'Chưa duyệt'
         };
     });

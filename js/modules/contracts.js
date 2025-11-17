@@ -1,7 +1,7 @@
 // js/modules/contracts.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, updateDoc, collection, serverTimestamp } from '../firebase.js';
-import { getContracts, getBuildings, getCustomers, getServices } from '../store.js';
+import { getContracts, getBuildings, getCustomers, getServices, getBills } from '../store.js';
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
@@ -344,11 +344,9 @@ function renderContractsPage() {
                     <button data-id="${contract.id}" class="edit-contract-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                     </button>
-                    ${contract.status !== 'terminated' ? `
-                    <button data-id="${contract.id}" class="terminate-contract-btn w-8 h-8 rounded bg-orange-500 hover:bg-orange-600 flex items-center justify-center" title="Thanh lý">
+                    <button data-id="${contract.id}" class="terminate-contract-btn w-8 h-8 rounded bg-orange-500 hover:bg-orange-600 flex items-center justify-center" title="${contract.status === 'terminated' ? 'Bỏ thanh lý' : 'Thanh lý'}">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
                     </button>
-                    ` : ''}
                     <button data-id="${contract.id}" class="delete-contract-btn w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
                     </button>
@@ -421,12 +419,10 @@ function renderContractsPage() {
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                         Sửa
                     </button>
-                    ${contract.status !== 'terminated' ? `
                     <button data-id="${contract.id}" class="terminate-contract-btn bg-orange-500 hover:bg-orange-600 text-white">
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
-                        Thanh lý
+                        ${contract.status === 'terminated' ? 'Bỏ thanh lý' : 'Thanh lý'}
                     </button>
-                    ` : ''}
                     <button data-id="${contract.id}" class="delete-contract-btn bg-red-500 hover:bg-red-600 text-white">
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
                         Xóa
@@ -583,19 +579,65 @@ async function handleBodyClick(e) {
     // Nút "Thanh lý" - kiểm tra cả target và closest
     const terminateBtn = target.classList.contains('terminate-contract-btn') ? target : target.closest('.terminate-contract-btn');
     if (terminateBtn) {
-        const confirmed = await showConfirm('Bạn có chắc chắn muốn thanh lý hợp đồng này?', 'Xác nhận thanh lý');
-        if (confirmed) {
-            try {
-                const contractId = terminateBtn.dataset.id;
-                await setDoc(doc(db, 'contracts', contractId), {
-                    status: 'terminated',
-                    terminatedAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
-                showToast('Đã thanh lý hợp đồng thành công!');
-                // Store listener tự động cập nhật
-            } catch (error) {
-                showToast('Lỗi thanh lý hợp đồng: ' + error.message, 'error');
+        const contractId = terminateBtn.dataset.id;
+        const contract = getContracts().find(c => c.id === contractId);
+        
+        if (!contract) {
+            showToast('Không tìm thấy hợp đồng!', 'error');
+            return;
+        }
+
+        if (contract.status === 'terminated') {
+            // Bỏ thanh lý
+            const confirmed = await showConfirm('Bạn có chắc chắn muốn bỏ thanh lý hợp đồng này?', 'Xác nhận bỏ thanh lý');
+            if (confirmed) {
+                try {
+                    // Tính toán trạng thái mới dựa trên ngày hết hạn
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const endDate = new Date(contract.endDate);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    let newStatus = 'active';
+                    const diffTime = endDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays < 0) newStatus = 'expired';
+                    else if (diffDays <= 30) newStatus = 'expiring';
+                    
+                    await setDoc(doc(db, 'contracts', contractId), {
+                        status: newStatus,
+                        terminatedAt: null,
+                        terminationBillId: null,
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                    
+                    showToast('Đã bỏ thanh lý hợp đồng thành công!');
+                } catch (error) {
+                    showToast('Lỗi bỏ thanh lý hợp đồng: ' + error.message, 'error');
+                }
+            }
+        } else {
+            // Thanh lý
+            const confirmed = await showConfirm('Bạn có chắc chắn muốn thanh lý hợp đồng này? Hệ thống sẽ tự động tạo hóa đơn thanh lý.', 'Xác nhận thanh lý');
+            if (confirmed) {
+                try {
+                    // Tạo hóa đơn thanh lý trước
+                    showToast('Đang tạo hóa đơn thanh lý...', 'info');
+                    const terminationBillId = await createTerminationBill(contract);
+                    
+                    // Cập nhật trạng thái hợp đồng
+                    await setDoc(doc(db, 'contracts', contractId), {
+                        status: 'terminated',
+                        terminatedAt: serverTimestamp(),
+                        terminationBillId: terminationBillId,
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                    
+                    showToast('Đã thanh lý hợp đồng và tạo hóa đơn thanh lý thành công!');
+                } catch (error) {
+                    showToast('Lỗi thanh lý hợp đồng: ' + error.message, 'error');
+                }
             }
         }
         return;
@@ -1287,6 +1329,68 @@ async function handleImportSubmit() {
 }
 
 // --- HÀM TIỆN ÍCH CỦA MODULE ---
+
+/**
+ * Tạo hóa đơn thanh lý hợp đồng
+ */
+async function createTerminationBill(contract) {
+    try {
+        const building = getBuildings().find(b => b.id === contract.buildingId);
+        const customer = getCustomers().find(c => c.id === contract.representativeId);
+        
+        if (!building || !customer) {
+            throw new Error('Không tìm thấy thông tin tòa nhà hoặc khách hàng');
+        }
+
+        const billId = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+        const currentDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        
+        const billData = {
+            id: billId,
+            buildingId: contract.buildingId,
+            room: contract.room,
+            customerId: contract.representativeId,
+            customerName: customer.name,
+            period: `${currentMonth}`,
+            year: currentYear,
+            billDate: currentDate,
+            dueDate: 3,
+            services: [{
+                name: 'Thanh lý hợp đồng',
+                serviceName: 'Thanh lý hợp đồng',
+                amount: 0,
+                type: 'termination',
+                fromDate: currentDate,
+                toDate: currentDate
+            }],
+            totalAmount: 0,
+            status: 'unpaid',
+            approved: false,
+            paidAmount: 0,
+            isTerminationBill: true,
+            contractId: contract.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(doc(db, 'bills', billId), billData);
+        return billId;
+    } catch (error) {
+        console.error('Lỗi tạo hóa đơn thanh lý:', error);
+        throw error;
+    }
+}
+
+/**
+ * Kiểm tra xem hợp đồng đã có hóa đơn thanh lý chưa
+ */
+function hasTerminationBill(contractId) {
+    const bills = getBills();
+    return bills.some(bill => bill.contractId === contractId && bill.isTerminationBill);
+}
 
 /**
  * Tính toán trạng thái hợp đồng (active, expiring, expired, terminated)
