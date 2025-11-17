@@ -105,6 +105,26 @@ async function processTransaction(transaction) {
   
   console.log("🕐 Raw transactionTime:", transactionTime);
 
+  // 🔥 PHÂN BIỆT GIAO DỊCH THU/CHI THEO SỐ TIỀN
+  if (amount > 0) {
+    // 💰 GIAO DỊCH THU (tiền vào) - Logic cũ
+    console.log("💰 Processing INCOME transaction");
+    await processIncomeTransaction(transaction);
+  } else if (amount < 0) {
+    // 💸 GIAO DỊCH CHI (tiền ra) - Logic mới
+    console.log("💸 Processing EXPENSE transaction");
+    await processExpenseTransaction(transaction);
+  } else {
+    console.log("⚠️ Transaction amount is 0, skipping");
+  }
+}
+
+/**
+ * Xử lý giao dịch THU (logic cũ)
+ */
+async function processIncomeTransaction(transaction) {
+  const {id, description, amount, when, transactionDateTime} = transaction;
+  
   // Chuẩn hóa nội dung giao dịch để so khớp
   const normalizedDescription = description
       .toUpperCase()
@@ -143,6 +163,78 @@ async function processTransaction(transaction) {
 
   // CẬP NHẬT HÓA ĐƠN VÀ TẠO PHIẾU THU
   await updateBillAndCreateTransaction(bill, transaction);
+}
+
+/**
+ * 🔥 XỬ LÝ GIAO DỊCH CHI (tiền ra) - TẠO PHIẾU CHI DRAFT
+ */
+async function processExpenseTransaction(transaction) {
+  const {id, description, when, transactionDateTime} = transaction;
+  const amount = Math.abs(transaction.amount); // Chuyển thành số dương
+  const transactionTime = when || transactionDateTime;
+  
+  console.log("💸 Creating expense transaction draft for amount:", amount);
+  
+  // Chuẩn hóa nội dung giao dịch
+  const normalizedDescription = description
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/Đ/g, "D")
+      .replace(/đ/g, "d");
+
+  try {
+    // Tạo mã phiếu chi tự động
+    const transactionCode = `PC${new Date().toISOString().replace(/\D/g, "").slice(0, 12)}`;
+    
+    // Parse ngày từ Casso (format: "2025-11-06 15:30:45")
+    let transactionDate;
+    if (transactionTime) {
+      const dateMatch = transactionTime.match(/^(\d{4}-\d{2}-\d{2})/);
+      transactionDate = dateMatch ? dateMatch[1] : new Date().toISOString().split("T")[0];
+    } else {
+      transactionDate = new Date().toISOString().split("T")[0];
+    }
+
+    // Tạo phiếu chi DRAFT (chưa duyệt)
+    const expenseData = {
+      type: "expense",
+      code: transactionCode,
+      buildingId: "", // Admin sẽ chọn sau
+      room: "",
+      customerId: "",
+      accountId: "", // Admin sẽ chọn sổ quỹ sau
+      title: `Chi phí - ${normalizedDescription.substring(0, 50)}`, // Cắt ngắn title
+      payer: normalizedDescription, // Nội dung giao dịch làm người nhận
+      date: transactionDate,
+      amount: amount,
+      items: [{
+        description: `Giao dịch từ Casso: ${description}`,
+        amount: amount,
+        categoryId: "" // Admin sẽ chọn hạng mục sau
+      }],
+      approved: false, // 🔥 CHƯA DUYỆT - Để admin kiểm tra và sửa
+      cassoTransactionId: id,
+      cassoData: {
+        originalDescription: description,
+        transactionTime: transactionTime,
+        processedAt: new Date().toISOString()
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Lưu vào Firestore
+    const docRef = await db.collection("transactions").add(expenseData);
+    console.log("✅ Created expense draft transaction:", docRef.id);
+
+    // Gửi thông báo cho admin
+    await notifyAdminAboutExpenseDraft(expenseData, docRef.id);
+
+  } catch (error) {
+    console.error("❌ Error creating expense transaction:", error);
+    throw error;
+  }
 }
 
 // Hàm parsePaymentDescription đã được thay thế bằng logic mới trong findMatchingBillOptimized
@@ -418,6 +510,35 @@ async function notifyAdminAboutMismatch(bill, transaction) {
     console.log("✅ Notified admin about amount mismatch");
   } catch (error) {
     console.error("❌ Error notifying admin:", error);
+  }
+}
+
+/**
+ * 🔥 THÔNG BÁO CHO ADMIN VỀ PHIẾU CHI DRAFT MỚI
+ */
+async function notifyAdminAboutExpenseDraft(expenseData, transactionId) {
+  try {
+    const notificationData = {
+      type: "expense_draft_created",
+      transactionId: transactionId,
+      title: "💸 Phiếu chi draft từ Casso",
+      message: `Tạo phiếu chi chưa duyệt: ${formatMoney(expenseData.amount)} - ${expenseData.payer.substring(0, 50)}${expenseData.payer.length > 50 ? '...' : ''}`,
+      amount: expenseData.amount,
+      description: expenseData.payer,
+      cassoTransactionId: expenseData.cassoTransactionId,
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      data: {
+        transactionId: transactionId,
+        amount: expenseData.amount,
+        description: expenseData.payer
+      }
+    };
+
+    await db.collection("adminNotifications").add(notificationData);
+    console.log("✅ Notified admin about new expense draft:", transactionId);
+  } catch (error) {
+    console.error("❌ Error notifying admin about expense draft:", error);
   }
 }
 
