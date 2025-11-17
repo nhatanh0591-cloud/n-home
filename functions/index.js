@@ -204,12 +204,12 @@ async function processExpenseTransaction(transaction) {
       room: "",
       customerId: "",
       accountId: "", // Admin sẽ chọn sổ quỹ sau
-      title: `Chi phí - ${normalizedDescription.substring(0, 50)}`, // Cắt ngắn title
-      payer: normalizedDescription, // Nội dung giao dịch làm người nhận
+      title: description, // 🔥 CHỈ LẤY NỘI DUNG CHUYỂN KHOẢN GỐC
+      payer: description, // Nội dung giao dịch gốc
       date: transactionDate,
       amount: amount,
       items: [{
-        description: `Giao dịch từ Casso: ${description}`,
+        description: description, // 🔥 CHỈ LẤY NỘI DUNG GỐC, KHÔNG THÊM PREFIX
         amount: amount,
         categoryId: "" // Admin sẽ chọn hạng mục sau
       }],
@@ -522,7 +522,7 @@ async function notifyAdminAboutExpenseDraft(expenseData, transactionId) {
       type: "expense_draft_created",
       transactionId: transactionId,
       title: "💸 Phiếu chi draft từ Casso",
-      message: `Tạo phiếu chi chưa duyệt: ${formatMoney(expenseData.amount)} - ${expenseData.payer.substring(0, 50)}${expenseData.payer.length > 50 ? '...' : ''}`,
+      message: `Tạo phiếu chi chưa duyệt: ${formatMoney(expenseData.amount)} - ${expenseData.title}`,
       amount: expenseData.amount,
       description: expenseData.payer,
       cassoTransactionId: expenseData.cassoTransactionId,
