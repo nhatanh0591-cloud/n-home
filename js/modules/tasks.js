@@ -1315,8 +1315,11 @@ window.viewTaskImages = function(taskId) {
                             <span class="text-xs sm:text-sm text-gray-700 truncate" title="${displayName}">${displayName}</span>
                         </div>
                         <div class="flex gap-1 sm:gap-2 flex-shrink-0">
-                            <a href="${url}" target="_blank" class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
+                            <button onclick="openMediaViewer('${url}', ${index}, ${JSON.stringify(beforeImages).replace(/"/g, '&quot;')})" class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
                                 Xem
+                            </button>
+                            <a href="${url}" download target="_blank" class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 text-center">
+                                Tải
                             </a>
                             ${(() => {
                                 const currentUser = getCurrentUser();
@@ -1372,8 +1375,11 @@ window.viewTaskImages = function(taskId) {
                                 <span class="text-xs sm:text-sm text-gray-700 truncate" title="${displayName}">${displayName}</span>
                             </div>
                             <div class="flex gap-1 sm:gap-2 flex-shrink-0">
-                                <a href="${url}" target="_blank" class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
+                                <button onclick="openMediaViewer('${url}', ${index}, ${JSON.stringify(afterImages).replace(/"/g, '&quot;')})" class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
                                     Xem
+                                </button>
+                                <a href="${url}" download target="_blank" class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 text-center">
+                                    Tải
                                 </a>
                                 ${(() => {
                                     const currentUser = getCurrentUser();
@@ -1788,6 +1794,116 @@ window.closeTaskImagesModal = function() {
     closeModal(modal);
 };
 
+/**
+ * 🖼️ Media Viewer - View images/videos in full screen modal
+ */
+let currentMediaList = [];
+let currentMediaIndex = 0;
+
+window.openMediaViewer = function(url, index = 0, mediaList = []) {
+    currentMediaList = Array.isArray(mediaList) ? mediaList : [url];
+    currentMediaIndex = index;
+    
+    const modal = document.getElementById('media-viewer-modal');
+    const content = document.getElementById('media-viewer-content');
+    const counter = document.getElementById('media-counter');
+    const prevBtn = document.getElementById('media-prev-btn');
+    const nextBtn = document.getElementById('media-next-btn');
+    
+    // Show/hide navigation based on media count
+    if (currentMediaList.length > 1) {
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+        counter.classList.remove('hidden');
+        counter.textContent = `${currentMediaIndex + 1} / ${currentMediaList.length}`;
+    } else {
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        counter.classList.add('hidden');
+    }
+    
+    // Load current media
+    loadMediaContent(currentMediaList[currentMediaIndex]);
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+    }, 10);
+};
+
+function loadMediaContent(url) {
+    const content = document.getElementById('media-viewer-content');
+    const isVideo = /\.(mp4|webm|mov|avi|mkv)($|\?)/i.test(url) || url.includes('video');
+    
+    if (isVideo) {
+        content.innerHTML = `
+            <video 
+                src="${url}" 
+                controls 
+                class="max-w-full max-h-full object-contain"
+                style="max-width: 100%; max-height: 100%;"
+            >
+                Trình duyệt không hỗ trợ video này.
+            </video>
+        `;
+    } else {
+        content.innerHTML = `
+            <img 
+                src="${url}" 
+                alt="Hình ảnh" 
+                class="max-w-full max-h-full object-contain cursor-pointer"
+                style="max-width: 100%; max-height: 100%;"
+                onclick="this.style.transform = this.style.transform ? '' : 'scale(1.5)'"
+                title="Click để phóng to/thu nhỏ"
+            />
+        `;
+    }
+}
+
+window.closeMediaViewer = function() {
+    const modal = document.getElementById('media-viewer-modal');
+    const content = document.getElementById('media-viewer-content');
+    
+    // 🔥 STOP VIDEO ĐANG CHẠY KHI ĐÓNG MODAL
+    const video = content.querySelector('video');
+    if (video) {
+        video.pause();
+        video.currentTime = 0;
+        console.log('🛑 Video stopped when closing media viewer');
+    }
+    
+    modal.classList.add('opacity-0');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        // Clear content để giải phóng memory
+        content.innerHTML = '';
+    }, 300);
+};
+
+window.navigateMedia = function(direction) {
+    // 🔥 STOP VIDEO HIỆN TẠI TRƯỚC KHI CHUYỂN SANG MEDIA KHÁC
+    const content = document.getElementById('media-viewer-content');
+    const currentVideo = content.querySelector('video');
+    if (currentVideo) {
+        currentVideo.pause();
+        currentVideo.currentTime = 0;
+        console.log('🛑 Video stopped when navigating to next media');
+    }
+    
+    if (direction === 'prev') {
+        currentMediaIndex = currentMediaIndex > 0 ? currentMediaIndex - 1 : currentMediaList.length - 1;
+    } else {
+        currentMediaIndex = currentMediaIndex < currentMediaList.length - 1 ? currentMediaIndex + 1 : 0;
+    }
+    
+    loadMediaContent(currentMediaList[currentMediaIndex]);
+    
+    // Update counter
+    const counter = document.getElementById('media-counter');
+    counter.textContent = `${currentMediaIndex + 1} / ${currentMediaList.length}`;
+};
+
 
 
 /**
@@ -1883,4 +1999,57 @@ window.changeTasksPage = function(page) {
     const filtered = getFilteredTasks(); // Dùng helper không reset page
     renderTasks(filtered);
 };
+
+// Event listeners for media viewer
+document.addEventListener('DOMContentLoaded', function() {
+    const closeBtn = document.getElementById('close-media-viewer');
+    const prevBtn = document.getElementById('media-prev-btn');
+    const nextBtn = document.getElementById('media-next-btn');
+    const modal = document.getElementById('media-viewer-modal');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeMediaViewer);
+    }
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => navigateMedia('prev'));
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => navigateMedia('next'));
+    }
+    
+    // Close on backdrop click
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeMediaViewer();
+            }
+        });
+    }
+    
+    // 🔥 CLOSE ON ESC KEY
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeMediaViewer();
+        }
+    });
+    
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+        if (!modal || modal.classList.contains('hidden')) return;
+        
+        switch(e.key) {
+            case 'Escape':
+                closeMediaViewer();
+                break;
+            case 'ArrowLeft':
+                if (currentMediaList.length > 1) navigateMedia('prev');
+                break;
+            case 'ArrowRight':
+                if (currentMediaList.length > 1) navigateMedia('next');
+                break;
+        }
+    });
+});
 
