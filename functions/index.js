@@ -175,8 +175,13 @@ async function processExpenseTransaction(transaction) {
   
   console.log("💸 Creating expense transaction draft for amount:", amount);
   
+  // 🔥 CẮT BỎ PHẦN ĐUÔI TỪ DẦU "-" TRỞ ĐI (Ma giao dich/ Trace)
+  const cleanDescription = description.split(' - ')[0].trim();
+  console.log("🧹 Original description:", description);
+  console.log("🧹 Cleaned description:", cleanDescription);
+  
   // Chuẩn hóa nội dung giao dịch
-  const normalizedDescription = description
+  const normalizedDescription = cleanDescription
       .toUpperCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -204,12 +209,12 @@ async function processExpenseTransaction(transaction) {
       room: "",
       customerId: "",
       accountId: "", // Admin sẽ chọn sổ quỹ sau
-      title: description, // 🔥 CHỈ LẤY NỘI DUNG CHUYỂN KHOẢN GỐC
-      payer: description, // Nội dung giao dịch gốc
+      title: cleanDescription, // 🔥 CHỈ LẤY PHẦN TRƯỚC DẤU "-"
+      payer: cleanDescription, // Nội dung đã làm sạch
       date: transactionDate,
       amount: amount,
       items: [{
-        description: description, // 🔥 CHỈ LẤY NỘI DUNG GỐC, KHÔNG THÊM PREFIX
+        description: cleanDescription, // 🔥 CHỈ LẤY PHẦN TRƯỚC DẤU "-"
         amount: amount,
         categoryId: "" // Admin sẽ chọn hạng mục sau
       }],
@@ -217,6 +222,7 @@ async function processExpenseTransaction(transaction) {
       cassoTransactionId: id,
       cassoData: {
         originalDescription: description,
+        cleanedDescription: cleanDescription,
         transactionTime: transactionTime,
         processedAt: new Date().toISOString()
       },

@@ -1069,50 +1069,72 @@ async function deleteTransaction(id) {
 
     try {
         // Xóa thông báo liên quan đến transaction này
-        console.log('🗑️ Xóa phiếu thu - tìm và xóa thông báo liên quan');
+        console.log(`🗑️ Xóa phiếu ${t.type === 'income' ? 'thu' : 'chi'} - tìm và xóa thông báo liên quan`);
         try {
             const { query, where, getDocs, deleteDoc, doc } = await import('../firebase.js');
             let deletedNotifications = 0;
             
-            // 1. Nếu có billId, xóa thông báo payment_collected
-            if (t.billId) {
-                console.log('🔍 Tìm thông báo payment_collected cho bill:', t.billId);
-                const billNotificationsQuery = query(
-                    collection(db, 'adminNotifications'),
-                    where('billId', '==', t.billId),
-                    where('type', '==', 'payment_collected')
-                );
-                const billNotificationsSnapshot = await getDocs(billNotificationsQuery);
-                
-                const billDeletePromises = billNotificationsSnapshot.docs.map(notifDoc => 
-                    deleteDoc(doc(db, 'adminNotifications', notifDoc.id))
-                );
-                
-                if (billDeletePromises.length > 0) {
-                    await Promise.all(billDeletePromises);
-                    deletedNotifications += billDeletePromises.length;
-                    console.log(`✅ Đã xóa ${billDeletePromises.length} thông báo payment_collected cho bill ${t.billId}`);
+            if (t.type === 'income') {
+                // LOGIC CHO PHIẾU THU
+                // 1. Nếu có billId, xóa thông báo payment_collected
+                if (t.billId) {
+                    console.log('🔍 Tìm thông báo payment_collected cho bill:', t.billId);
+                    const billNotificationsQuery = query(
+                        collection(db, 'adminNotifications'),
+                        where('billId', '==', t.billId),
+                        where('type', '==', 'payment_collected')
+                    );
+                    const billNotificationsSnapshot = await getDocs(billNotificationsQuery);
+                    
+                    const billDeletePromises = billNotificationsSnapshot.docs.map(notifDoc => 
+                        deleteDoc(doc(db, 'adminNotifications', notifDoc.id))
+                    );
+                    
+                    if (billDeletePromises.length > 0) {
+                        await Promise.all(billDeletePromises);
+                        deletedNotifications += billDeletePromises.length;
+                        console.log(`✅ Đã xóa ${billDeletePromises.length} thông báo payment_collected cho bill ${t.billId}`);
+                    }
                 }
-            }
-            
-            // 2. Nếu có code (từ Casso), xóa thông báo unverified_payment
-            if (t.code) {
-                console.log('🔍 Tìm thông báo unverified_payment cho transactionCode:', t.code);
-                const codeNotificationsQuery = query(
-                    collection(db, 'adminNotifications'),
-                    where('transactionCode', '==', t.code),
-                    where('type', '==', 'unverified_payment')
-                );
-                const codeNotificationsSnapshot = await getDocs(codeNotificationsQuery);
                 
-                const codeDeletePromises = codeNotificationsSnapshot.docs.map(notifDoc => 
+                // 2. Nếu có code (từ Casso), xóa thông báo unverified_payment
+                if (t.code) {
+                    console.log('🔍 Tìm thông báo unverified_payment cho transactionCode:', t.code);
+                    const codeNotificationsQuery = query(
+                        collection(db, 'adminNotifications'),
+                        where('transactionCode', '==', t.code),
+                        where('type', '==', 'unverified_payment')
+                    );
+                    const codeNotificationsSnapshot = await getDocs(codeNotificationsQuery);
+                    
+                    const codeDeletePromises = codeNotificationsSnapshot.docs.map(notifDoc => 
+                        deleteDoc(doc(db, 'adminNotifications', notifDoc.id))
+                    );
+                    
+                    if (codeDeletePromises.length > 0) {
+                        await Promise.all(codeDeletePromises);
+                        deletedNotifications += codeDeletePromises.length;
+                        console.log(`✅ Đã xóa ${codeDeletePromises.length} thông báo unverified_payment cho transactionCode ${t.code}`);
+                    }
+                }
+            } else if (t.type === 'expense') {
+                // 🔥 LOGIC CHO PHIẾU CHI - XÓA THÔNG BÁO expense_draft_created
+                console.log('🔍 Tìm thông báo expense_draft_created cho transactionId:', id);
+                const expenseNotificationsQuery = query(
+                    collection(db, 'adminNotifications'),
+                    where('transactionId', '==', id),
+                    where('type', '==', 'expense_draft_created')
+                );
+                const expenseNotificationsSnapshot = await getDocs(expenseNotificationsQuery);
+                
+                const expenseDeletePromises = expenseNotificationsSnapshot.docs.map(notifDoc => 
                     deleteDoc(doc(db, 'adminNotifications', notifDoc.id))
                 );
                 
-                if (codeDeletePromises.length > 0) {
-                    await Promise.all(codeDeletePromises);
-                    deletedNotifications += codeDeletePromises.length;
-                    console.log(`✅ Đã xóa ${codeDeletePromises.length} thông báo unverified_payment cho transactionCode ${t.code}`);
+                if (expenseDeletePromises.length > 0) {
+                    await Promise.all(expenseDeletePromises);
+                    deletedNotifications += expenseDeletePromises.length;
+                    console.log(`✅ Đã xóa ${expenseDeletePromises.length} thông báo expense_draft_created cho transaction ${id}`);
                 }
             }
             
@@ -1124,17 +1146,17 @@ async function deleteTransaction(id) {
             console.error('❌ Lỗi khi xóa thông báo:', error);
         }
         
-        // Nếu phiếu này liên kết với hóa đơn, cập nhật trạng thái hóa đơn
-        if (t.billId) {
+        // Nếu phiếu thu liên kết với hóa đơn, cập nhật trạng thái hóa đơn
+        if (t.type === 'income' && t.billId) {
             await setDoc(doc(db, 'bills', t.billId), {
                 status: 'unpaid',
                 paidAmount: 0,
                 updatedAt: serverTimestamp()
             }, { merge: true });
             
-            showToast('Đã xóa phiếu, cập nhật hóa đơn và xóa thông báo!');
+            showToast('Đã xóa phiếu thu, cập nhật hóa đơn và xóa thông báo!');
         } else {
-            showToast('Đã xóa phiếu và thông báo liên quan!');
+            showToast(`Đã xóa phiếu ${t.type === 'income' ? 'thu' : 'chi'} và thông báo liên quan!`);
         }
         
         await deleteDoc(doc(db, 'transactions', id));
