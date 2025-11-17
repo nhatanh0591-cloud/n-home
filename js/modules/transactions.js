@@ -1071,7 +1071,7 @@ async function deleteTransaction(id) {
         // Xóa thông báo liên quan đến transaction này
         console.log(`🗑️ Xóa phiếu ${t.type === 'income' ? 'thu' : 'chi'} - tìm và xóa thông báo liên quan`);
         try {
-            const { query, where, getDocs, deleteDoc, doc } = await import('../firebase.js');
+            const { query, where, getDocs, deleteDoc, doc, collection } = await import('../firebase.js');
             let deletedNotifications = 0;
             
             if (t.type === 'income') {
