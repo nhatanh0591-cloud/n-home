@@ -11,6 +11,7 @@ import {
     orderBy
 } from '../firebase.js';
 
+import { getTransactions, getBills, getBuildings } from '../store.js';
 import { formatMoney } from '../utils.js';
 
 // DOM Elements
@@ -96,10 +97,9 @@ async function loadBuildingsList() {
     }
     
     try {
-        console.log('🏢 Loading buildings list...');
-        const buildingsRef = collection(db, 'buildings');
-        const buildingsSnapshot = await getDocs(buildingsRef);
-        const buildings = buildingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('🏢 Loading buildings list from store (0 reads)...');
+        // ✅ Dùng data từ store thay vì getDocs()
+        const buildings = getBuildings();
         
         console.log('🏢 Found buildings:', buildings.length, buildings.map(b => b.code));
         console.log('🏢 Building details:', buildings);
@@ -145,14 +145,9 @@ export async function loadReportData() {
     try {
         const selectedYear = parseInt(reportYearEl.value);
         
-        // Load transactions for the selected year
-        const transactionsRef = collection(db, 'transactions');
-        const snapshot = await getDocs(transactionsRef);
-        
-        transactionsCache = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        console.log('📊 Loading transactions from store (0 reads)...');
+        // ✅ Dùng data từ store thay vì getDocs()
+        transactionsCache = getTransactions();
         
         console.log('=== LOADING REPORT DATA ===');
         console.log('Total transactions:', transactionsCache.length);
@@ -393,18 +388,13 @@ async function loadCategoryReport() {
         const selectedBuilding = categoryReportBuildingEl?.value || 'all';
 
         console.log('Loading category report for:', { selectedMonth, selectedYear, selectedBuilding });
-        console.log('🔄 Loading fresh data from Firebase...');
+        console.log('📊 Loading data from store (0 reads)...');
 
-        // Load trực tiếp từ Firebase
-        const transactionsRef = collection(db, 'transactions');
-        const transactionsSnapshot = await getDocs(transactionsRef);
-        const transactions = transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        const billsRef = collection(db, 'bills');
-        const billsSnapshot = await getDocs(billsRef);
-        const bills = billsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // ✅ Lấy từ store thay vì getDocs() - tiết kiệm ~6K reads mỗi lần!
+        const transactions = getTransactions();
+        const bills = getBills();
         
-        // Load transaction categories từ Firebase
+        // ⚠️ TransactionCategories chưa có trong store, vẫn phải load từ Firebase
         const categoriesRef = collection(db, 'transactionCategories');
         const categoriesSnapshot = await getDocs(categoriesRef);
         const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
