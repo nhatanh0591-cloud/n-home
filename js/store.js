@@ -10,6 +10,7 @@ const CACHE_VERSION = '1.0'; // Tăng version khi cần xóa cache cũ
 /**
  * Kho lưu trữ dữ liệu (state) tập trung của toàn bộ ứng dụng.
  * 🔥 TÍCH HỢP CACHE ĐỂ TIẾT KIỆM FIREBASE READS
+ * ✨ OPTIMIZED: Listener cleanup + docChanges() + debounced cache
  */
 export const state = {
     buildings: [],
@@ -30,29 +31,44 @@ export const state = {
 };
 
 /**
- * 💾 Lưu dữ liệu vào máy tính
+ * 🧹 CLEANUP: Store unsubscribe functions để cleanup listeners
  */
+const listenerUnsubscribers = [];
+
+/**
+ * 💾 Lưu dữ liệu vào máy tính (DEBOUNCED - tránh save liên tục)
+ */
+let saveCacheTimeout = null;
 function saveToCache() {
-    try {
-        const cacheData = {
-            version: CACHE_VERSION,
-            timestamp: Date.now(),
-            data: {
-                buildings: state.buildings,
-                services: state.services,
-                customers: state.customers,
-                contracts: state.contracts,
-                bills: state.bills,
-                transactions: state.transactions,
-                accounts: state.accounts,
-                tasks: state.tasks
-            }
-        };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-        console.log('💾 Đã lưu dữ liệu vào máy tính');
-    } catch (error) {
-        console.error('❌ Lỗi khi lưu cache:', error);
+    // Clear timeout cũ nếu có
+    if (saveCacheTimeout) {
+        clearTimeout(saveCacheTimeout);
     }
+    
+    // Debounce 2 giây - chỉ save khi không có thay đổi mới trong 2s
+    saveCacheTimeout = setTimeout(() => {
+        try {
+            const cacheData = {
+                version: CACHE_VERSION,
+                timestamp: Date.now(),
+                data: {
+                    buildings: state.buildings,
+                    services: state.services,
+                    customers: state.customers,
+                    contracts: state.contracts,
+                    bills: state.bills,
+                    transactions: state.transactions,
+                    accounts: state.accounts,
+                    tasks: state.tasks
+                }
+            };
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+            state._lastSyncTime = Date.now();
+            console.log('💾 Đã lưu cache vào localStorage');
+        } catch (error) {
+            console.error('❌ Lỗi khi lưu cache:', error);
+        }
+    }, 2000);
 }
 
 /**
@@ -95,9 +111,13 @@ function loadFromCache() {
 
 /**
  * 🔥 KHỞI TẠO STORE THÔNG MINH - TIẾT KIỆM FIREBASE READS
+ * ✨ OPTIMIZED: Cleanup old listeners trước khi tạo mới
  */
 export async function initializeStore() {
     console.log("🚀 Store: Bắt đầu khởi tạo...");
+    
+    // 🧹 CLEANUP: Unsubscribe tất cả listeners cũ (nếu có)
+    cleanupListeners();
     
     // ⚡ BƯỚC 1: Thử load từ máy tính trước NGAY LẬP TỨC
     const hasCachedData = loadFromCache();
@@ -115,7 +135,7 @@ export async function initializeStore() {
         
     } else {
         // 📭 Không có cache - báo ready ngay để hiển thị UI, load Firebase sau
-        console.log("� CACHE MISS! Hiển thị UI rỗng, đang tải từ Firebase...");
+        console.log("📭 CACHE MISS! Hiển thị UI rỗng, đang tải từ Firebase...");
         notifyDataReady();
         
         // 🔄 Setup listeners + load data từ Firebase
@@ -127,29 +147,84 @@ export async function initializeStore() {
 }
 
 /**
+ * 🧹 CLEANUP: Unsubscribe tất cả listeners để tránh memory leak
+ */
+function cleanupListeners() {
+    if (listenerUnsubscribers.length > 0) {
+        console.log(`🧹 Cleaning up ${listenerUnsubscribers.length} old listeners...`);
+        listenerUnsubscribers.forEach(unsubscribe => {
+            try {
+                unsubscribe();
+            } catch (error) {
+                console.error('Error unsubscribing:', error);
+            }
+        });
+        listenerUnsubscribers.length = 0; // Clear array
+        console.log('✅ All listeners cleaned up');
+    }
+}
+
+/**
  * 📡 Setup real-time listeners (onSnapshot chỉ tính reads cho thay đổi)
+ * ✨ OPTIMIZED: 
+ * - Store unsubscribe functions
+ * - Use docChanges() để chỉ xử lý delta thay vì read toàn bộ
+ * - Debounced cache saving
  */
 function setupRealtimeListeners() {
     state._collectionsToLoad.forEach(collectionName => {
         const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
 
-        onSnapshot(q, (snapshot) => {
-            console.log(`📊 [${collectionName}] Firebase changes: ${snapshot.docChanges().length} reads`);
+        // Subscribe và lưu unsubscribe function
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const changes = snapshot.docChanges();
             
-            // Cập nhật dữ liệu
-            state[collectionName] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (changes.length === 0) {
+                console.log(`📊 [${collectionName}] No changes`);
+                return;
+            }
             
-            // Lưu vào cache
+            console.log(`📊 [${collectionName}] Firebase changes: ${changes.length} reads (added: ${changes.filter(c => c.type === 'added').length}, modified: ${changes.filter(c => c.type === 'modified').length}, removed: ${changes.filter(c => c.type === 'removed').length})`);
+            
+            // ✨ OPTIMIZE: Chỉ xử lý delta thay vì map toàn bộ snapshot.docs
+            if (state[collectionName].length === 0) {
+                // Lần đầu load - map toàn bộ
+                state[collectionName] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } else {
+                // Đã có data - chỉ apply changes
+                changes.forEach(change => {
+                    const docData = { id: change.doc.id, ...change.doc.data() };
+                    const index = state[collectionName].findIndex(item => item.id === change.doc.id);
+                    
+                    if (change.type === 'added' && index === -1) {
+                        // Thêm mới
+                        state[collectionName].unshift(docData);
+                    } else if (change.type === 'modified' && index !== -1) {
+                        // Cập nhật
+                        state[collectionName][index] = docData;
+                    } else if (change.type === 'removed' && index !== -1) {
+                        // Xóa
+                        state[collectionName].splice(index, 1);
+                    }
+                });
+            }
+            
+            // Lưu vào cache (debounced)
             saveToCache();
             
             // Thông báo cập nhật
             document.dispatchEvent(new CustomEvent(`store:${collectionName}:updated`));
             
-            console.log(`✅ [${collectionName}] cập nhật: ${state[collectionName].length} items`);
+            console.log(`✅ [${collectionName}] updated: ${state[collectionName].length} items`);
         }, (error) => {
             console.error(`❌ Lỗi listener [${collectionName}]:`, error);
         });
+        
+        // 🧹 Lưu unsubscribe function để cleanup sau
+        listenerUnsubscribers.push(unsubscribe);
     });
+    
+    console.log(`✅ Setup ${listenerUnsubscribers.length} listeners with cleanup support`);
 }
 
 /**
@@ -220,6 +295,56 @@ export function clearCache() {
 }
 
 /**
+ * 🔄 Force refresh data từ Firebase (manual refresh)
+ */
+export async function refreshStore() {
+    console.log('🔄 Manual refresh: Loading fresh data from Firebase...');
+    
+    try {
+        let totalReads = 0;
+        
+        for (const collectionName of state._collectionsToLoad) {
+            const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            
+            state[collectionName] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            totalReads += snapshot.size;
+            
+            // Notify update
+            document.dispatchEvent(new CustomEvent(`store:${collectionName}:updated`));
+            
+            console.log(`📦 [${collectionName}] refreshed: ${snapshot.size} items`);
+        }
+        
+        // Save to cache immediately (không debounce)
+        if (saveCacheTimeout) clearTimeout(saveCacheTimeout);
+        const cacheData = {
+            version: CACHE_VERSION,
+            timestamp: Date.now(),
+            data: {
+                buildings: state.buildings,
+                services: state.services,
+                customers: state.customers,
+                contracts: state.contracts,
+                bills: state.bills,
+                transactions: state.transactions,
+                accounts: state.accounts,
+                tasks: state.tasks
+            }
+        };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+        state._lastSyncTime = Date.now();
+        
+        console.log(`✅ Store refreshed successfully (${totalReads} reads)`);
+        return totalReads;
+        
+    } catch (error) {
+        console.error('❌ Error refreshing store:', error);
+        throw error;
+    }
+}
+
+/**
  * 🔍 Debug cache info
  */
 export function getCacheInfo() {
@@ -245,3 +370,4 @@ export function getCacheInfo() {
 // 🧪 Test functions
 window.clearCache = clearCache;
 window.getCacheInfo = getCacheInfo;
+window.refreshStore = refreshStore;

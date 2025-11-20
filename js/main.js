@@ -1,8 +1,8 @@
 // js/main.js
 
-// --- 1. NHẬP CÁC MODULE CỐT LỒI ---
+// --- 1. NHẬP CÁC MODULE CỐT LỖI ---
 import { auth, signInAnonymously } from './firebase.js';
-import { initializeStore, getBuildings } from './store.js';
+import { initializeStore, getBuildings, refreshStore } from './store.js';
 import { initNavigation, showSection } from './navigation.js';
 import { showToast } from './utils.js';
 import { initAuth, addLogoutButton, getCurrentUser, hideUnauthorizedMenus, logoutAdmin } from './auth.js';
@@ -108,6 +108,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         showSection('dashboard');
         loadDashboard(); // ← Thêm dòng này để load dashboard ngay cả khi có lỗi
         console.log("Main: 🚨 Có lỗi nhưng vẫn hiển thị web từ cache");
+    }
+    
+    // 🔄 WIRE REFRESH BUTTON
+    const refreshBtn = document.getElementById('refresh-data-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            try {
+                // Disable button và thêm animation
+                refreshBtn.disabled = true;
+                refreshBtn.querySelector('svg').classList.add('animate-spin');
+                
+                showToast('Đang làm mới dữ liệu...', 'info');
+                
+                const totalReads = await refreshStore();
+                
+                showToast(`Đã làm mới dữ liệu thành công! (${totalReads} reads)`, 'success');
+                
+            } catch (error) {
+                console.error('Refresh error:', error);
+                showToast('Lỗi khi làm mới dữ liệu: ' + error.message, 'error');
+            } finally {
+                // Re-enable button và remove animation
+                refreshBtn.disabled = false;
+                refreshBtn.querySelector('svg').classList.remove('animate-spin');
+            }
+        });
     }
 });
 
