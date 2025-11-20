@@ -2049,7 +2049,7 @@ function addServiceRow(item) {
         // Dịch vụ có đồng hồ (Điện, Nước khối)
         rowHTML += `
             <td class="py-2 px-3">
-                <input type="number" value="${item.oldReading || 0}" class="w-20 text-xs p-1 border rounded electric-old-reading" readonly>
+                <input type="number" value="${item.oldReading || 0}" class="w-20 text-xs p-1 border rounded electric-old-reading" placeholder="Số cũ">
             </td>
             <td class="py-2 px-3">
                 <input type="number" value="${item.newReading || ''}" class="w-20 text-xs p-1 border rounded electric-new-reading" data-service-id="${item.serviceId || ''}" data-price="${item.unitPrice || 0}" placeholder="Số mới">
@@ -2145,10 +2145,10 @@ function handleServiceInputChange(e) {
         unitPrice: unitPrice
     });
 
-    if (target.classList.contains('electric-new-reading')) {
+    if (target.classList.contains('electric-new-reading') || target.classList.contains('electric-old-reading')) {
         // Dịch vụ điện/nước có đồng hồ
         const oldReading = parseInt(row.querySelector('.electric-old-reading').value) || 0;
-        const newReading = parseInt(target.value) || 0;
+        const newReading = parseInt(row.querySelector('.electric-new-reading').value) || 0;
         quantity = Math.max(0, newReading - oldReading);
         total = quantity * unitPrice;
         

@@ -1899,10 +1899,12 @@
                     }
                     
                     // Filter room ở client side (query chỉ filter buildingId)
+                    // QUAN TRỌNG: Chỉ hiện thông báo cho đúng khách hàng (customerId) và đúng phòng (room)
+                    const isForThisCustomer = !notificationData.customerId || notificationData.customerId === customerId;
                     const isForThisRoom = notificationData.room === contract.room;
-                    // console.log('🔔 Processing notification:', notificationData.type, 'room match:', isForThisRoom);
+                    // console.log('🔔 Processing notification:', notificationData.type, 'customer match:', isForThisCustomer, 'room match:', isForThisRoom);
                     
-                    if (change.type === 'added' && isForThisRoom) {
+                    if (change.type === 'added' && isForThisRoom && isForThisCustomer) {
                         // console.log('🔔 New customer notification received:', notificationData.type, notificationData.message);
                         
                         // Kiểm tra xem notification đã tồn tại chưa

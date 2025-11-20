@@ -114,8 +114,21 @@ export function initTransactions() {
 
     // Lắng nghe sự kiện lọc
     [filterRoomEl, filterTypeEl, filterAccountEl, 
-     filterStartDateEl, filterEndDateEl, filterCategoryEl, filterApprovalEl, searchEl]
-    .forEach(el => el?.addEventListener('input', applyTransactionFilters));
+     filterStartDateEl, filterEndDateEl, filterCategoryEl, filterApprovalEl]
+    .filter(el => el) // Loại bỏ các element null
+    .forEach(el => el.addEventListener('input', applyTransactionFilters));
+    
+    // Lắng nghe riêng search để reset page
+    console.log('🔍 searchEl:', searchEl);
+    if (searchEl) {
+        searchEl.addEventListener('input', (e) => {
+            console.log('🔍 Search input triggered:', e.target.value);
+            currentPage = 1;
+            applyTransactionFilters();
+        });
+    } else {
+        console.error('❌ searchEl is NULL!');
+    }
 
     // Lắng nghe riêng filter building để cập nhật rooms
     filterBuildingEl.addEventListener('change', handleFilterBuildingChange);
@@ -220,15 +233,17 @@ function applyTransactionFilters() {
     let transactions = getTransactions();
 
     // Lấy giá trị bộ lọc
-    const building = filterBuildingEl.value;
-    const room = filterRoomEl.value;
-    const type = filterTypeEl.value;
-    const account = filterAccountEl.value;
-    const startDate = parseDateInput(filterStartDateEl.value);
-    const endDate = parseDateInput(filterEndDateEl.value);
-    const category = filterCategoryEl.value;
-    const approval = filterApprovalEl.value;
-    const search = searchEl.value.toLowerCase();
+    const building = filterBuildingEl?.value || '';
+    const room = filterRoomEl?.value || '';
+    const type = filterTypeEl?.value || '';
+    const account = filterAccountEl?.value || '';
+    const startDate = parseDateInput(filterStartDateEl?.value);
+    const endDate = parseDateInput(filterEndDateEl?.value);
+    const category = filterCategoryEl?.value || '';
+    const approval = filterApprovalEl?.value || '';
+    const search = searchEl?.value?.toLowerCase() || '';
+    
+    console.log('🔍 Transaction search:', search);
 
     // Lọc
     transactionsCache_filtered = transactions.filter(t => {
@@ -249,10 +264,19 @@ function applyTransactionFilters() {
 
         if (search) {
             const customer = getCustomers().find(c => c.id === t.customerId);
-            return (t.code?.toLowerCase().includes(search) ||
-                    t.title?.toLowerCase().includes(search) ||
-                    t.payer?.toLowerCase().includes(search) ||
-                    (customer && customer.name.toLowerCase().includes(search)));
+            const account = getAccounts().find(a => a.id === t.accountId);
+            const accountName = account ? (account.bank === 'Cash' ? 'Tiền mặt' : `${account.bank} - ${account.accountHolder || account.accountNumber || ''}`) : '';
+            
+            const code = (t.code || '').toString().toLowerCase();
+            const title = (t.title || '').toString().toLowerCase();
+            const payer = (t.payer || '').toString().toLowerCase();
+            const customerName = customer ? customer.name.toLowerCase() : '';
+            
+            return (code.includes(search) ||
+                    title.includes(search) ||
+                    payer.includes(search) ||
+                    accountName.toLowerCase().includes(search) ||
+                    customerName.includes(search));
         }
         return true;
     });
