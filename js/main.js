@@ -1,7 +1,7 @@
 // js/main.js
 
 // --- 1. NHẬP CÁC MODULE CỐT LỖI ---
-import { auth, signInAnonymously } from './firebase.js';
+// import { auth, signInAnonymously } from './firebase.js'; // DISABLED - không cần Firebase auth
 import { initializeStore, getBuildings, refreshStore } from './store.js';
 import { initNavigation, showSection } from './navigation.js';
 import { showToast } from './utils.js';
@@ -18,7 +18,7 @@ import { initContracts, loadContracts } from './modules/contracts.js';
 import { initBills, loadBills } from './modules/bills.js';
 import { initTransactions, loadTransactions } from './modules/transactions.js';
 import { initTasks, loadTasks } from './modules/tasks.js';
-import { initNotifications, loadNotifications } from './modules/notifications.js';
+import { initNotifications, loadNotifications } from './modules/notifications.js?v=8.3';
 import { initReports, loadReportData } from './modules/reports.js';
 import { initDashboard, loadDashboard } from './modules/dashboard.js';
 
@@ -28,8 +28,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadingOverlay.classList.remove('hidden');
 
     try {
-        // ⚡ BƯỚC 1: KHỞI TẠO STORE NGAY LẬP TỨC (load cache trước)
-        console.log("Main: 🚀 Khởi tạo store ngay lập tức để load cache...");
+        // ⚡ BƯỚC 1: KHỞI TẠO STORE (CHỈ LOCALSTORAGE)
+        console.log("Main: 🚀 Khởi tạo store - CHỈ DÙNG LOCALSTORAGE...");
         initializeStore();
         
         // 🔄 BƯỚC 2: Kiểm tra đăng nhập admin SONG SONG với cache loading
@@ -57,9 +57,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             return; // Dừng lại nếu chưa đăng nhập, nhưng UI đã hiển thị
         }
 
-        // 🔄 BƯỚC 5: Đăng nhập Firebase sau (để setup real-time listeners)
-        await signInAnonymously(auth);
-        console.log("Main: 🔄 Firebase auth thành công, real-time listeners đã active.");
+        // 🔄 BƯỚC 5: SKIP Firebase auth - hoàn toàn offline
+        // await signInAnonymously(auth);
+        console.log("Main: 🚫 SKIP Firebase auth - hoàn toàn LOCAL-ONLY MODE!");
         
         // 🛠️ BƯỚC 6: Tạo "bản đồ" các hàm load dữ liệu
         // navigation.js sẽ dùng bản đồ này để biết cần gọi hàm nào khi bạn click
@@ -99,7 +99,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         addLogoutButton();
         hideUnauthorizedMenus();
         
-        console.log("Main: ✅ HOÀN TẤT! Web hiển thị từ cache + Firebase real-time active!");
+        console.log("Main: ✅ HOÀN TẤT! Web chỉ dùng localStorage - KHÔNG tự động load Firebase!");
+        
+        // 💾 Thông báo về chế độ localStorage-only
+        console.log(`
+🔧 HỆ THỐNG CHỈ DÙNG LOCALSTORAGE:
+   📱 Dữ liệu chỉ lưu trên máy này (localStorage)
+   🚫 KHÔNG tự động sync với Firebase
+   🚫 KHÔNG tự động load từ Firebase
+   🔄 Muốn load mới: window.refreshStore() (thủ công)
+   🗑️ Xóa cache: window.clearCache()
+   ℹ️ Xem thông tin: window.getCacheInfo()
+   🚫 KHÔNG kết nối Firebase - hoàn toàn offline
+        `);
         
     } catch (error) {
         console.error("Main: Lỗi khởi động:", error);
@@ -107,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadingOverlay.classList.add('hidden');
         showSection('dashboard');
         loadDashboard(); // ← Thêm dòng này để load dashboard ngay cả khi có lỗi
-        console.log("Main: 🚨 Có lỗi nhưng vẫn hiển thị web từ cache");
+        console.log("Main: 🚨 Có lỗi nhưng vẫn hiển thị web từ localStorage");
     }
     
     // 🔄 WIRE REFRESH BUTTON
@@ -119,11 +131,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 refreshBtn.disabled = true;
                 refreshBtn.querySelector('svg').classList.add('animate-spin');
                 
-                showToast('Đang làm mới dữ liệu...', 'info');
+                showToast('Đang tải mới từ Firebase...', 'info');
                 
                 const totalReads = await refreshStore();
                 
-                showToast(`Đã làm mới dữ liệu thành công! (${totalReads} reads)`, 'success');
+                showToast(`Đã tải mới từ Firebase và lưu vào máy! (${totalReads} reads)`, 'success');
                 
             } catch (error) {
                 console.error('Refresh error:', error);

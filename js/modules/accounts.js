@@ -1,6 +1,7 @@
 // js/modules/accounts.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, orderBy, getDocs } from '../firebase.js';
+import { getAccounts, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { showToast, openModal, closeModal, showConfirm } from '../utils.js';
 
 // --- MAPPING NGÂN HÀNG VÀ MÃ BIN ---
@@ -93,9 +94,8 @@ export async function loadAccounts() {
     if (accountsSection.classList.contains('hidden')) return;
     
     try {
-        const q = query(collection(db, 'accounts'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
-        accountsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Dùng data từ store thay vì Firebase
+        accountsCache = getAccounts();
         
         renderAccounts();
         
@@ -310,18 +310,33 @@ async function handleAccountFormSubmit(e) {
         };
         
         if (id) {
-            // Cập nhật
+            // Update Firebase
             await setDoc(doc(db, 'accounts', id), accountData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('accounts', id, accountData);
             showToast('Cập nhật sổ quỹ thành công!');
         } else {
-            // Thêm mới
+            // Create Firebase
             accountData.createdAt = serverTimestamp();
-            await addDoc(collection(db, 'accounts'), accountData);
+            const docRef = await addDoc(collection(db, 'accounts'), accountData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...accountData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.accounts.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:accounts:updated'));
+            
             showToast('Thêm sổ quỹ thành công!');
         }
         
         closeModal(accountModal);
-        loadAccounts(); // Tải lại danh sách
         
     } catch (error) {
         console.error('Error saving account:', error);
@@ -334,9 +349,12 @@ async function handleAccountFormSubmit(e) {
  */
 async function deleteAccount(id) {
     try {
+        // Delete Firebase
         await deleteDoc(doc(db, 'accounts', id));
+        
+        // Delete localStorage
+        deleteFromLocalStorage('accounts', id);
         showToast('Đã xóa sổ quỹ!');
-        loadAccounts(); // Tải lại danh sách
     } catch (error) {
         console.error('Error deleting account:', error);
         showToast('Lỗi khi xóa sổ quỹ: ' + error.message, 'error');
@@ -367,9 +385,12 @@ async function bulkDeleteAccounts() {
     }
     
     try {
+        // Bulk delete Firebase + localStorage
         const promises = selectedIds.map(id => deleteDoc(doc(db, 'accounts', id)));
-        
         await Promise.all(promises);
+        
+        // Delete from localStorage
+        selectedIds.forEach(id => deleteFromLocalStorage('accounts', id));
         
         // Reset trạng thái
         selectedMobileAccountIds.clear();
@@ -381,7 +402,6 @@ async function bulkDeleteAccounts() {
         updateClearSelectionButton();
         
         showToast(`Đã xóa ${selectedIds.length} sổ quỹ!`);
-        loadAccounts(); // Tải lại danh sách
         
     } catch (error) {
         console.error('Error bulk deleting accounts:', error);
@@ -402,3 +422,11 @@ function updateClearSelectionButton() {
         }
     }
 }
+
+/**
+ * Listen for store updates để reload data
+ */
+document.addEventListener('store:accounts:updated', () => {
+    console.log('👤 Accounts: Store updated, reloading data...');
+    loadAccounts();
+});

@@ -26,10 +26,12 @@ import {
     openModal,
     closeModal,
     parseDateInput,
-    showConfirm
+    showConfirm,
+    safeToDate
 } from '../utils.js';
 
 import { getCurrentUserRole, getCurrentUser } from '../auth.js';
+import { getTasks, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 
 // Cache và biến global
 let tasksCache = [];
@@ -88,12 +90,8 @@ const completedTasksEl = document.getElementById('completed-tasks');
  */
 function formatDateTime(timestamp) {
     if (!timestamp) return 'N/A';
-    let date;
-    if (timestamp.toDate) {
-        date = timestamp.toDate();
-    } else {
-        date = new Date(timestamp);
-    }
+    // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+    const date = safeToDate(timestamp);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
@@ -108,12 +106,8 @@ function formatDateTime(timestamp) {
  */
 function formatCompletionTime(timestamp) {
     if (!timestamp) return null;
-    let date;
-    if (timestamp.toDate) {
-        date = timestamp.toDate();
-    } else {
-        date = new Date(timestamp);
-    }
+    // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+    const date = safeToDate(timestamp);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
@@ -200,9 +194,7 @@ export function initTasks() {
     
     // 🔥 SỬA LỖI REAL-TIME: Lắng nghe update từ store
     document.addEventListener('store:tasks:updated', () => {
-        console.log('🔄 Tasks updated from store - refreshing table');
         if (!tasksSection.classList.contains('hidden')) {
-            // Nếu đang hiển thị tab tasks, refresh ngay
             loadTasksFromStore();
         }
     });
@@ -298,20 +290,9 @@ export async function loadTasks() {
         const { getTasks } = await import('../store.js');
         const storeTasks = getTasks();
         
-        if (storeTasks && storeTasks.length > 0) {
-            console.log('📦 Loading tasks from store (real-time)');
-            tasksCache = storeTasks;
-        } else {
-            console.log('🔄 Loading tasks from Firebase (fallback)');
-            // Fallback: load từ Firebase nếu store chưa ready
-            const tasksRef = collection(db, 'tasks');
-            const snapshot = await getDocs(query(tasksRef, orderBy('createdAt', 'desc')));
-            
-            tasksCache = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-        }
+        // Luôn dùng data từ store
+        console.log('📦 Loading tasks from store');
+        tasksCache = storeTasks;
         
         renderTasks();
         updateStats();
@@ -777,16 +758,23 @@ async function handleTaskFormSubmit(e) {
         const mediaInput = document.getElementById('task-media-input');
         
         if (taskId) {
-            // Update existing task
+            // Update Firebase
             taskData.updatedAt = serverTimestamp();
             await updateDoc(doc(db, 'tasks', taskId), taskData);
+            
+            // Update localStorage
+            updateInLocalStorage('tasks', taskId, {
+                ...taskData,
+                updatedAt: new Date()
+            });
+            
             showToast('Cập nhật công việc thành công!', 'success');
         } else {
             // Add new task
             taskData.createdAt = serverTimestamp();
             taskData.updatedAt = serverTimestamp();
             
-            // Create task first to get ID
+            // Create Firebase + localStorage
             const docRef = await addDoc(collection(db, 'tasks'), taskData);
             const newTaskId = docRef.id;
             
@@ -799,7 +787,20 @@ async function handleTaskFormSubmit(e) {
                 await updateDoc(doc(db, 'tasks', newTaskId), {
                     imageUrls: imageUrls
                 });
+                taskData.imageUrls = imageUrls;
             }
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...taskData, 
+                id: newTaskId,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.tasks.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:tasks:updated'));
             
             showToast('Thêm công việc thành công!', 'success');
         }
@@ -848,14 +849,15 @@ window.deleteTask = async function(taskId) {
     if (!confirmed) return;
     
     try {
-        // 1. Xóa task
+        // 1. Delete Firebase + localStorage
         await deleteDoc(doc(db, 'tasks', taskId));
+        deleteFromLocalStorage('tasks', taskId);
         
         // 2. 🔥 XÓA THÔNG BÁO LIÊN QUAN ĐẾN TASK NÀY
         await deleteRelatedNotifications(taskId);
         
         showToast('Xóa công việc và thông báo liên quan thành công!', 'success');
-        filterTasks(); // Giữ nguyên filter
+        // Event đã được dispatch bởi deleteFromLocalStorage
     } catch (error) {
         console.error('Error deleting task:', error);
         showToast('Lỗi khi xóa công việc: ' + error.message, 'error');
@@ -965,24 +967,19 @@ window.toggleTaskStatus = async function(taskId) {
     } else {
         // Chuyển về pending
         try {
+            // Update Firebase
             await updateDoc(doc(db, 'tasks', taskId), { 
                 status: 'pending',
                 completedAt: null,
                 updatedAt: serverTimestamp()
             });
             
-            // Cập nhật cache
-            const taskIndex = tasksCache.findIndex(t => t.id === taskId);
-            if (taskIndex !== -1) {
-                tasksCache[taskIndex] = { 
-                    ...tasksCache[taskIndex], 
-                    status: 'pending',
-                    completedAt: null,
-                    updatedAt: new Date()
-                };
-            }
-            
-            filterTasks();
+            // Update localStorage
+            updateInLocalStorage('tasks', taskId, {
+                status: 'pending',
+                completedAt: null,
+                updatedAt: new Date()
+            });
             showToast('Chuyển về trạng thái chờ xử lý!', 'success');
             
         } catch (error) {
@@ -1050,21 +1047,21 @@ window.toggleTaskApproval = async function(taskId) {
             updateData.images = 0; // Reset count
         }
         
-        // Update task with new status
+        // Update Firebase
         await updateDoc(doc(db, 'tasks', taskId), updateData);
         
-        // Cập nhật cache
-        const taskIndex = tasksCache.findIndex(t => t.id === taskId);
-        if (taskIndex !== -1) {
-            tasksCache[taskIndex] = { 
-                ...tasksCache[taskIndex], 
-                status: newStatus,
-                updatedAt: new Date()
-            };
+        // Update localStorage
+        const localUpdateData = {
+            status: newStatus,
+            updatedAt: new Date()
+        };
+        if (updateData.imageUrls !== undefined) {
+            localUpdateData.imageUrls = updateData.imageUrls;
         }
-        
-        // Refresh table và stats (giữ nguyên filter)
-        filterTasks();
+        if (updateData.images !== undefined) {
+            localUpdateData.images = updateData.images;
+        }
+        updateInLocalStorage('tasks', taskId, localUpdateData);
         
         const statusMessages = {
             'pending-review': 'Đã chuyển về chờ nghiệm thu',
@@ -1094,8 +1091,6 @@ function filterTasks() {
     const searchText = taskSearchEl?.value?.toLowerCase() || '';
     const startDate = parseDateInput(filterTaskStartDateEl?.value || '');
     const endDate = parseDateInput(filterTaskEndDateEl?.value || '');
-    
-    console.log('🔍 FILTER TASKS - Building:', buildingFilter, 'Room:', roomFilter, 'Status:', statusFilter);
     
     const filtered = tasksCache.filter(task => {
         const matchBuilding = !buildingFilter || task.buildingId === buildingFilter;
@@ -1185,9 +1180,12 @@ async function handleBulkDeleteTasks() {
     if (!confirmed) return;
     
     try {
-        // 1. Xóa tasks
+        // 1. Delete Firebase + localStorage
         const deletePromises = selectedIds.map(id => deleteDoc(doc(db, 'tasks', id)));
         await Promise.all(deletePromises);
+        
+        // Delete from localStorage
+        selectedIds.forEach(id => deleteFromLocalStorage('tasks', id));
         
         // 2. 🔥 XÓA THÔNG BÁO LIÊN QUAN ĐẾN CÁC TASK NÀY
         const notificationDeletePromises = selectedIds.map(taskId => deleteRelatedNotifications(taskId));
@@ -1221,24 +1219,9 @@ async function deleteRelatedNotifications(taskId) {
             where('taskId', '==', taskId)
         );
         
-        const snapshot = await getDocs(notificationsQuery);
-        
-        if (snapshot.empty) {
-            console.log('📭 No related notifications found for taskId:', taskId);
-            return;
-        }
-        
-        console.log(`🔍 Found ${snapshot.docs.length} notifications to delete`);
-        
-        // Xóa tất cả thông báo liên quan
-        const deletePromises = snapshot.docs.map(notificationDoc => {
-            console.log(`🗑️ Deleting notification: ${notificationDoc.id}`);
-            return deleteDoc(doc(db, 'adminNotifications', notificationDoc.id));
-        });
-        
-        await Promise.all(deletePromises);
-        
-        console.log(`✅ Successfully deleted ${snapshot.docs.length} related notifications`);
+        // KHÔNG query Firebase - bỏ qua xóa notifications
+        console.log('🚫 Skip deleting notifications - không sync với Firebase');
+        return;
         
     } catch (error) {
         console.error('❌ Error deleting related notifications:', error);
@@ -1699,7 +1682,19 @@ async function completeTaskWithMedia(taskId) {
             updateData.completionImages = completionImages;
         }
         
+        // Update Firebase
         await updateDoc(taskRef, updateData);
+        
+        // Update localStorage
+        const localUpdateData = {
+            status: 'pending-review',
+            completedAt: new Date(),
+            updatedAt: new Date()
+        };
+        if (completionImages.length > 0) {
+            localUpdateData.completionImages = completionImages;
+        }
+        updateInLocalStorage('tasks', taskId, localUpdateData);
         
         // Create notification
         await addDoc(collection(db, 'adminNotifications'), {
@@ -1712,10 +1707,6 @@ async function completeTaskWithMedia(taskId) {
         
         showToast('Đánh dấu hoàn thành thành công!', 'success');
         closeModal(document.getElementById('task-completion-modal'));
-        
-        // Refresh data
-        await loadTasks();
-        renderTasks();
         
     } catch (error) {
         console.error('Error completing task:', error);
@@ -2053,3 +2044,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+/**
+ * Listen for store updates để reload data
+ */
+document.addEventListener('store:tasks:updated', () => {
+    console.log('📋 Tasks: Store updated, reloading data...');
+    loadTasksFromStore();
+});

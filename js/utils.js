@@ -158,6 +158,27 @@ export function formatFirebaseDate(timestamp) {
 }
 
 /**
+ * Chuyển đổi Firebase Timestamp thành Date object an toàn
+ * Xử lý cả 2 trường hợp: real-time listener và load 1 lần
+ */
+export function safeToDate(timestamp) {
+    if (!timestamp) return new Date();
+    
+    // Trường hợp 1: Real-time listener - có method toDate()
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+    }
+    
+    // Trường hợp 2: Load 1 lần - plain object với field seconds
+    if (timestamp.seconds) {
+        return new Date(timestamp.seconds * 1000);
+    }
+    
+    // Fallback: chuỗi ISO hoặc Date object
+    return new Date(timestamp);
+}
+
+/**
  * Chuyển đổi ngày từ DD-MM-YYYY sang YYYY-MM-DD cho input type="date"
  */
 export function convertToDateInputFormat(dateStr) {

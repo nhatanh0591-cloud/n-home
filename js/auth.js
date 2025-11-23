@@ -61,6 +61,14 @@ export function initAuth() {
         // Kiểm tra trạng thái đăng nhập đã lưu (để duy trì khi F5)
         const isLoggedIn = localStorage.getItem('n-home-logged-in');
         const savedEmail = localStorage.getItem('n-home-user-email');
+        const hasLoggedOut = localStorage.getItem('n-home-has-logged-out'); // Cờ logout
+        
+        console.log("🔍 initAuth - Check states:", {
+            isLoggedIn: !!isLoggedIn,
+            savedEmail: savedEmail,
+            hasLoggedOut: !!hasLoggedOut,
+            authInitialized: authInitialized
+        });
         
         if (authInitialized) {
             // Đã khởi tạo rồi, check current user
@@ -69,11 +77,11 @@ export function initAuth() {
                 currentUser = user;
                 showMainApp();
                 resolve(true);
-            } else if (isLoggedIn && savedEmail && USER_ROLES[savedEmail]) {
-                // Có trạng thái đăng nhập đã lưu, duy trì session
+            } else if (isLoggedIn && savedEmail && USER_ROLES[savedEmail] && !hasLoggedOut) {
+                // Có trạng thái đăng nhập đã lưu và CHƯA logout, duy trì session
                 console.log("✅ Duy trì trạng thái đăng nhập từ localStorage:", savedEmail);
                 
-                // 🔥 SỬA: Tạo mock currentUser object để các hàm khác hoạt động
+                // Tạo mock currentUser object để các hàm khác hoạt động
                 currentUser = {
                     email: savedEmail,
                     uid: 'local-' + savedEmail,
@@ -83,50 +91,38 @@ export function initAuth() {
                 showMainApp();
                 resolve(true);
             } else {
+                console.log("❌ Không có trạng thái login hợp lệ - hiển thị form đăng nhập");
                 showLoginForm();
                 resolve(false);
             }
             return;
         }
 
-        // Lần đầu khởi tạo - đợi Firebase load xong
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            console.log("Auth state changed:", user ? user.email : "null");
-            authInitialized = true;
-            currentUser = user;
-            
-            if (user && USER_ROLES[user.email]) {
-                const userRole = USER_ROLES[user.email];
-                console.log("✅ User đã đăng nhập:", user.email, "- Role:", userRole.role);
-                
-                currentUser = user;
-                showMainApp();
-                unsubscribe(); // Dừng lắng nghe
-                resolve(true);
-            } else if (isLoggedIn && savedEmail && USER_ROLES[savedEmail]) {
-                // Firebase chưa ready nhưng có trạng thái đã lưu
-                console.log("✅ Duy trì session từ localStorage:", savedEmail);
-                
-                // 🔥 SỬA: Tạo mock currentUser object để các hàm khác hoạt động
-                currentUser = {
-                    email: savedEmail,
-                    uid: 'local-' + savedEmail,
-                    fromLocalStorage: true
-                };
-                
-                showMainApp();
-                unsubscribe(); // Dừng lắng nghe
-                resolve(true);
-            } else {
-                console.log("❌ User chưa đăng nhập hoặc không có quyền");
-                // Xóa trạng thái cũ nếu không hợp lệ
-                localStorage.removeItem('n-home-logged-in');
-                localStorage.removeItem('n-home-user-email');
-                unsubscribe(); // Dừng lắng nghe
-                showLoginForm();
-                resolve(false);
-            }
-        });
+        authInitialized = true;
+        
+        // Kiểm tra nếu đã logout thì KHÔNG tự động đăng nhập
+        if (hasLoggedOut) {
+            console.log("🚫 User đã logout - hiển thị form đăng nhập");
+            showLoginForm();
+            resolve(false);
+            return;
+        }
+        
+        // Chỉ tự động đăng nhập nếu có thông tin hợp lệ trong localStorage
+        if (isLoggedIn && savedEmail && USER_ROLES[savedEmail]) {
+            console.log("✅ Tự động đăng nhập với:", savedEmail);
+            currentUser = {
+                email: savedEmail,
+                uid: 'local-' + savedEmail,
+                fromLocalStorage: true
+            };
+            showMainApp();
+            resolve(true);
+        } else {
+            console.log("❌ Không có thông tin đăng nhập - hiển thị form login");
+            showLoginForm();
+            resolve(false);
+        }
     });
 }
 
@@ -175,6 +171,9 @@ export async function loginAdmin(email, password, rememberMe = false) {
         currentUser = userCredential.user;
         console.log("✅ Đăng nhập thành công!");
         
+        // Xóa cờ logout (nếu có) khi đăng nhập thành công
+        localStorage.removeItem('n-home-has-logged-out');
+        
         // Lưu trạng thái đăng nhập để duy trì khi F5
         localStorage.setItem('n-home-logged-in', 'true');
         localStorage.setItem('n-home-user-email', userCredential.user.email);
@@ -208,16 +207,33 @@ export async function loginAdmin(email, password, rememberMe = false) {
  */
 export async function logoutAdmin() {
     try {
+        console.log("🚪 Bắt đầu logout process...");
+        
+        // Đặt cờ logout để ngăn tự động đăng nhập lại
+        localStorage.setItem('n-home-has-logged-out', 'true');
+        
         // Xóa tất cả thông tin đăng nhập
         localStorage.removeItem('n-home-logged-in');
         localStorage.removeItem('n-home-user-email');
         localStorage.removeItem('n-home-last-login');
         
+        // Xóa sessionStorage nếu có
+        sessionStorage.removeItem('appLoaded');
+        
         await signOut(auth);
         currentUser = null;
+        authInitialized = false; // Reset trạng thái auth
+        
+        console.log("✅ Logout hoàn tất - reload trang");
         window.location.reload();
     } catch (error) {
         console.error("Lỗi đăng xuất:", error);
+        // Đảm bảo vẫn đặt cờ logout ngay cả khi có lỗi
+        localStorage.setItem('n-home-has-logged-out', 'true');
+        localStorage.removeItem('n-home-logged-in');
+        localStorage.removeItem('n-home-user-email');
+        currentUser = null;
+        authInitialized = false;
         window.location.reload();
     }
 }
@@ -368,16 +384,7 @@ export function addLogoutButton() {
         logoutIcon.addEventListener('click', async (e) => {
             e.stopPropagation(); // Ngăn event bubble
             if (confirm('Bạn có chắc muốn đăng xuất?')) {
-                try {
-                    await signOut(auth);
-                    currentUser = null;
-                    sessionStorage.removeItem('appLoaded');
-                    window.location.reload();
-                } catch (error) {
-                    console.error("Lỗi đăng xuất:", error);
-                    sessionStorage.removeItem('appLoaded');
-                    window.location.reload();
-                }
+                await logoutAdmin(); // Sử dụng hàm logoutAdmin để đảm bảo logout đúng cách
             }
         });
     }

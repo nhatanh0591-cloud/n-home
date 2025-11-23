@@ -11,12 +11,13 @@ import {
     orderBy
 } from '../firebase.js';
 
-import { getTransactions, getBills, getBuildings } from '../store.js';
-import { formatMoney } from '../utils.js';
+import { getTransactions, getBills, getBuildings, getTransactionCategories } from '../store.js';
+import { formatMoney, safeToDate } from '../utils.js';
 
 // DOM Elements
 const reportsSection = document.getElementById('reports-section');
 const reportYearEl = document.getElementById('report-year');
+const quarterlyReportBuildingEl = document.getElementById('quarterly-report-building');
 const reportsTableBody = document.getElementById('reports-table-body');
 
 // Category report elements
@@ -91,8 +92,8 @@ export function initReports() {
  * Load danh sách tòa nhà vào dropdown
  */
 async function loadBuildingsList() {
-    if (!categoryReportBuildingEl) {
-        console.log('⚠️ categoryReportBuildingEl not found');
+    if (!categoryReportBuildingEl && !quarterlyReportBuildingEl) {
+        console.log('⚠️ Building dropdowns not found');
         return;
     }
     
@@ -111,16 +112,27 @@ async function loadBuildingsList() {
             return codeA.localeCompare(codeB);
         });
         
-        // Clear và thêm option mặc định
-        categoryReportBuildingEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
+        // Load cho báo cáo theo hạng mục
+        if (categoryReportBuildingEl) {
+            categoryReportBuildingEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
+            buildings.forEach(building => {
+                const option = document.createElement('option');
+                option.value = building.id;
+                option.textContent = building.code || 'N/A';
+                categoryReportBuildingEl.appendChild(option);
+            });
+        }
         
-        // Thêm các tòa nhà
-        buildings.forEach(building => {
-            const option = document.createElement('option');
-            option.value = building.id;
-            option.textContent = building.code || 'N/A';
-            categoryReportBuildingEl.appendChild(option);
-        });
+        // Load cho báo cáo theo quý
+        if (quarterlyReportBuildingEl) {
+            quarterlyReportBuildingEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
+            buildings.forEach(building => {
+                const option = document.createElement('option');
+                option.value = building.id;
+                option.textContent = building.code || 'N/A';
+                quarterlyReportBuildingEl.appendChild(option);
+            });
+        }
         
         console.log('✅ Buildings list loaded successfully');
     } catch (error) {
@@ -133,6 +145,7 @@ async function loadBuildingsList() {
  */
 function setupEventListeners() {
     reportYearEl?.addEventListener('change', loadReportData);
+    quarterlyReportBuildingEl?.addEventListener('change', loadReportData);
     categoryReportMonthEl?.addEventListener('change', loadCategoryReport);
     categoryReportYearEl?.addEventListener('change', loadCategoryReport);
     categoryReportBuildingEl?.addEventListener('change', loadCategoryReport);
@@ -144,6 +157,7 @@ function setupEventListeners() {
 export async function loadReportData() {
     try {
         const selectedYear = parseInt(reportYearEl.value);
+        const selectedBuilding = quarterlyReportBuildingEl?.value || 'all';
         
         console.log('📊 Loading transactions from store (0 reads)...');
         // ✅ Dùng data từ store thay vì getDocs()
@@ -152,10 +166,14 @@ export async function loadReportData() {
         console.log('=== LOADING REPORT DATA ===');
         console.log('Total transactions:', transactionsCache.length);
         console.log('Selected year:', selectedYear);
+        console.log('Selected building:', selectedBuilding);
         
-        // Filter transactions by year - sử dụng logic đơn giản và chính xác
+        // Filter transactions by year and building - sử dụng logic đơn giản và chính xác
         const yearTransactions = transactionsCache.filter(t => {
-            if (!t.date) return false;
+            if (!t.date || !t.approved) return false;
+            
+            // Lọc theo tòa nhà nếu được chọn
+            if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return false;
             
             let date;
             
@@ -175,9 +193,9 @@ export async function loadReportData() {
                 else {
                     date = new Date(t.date);
                 }
-            } else if (t.date.toDate) {
-                // Firestore Timestamp
-                date = t.date.toDate();
+            } else if (t.date.toDate || t.date.seconds) {
+                // Firestore Timestamp - sử dụng safeToDate
+                date = safeToDate(t.date);
             } else {
                 // Date object
                 date = new Date(t.date);
@@ -193,12 +211,13 @@ export async function loadReportData() {
         });
         
         console.log('Transactions for year', selectedYear + ':', yearTransactions.length);
+        console.log('Building filter:', selectedBuilding === 'all' ? 'Tất cả tòa nhà' : selectedBuilding);
         
         // Calculate quarterly and monthly data
         const reportData = calculateReportData(yearTransactions);
         
         // Render report
-        renderReport(reportData);
+        renderReport(reportData, selectedYear, selectedBuilding);
         
     } catch (error) {
         console.error('Error loading report data:', error);
@@ -242,9 +261,9 @@ function calculateReportData(transactions) {
                 const date = new Date(transaction.date);
                 month = date.getMonth() + 1;
             }
-        } else if (transaction.date.toDate) {
-            // Firestore Timestamp
-            const date = transaction.date.toDate();
+        } else if (transaction.date.toDate || transaction.date.seconds) {
+            // Firestore Timestamp - sử dụng safeToDate
+            const date = safeToDate(transaction.date);
             month = date.getMonth() + 1;
         } else {
             // Date object
@@ -301,8 +320,15 @@ function calculateReportData(transactions) {
 /**
  * Render report table
  */
-function renderReport(quarters) {
+function renderReport(quarters, selectedYear, selectedBuilding) {
     if (!reportsTableBody) return;
+    
+    // Hiển thị thông tin filter
+    const buildings = getBuildings();
+    const buildingName = selectedBuilding === 'all' ? 'Tất cả tòa nhà' : 
+                        (buildings.find(b => b.id === selectedBuilding)?.code || 'N/A');
+    
+    console.log(`📊 Rendering report for ${selectedYear} - ${buildingName}`);
     
     let html = '';
     let totalRevenue = 0;
@@ -367,7 +393,7 @@ function renderReport(quarters) {
     reportsTableBody.innerHTML = html;
     
     // Render mobile cards
-    renderQuarterlyReportMobileCards(quarters);
+    renderQuarterlyReportMobileCards(quarters, selectedYear, selectedBuilding);
 }
 
 /**
@@ -394,10 +420,8 @@ async function loadCategoryReport() {
         const transactions = getTransactions();
         const bills = getBills();
         
-        // ⚠️ TransactionCategories chưa có trong store, vẫn phải load từ Firebase
-        const categoriesRef = collection(db, 'transactionCategories');
-        const categoriesSnapshot = await getDocs(categoriesRef);
-        const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // ✅ Dùng store thay vì Firebase
+        const categories = getTransactionCategories();
         
         console.log('💾 Loaded data:', { 
             transactions: transactions.length, 
@@ -799,11 +823,22 @@ function renderCategoryReportMobileCards(categories) {
 /**
  * Render mobile cards for quarterly report
  */
-function renderQuarterlyReportMobileCards(reportData) {
+function renderQuarterlyReportMobileCards(reportData, selectedYear, selectedBuilding) {
     const mobileContainer = document.getElementById('quarterly-report-mobile-cards');
     if (!mobileContainer) return;
     
-    let html = '';
+    // Header thông tin filter
+    const buildings = getBuildings();
+    const buildingName = selectedBuilding === 'all' ? 'Tất cả tòa nhà' : 
+                        (buildings.find(b => b.id === selectedBuilding)?.code || 'N/A');
+    
+    let html = `
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <div class="text-sm font-medium text-blue-800">
+                📊 Báo cáo năm ${selectedYear} - ${buildingName}
+            </div>
+        </div>
+    `;
     
     for (let q = 1; q <= 4; q++) {
         const quarter = reportData[q];

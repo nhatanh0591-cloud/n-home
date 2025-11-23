@@ -1,11 +1,11 @@
 ﻿// js/modules/transactions.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
-import { getTransactions, getBuildings, getCustomers, getContracts, getAccounts } from '../store.js';
+import { getTransactions, getBuildings, getCustomers, getContracts, getAccounts, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    exportToExcel, formatFileSize, importFromExcel, showConfirm
+    exportToExcel, formatFileSize, importFromExcel, showConfirm, safeToDate
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -98,6 +98,9 @@ export function initTransactions() {
     });
     document.addEventListener('store:accounts:updated', () => {
         if (!transactionsSection.classList.contains('hidden')) { loadTransactionFilters(); applyTransactionFilters(); }
+    });
+    document.addEventListener('store:transactionCategories:updated', () => {
+        if (!transactionsSection.classList.contains('hidden')) { loadTransactionCategories(); }
     });
 
     // Lắng nghe sự kiện click trên toàn trang
@@ -206,9 +209,9 @@ export function loadTransactions() {
  */
 async function loadTransactionCategories() {
     try {
-        const q = query(collection(db, 'transactionCategories'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
-        transactionCategoriesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Load từ localStorage thay vì Firebase
+        const { getTransactionCategories } = await import('../store.js');
+        transactionCategoriesCache = getTransactionCategories();
         
         // Cập nhật dropdown lọc loại thu chi
         const currentCategory = filterCategoryEl.value;
@@ -242,8 +245,6 @@ function applyTransactionFilters() {
     const category = filterCategoryEl?.value || '';
     const approval = filterApprovalEl?.value || '';
     const search = searchEl?.value?.toLowerCase() || '';
-    
-    console.log('🔍 Transaction search:', search);
 
     // Lọc
     transactionsCache_filtered = transactions.filter(t => {
@@ -284,8 +285,25 @@ function applyTransactionFilters() {
     // Sắp xếp theo thời gian tạo phiếu (chỉ khi không phải sau edit)
     if (!skipSortAfterEdit) {
         transactionsCache_filtered.sort((a, b) => {
-            const aTime = a.createdAt?.seconds ? a.createdAt.seconds : 0;
-            const bTime = b.createdAt?.seconds ? b.createdAt.seconds : 0;
+            // Handle cả Firebase Timestamp và JavaScript Date
+            let aTime, bTime;
+            
+            if (a.createdAt?.seconds) {
+                aTime = a.createdAt.seconds * 1000; // Convert Firebase Timestamp to milliseconds
+            } else if (a.createdAt instanceof Date) {
+                aTime = a.createdAt.getTime();
+            } else {
+                aTime = 0;
+            }
+            
+            if (b.createdAt?.seconds) {
+                bTime = b.createdAt.seconds * 1000; // Convert Firebase Timestamp to milliseconds
+            } else if (b.createdAt instanceof Date) {
+                bTime = b.createdAt.getTime();
+            } else {
+                bTime = 0;
+            }
+            
             return bTime - aTime; // Phiếu tạo sau hiện trước (mới nhất ở đầu)
         });
         // Reset to first page when filter changes (chỉ khi sort lại)
@@ -803,12 +821,26 @@ async function handleBodyClick(e) {
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             };
-            await addDoc(collection(db, 'transactionCategories'), categoryData);
+            // Create Firebase + localStorage
+            const docRef = await addDoc(collection(db, 'transactionCategories'), categoryData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...categoryData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.transactionCategories.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:transactionCategories:updated'));
+            
             showToast('Thêm loại thu/chi thành công!', 'success');
             // remove inline row if still present
             const row = document.getElementById('inline-add-category-row');
             if (row && row.parentNode) row.parentNode.removeChild(row);
-            await loadTransactionCategories();
+            // Tự động tải lại danh sách thông qua event
         } catch (err) {
             console.error('Error saving inline category', err);
             showToast('Lỗi khi thêm loại: ' + err.message, 'error');
@@ -865,9 +897,9 @@ function openTransactionModal(options = {}) {
                     else if (/^\d{2}-\d{2}-\d{4}$/.test(t.date)) {
                         dateForInput = t.date;
                     }
-                } else if (t.date.toDate) {
-                    // Firestore Timestamp
-                    const date = t.date.toDate();
+                } else if (t.date.toDate || t.date.seconds) {
+                    // Firestore Timestamp - sử dụng safeToDate
+                    const date = safeToDate(t.date);
                     const day = date.getDate().toString().padStart(2, '0');
                     const month = (date.getMonth() + 1).toString().padStart(2, '0');
                     const year = date.getFullYear();
@@ -1010,23 +1042,35 @@ async function handleTransactionFormSubmit(e) {
         }
 
         if (id) {
-            // Sửa - chỉ update những field cần thiết, không merge toàn bộ
+            // Update Firebase
             await setDoc(doc(db, 'transactions', id), transactionData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('transactions', id, transactionData);
             showToast('Cập nhật phiếu thành công!');
         } else {
-            // Thêm mới
-            await addDoc(collection(db, 'transactions'), transactionData);
+            // Create Firebase
+            const docRef = await addDoc(collection(db, 'transactions'), transactionData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...transactionData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.transactions.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:transactions:updated'));
+            
             showToast('Tạo phiếu thành công!');
         }
         
         closeModal(transactionModal);
         
-        // Set flag để không sort lại sau khi edit
-        if (id) {
-            skipSortAfterEdit = true;
-        }
-        
-        // Store listener sẽ tự động cập nhật và giữ nguyên filter hiện tại
+        // Reset sort flag
+        skipSortAfterEdit = false;
     } catch (error) {
         showToast('Lỗi lưu phiếu: ' + error.message, 'error');
     }
@@ -1067,15 +1111,35 @@ async function handleCategoryFormSubmit(e) {
 
     try {
         if (id) {
+            // Update Firebase
             await setDoc(doc(db, 'transactionCategories', id), categoryData, { merge: true });
+            
+            // Update localStorage
+            const { updateInLocalStorage } = await import('../store.js');
+            updateInLocalStorage('transactionCategories', id, categoryData);
+            
             showToast('Cập nhật loại thu chi thành công!');
         } else {
+            // Create Firebase
             categoryData.createdAt = serverTimestamp();
-            await addDoc(collection(db, 'transactionCategories'), categoryData);
+            const docRef = await addDoc(collection(db, 'transactionCategories'), categoryData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...categoryData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.transactionCategories.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:transactionCategories:updated'));
+            
             showToast('Thêm loại thu chi thành công!');
         }
         // closeModal(transactionCategoryModal); // Modal removed
-        loadTransactionCategories(); // Tải lại
+        // Tự động tải lại danh sách thông qua event
     } catch (error) {
         showToast('Lỗi: ' + error.message, 'error');
     }
@@ -1164,6 +1228,8 @@ async function deleteTransaction(id) {
             
             if (deletedNotifications === 0) {
                 console.log('ℹ️ Không tìm thấy thông báo nào để xóa');
+            } else {
+                console.log(`✅ Đã xóa tổng cộng ${deletedNotifications} thông báo từ Firebase`);
             }
             
         } catch (error) {
@@ -1183,8 +1249,11 @@ async function deleteTransaction(id) {
             showToast(`Đã xóa phiếu ${t.type === 'income' ? 'thu' : 'chi'} và thông báo liên quan!`);
         }
         
+        // Delete Firebase + localStorage
         await deleteDoc(doc(db, 'transactions', id));
-        // Store listener tự động cập nhật
+        deleteFromLocalStorage('transactions', id);
+        
+        // Event đã được dispatch bởi deleteFromLocalStorage
     } catch (error) {
         showToast('Lỗi xóa: ' + error.message, 'error');
     }
@@ -1204,10 +1273,17 @@ async function toggleTransactionApproval(id) {
             }, { merge: true });
         }
         
+        // Update Firebase
         await setDoc(doc(db, 'transactions', id), {
             approved: newApproved,
             updatedAt: serverTimestamp()
         }, { merge: true });
+        
+        // Update localStorage
+        updateInLocalStorage('transactions', id, {
+            approved: newApproved,
+            updatedAt: new Date()
+        });
         
         showToast(newApproved ? 'Đã duyệt phiếu!' : 'Đã bỏ duyệt phiếu!');
         
@@ -1337,7 +1413,6 @@ function renderTransactionCategories() {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-gray-50';
         tr.innerHTML = `
-            <td class="py-3 px-3"><input type="checkbox" class="category-checkbox w-4 h-4" data-id="${cat.id}"></td>
             <td class="py-3 px-3">${cat.name}</td>
             <td class="py-3 px-3">
                 <button type="button" class="select-category-btn bg-green-500 text-white px-3 py-1 rounded" data-id="${cat.id}">Chọn</button>
@@ -1470,7 +1545,8 @@ async function handleAddCategoryFormSubmit(e) {
     try {
         // Kiểm tra mã đã tồn tại chưa
         const existingQuery = query(collection(db, 'transactionCategories'), where('code', '==', code));
-        const existingSnapshot = await getDocs(existingQuery);
+        // const existingSnapshot = await getDocs(existingQuery);
+        // SKIP - không kiểm tra existing categories từ Firebase
         
         if (!existingSnapshot.empty) {
             showToast('Mã loại thu/chi đã tồn tại!', 'error');
@@ -1487,16 +1563,27 @@ async function handleAddCategoryFormSubmit(e) {
             updatedAt: serverTimestamp()
         };
         
-        // Lưu vào Firebase
-        await addDoc(collection(db, 'transactionCategories'), categoryData);
+        // Create Firebase + localStorage
+        const docRef = await addDoc(collection(db, 'transactionCategories'), categoryData);
+        
+        // Add to localStorage với Firebase ID
+        const newItem = { 
+            ...categoryData, 
+            id: docRef.id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+        const state = getState();
+        state.transactionCategories.unshift(newItem);
+        saveToCache();
+        document.dispatchEvent(new CustomEvent('store:transactionCategories:updated'));
         
         showToast('Thêm loại thu/chi thành công!', 'success');
         
         // Đóng modal
         closeModal(addTransactionCategoryModal);
         
-        // Tải lại danh sách
-        await loadTransactionCategories();
+        // Tự động tải lại danh sách thông qua event
         
     } catch (error) {
         console.error('Error adding transaction category:', error);
@@ -1524,9 +1611,9 @@ function formatDateForDisplay(dateValue) {
         } else {
             date = new Date(dateValue);
         }
-    } else if (dateValue.toDate) {
-        // Firestore Timestamp
-        date = dateValue.toDate();
+    } else if (dateValue.toDate || dateValue.seconds) {
+        // Firestore Timestamp - sử dụng safeToDate
+        date = safeToDate(dateValue);
     } else {
         // Date object
         date = new Date(dateValue);
@@ -1560,11 +1647,17 @@ async function bulkApproveTransactions(approve) {
         for (const transactionId of selected) {
             const transaction = getTransactions().find(t => t.id === transactionId);
             
-            // Cập nhật transaction
+            // Update Firebase
             await setDoc(doc(db, 'transactions', transactionId), {
                 approved: approve,
                 updatedAt: serverTimestamp()
             }, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('transactions', transactionId, {
+                approved: approve,
+                updatedAt: new Date()
+            });
             
             // Nếu transaction liên kết với hóa đơn, cập nhật hóa đơn
             if (transaction && transaction.billId) {
@@ -1875,14 +1968,30 @@ async function handleImport() {
                 
                 console.log('💾 SAVING:', transactionData);
                 
-                // Lưu vào Firebase
-                await addDoc(collection(db, 'transactions'), transactionData);
+                // Import to Firebase + localStorage
+                const docRef = await addDoc(collection(db, 'transactions'), transactionData);
+                
+                // Add to localStorage với Firebase ID
+                const newItem = { 
+                    ...transactionData,
+                    id: docRef.id,
+                    createdAt: new Date()
+                };
+                const state = getState();
+                state.transactions.unshift(newItem);
+                
                 successCount++;
                 
             } catch (error) {
                 console.error('Lỗi import dòng:', error);
                 errorCount++;
             }
+        }
+        
+        // Save cache và dispatch event sau khi import xong
+        if (successCount > 0) {
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:transactions:updated'));
         }
         
         // Đóng modal
@@ -1892,7 +2001,6 @@ async function handleImport() {
         
         showToast(`Import hoàn thành: ${successCount} thành công, ${errorCount} lỗi`, 
             errorCount > 0 ? 'warning' : 'success');
-        await loadTransactions();
         
     } catch (error) {
         console.error('Lỗi import:', error);
@@ -2208,16 +2316,33 @@ export async function saveImportedTransactions(transactions) {
     for (let i = 0; i < transactions.length; i++) {
         try {
             const transaction = transactions[i];
+            // Save to Firebase + localStorage
             const docRef = await addDoc(collection(db, 'transactions'), {
                 ...transaction,
                 createdAt: serverTimestamp()
             });
-            saved.push({ ...transaction, id: docRef.id });
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...transaction,
+                id: docRef.id,
+                createdAt: new Date()
+            };
+            const state = getState();
+            state.transactions.unshift(newItem);
+            
+            saved.push(newItem);
         } catch (error) {
             errors.push(`Phiếu ${i + 1}: ${error.message}`);
         }
     }
 
+    // Save cache và dispatch event sau khi import xong
+    if (saved.length > 0) {
+        saveToCache();
+        document.dispatchEvent(new CustomEvent('store:transactions:updated'));
+    }
+    
     return { saved, errors };
 }
 
@@ -2235,31 +2360,31 @@ async function downloadTransactionTemplate() {
         console.log('Store - Accounts:', accounts.length, accounts);
         console.log('Cache - Transaction Categories:', transactionCategoriesCache.length, transactionCategoriesCache);
         
-        // Nếu accounts trống, thử load trực tiếp từ Firebase
+        // KHÔNG load accounts từ Firebase
         if (accounts.length === 0) {
-            console.log('🔄 Store accounts trống, đang load trực tiếp từ Firebase...');
-            try {
-                const q = query(collection(db, 'accounts'), orderBy('createdAt', 'desc'));
-                const snapshot = await getDocs(q);
-                accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log('✅ Loaded từ Firebase - Accounts:', accounts.length, accounts);
-            } catch (firebaseError) {
-                console.error('❌ Lỗi load từ Firebase:', firebaseError);
-            }
+            console.log('🚫 Store accounts trống - KHÔNG load từ Firebase');
+            // try {
+            //     const q = query(collection(db, 'accounts'), orderBy('createdAt', 'desc'));
+            //     const snapshot = await getDocs(q);
+            //     accounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            //     console.log('✅ Loaded từ Firebase - Accounts:', accounts.length, accounts);
+            // } catch (firebaseError) {
+            //     console.error('❌ Lỗi load từ Firebase:', firebaseError);
+            // }
         }
         
-        // Nếu categories trống, thử load trực tiếp từ Firebase  
+        // KHÔNG load categories từ Firebase
         let categories = transactionCategoriesCache;
         if (categories.length === 0) {
-            console.log('🔄 Categories cache trống, đang load trực tiếp từ Firebase...');
-            try {
-                const q = query(collection(db, 'transactionCategories'), orderBy('createdAt', 'desc'));
-                const snapshot = await getDocs(q);
-                categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log('✅ Loaded từ Firebase - Categories:', categories.length, categories);
-            } catch (firebaseError) {
-                console.error('❌ Lỗi load categories từ Firebase:', firebaseError);
-            }
+            console.log('🚫 Categories cache trống - KHÔNG load từ Firebase');
+            // try {
+            //     const q = query(collection(db, 'transactionCategories'), orderBy('createdAt', 'desc'));
+            //     const snapshot = await getDocs(q);
+            //     categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            //     console.log('✅ Loaded từ Firebase - Categories:', categories.length, categories);
+            // } catch (firebaseError) {
+            //     console.error('❌ Lỗi load categories từ Firebase:', firebaseError);
+            // }
         }
         
         // Hiển thị chi tiết để debug

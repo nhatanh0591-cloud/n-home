@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -1671,7 +1671,27 @@
                     bills = snapshot.docs
                         .map(doc => ({ id: doc.id, ...doc.data() }))
                         .filter(bill => bill.approved === true)
-                        .sort((a, b) => new Date(b.createdAt?.toDate?.() || b.createdAt || 0) - new Date(a.createdAt?.toDate?.() || a.createdAt || 0));
+                        .sort((a, b) => {
+                            // Ưu tiên billDate, fallback createdAt, cuối cùng là period
+                            const getTime = (bill) => {
+                                if (bill.billDate) {
+                                    if (bill.billDate.toDate) return bill.billDate.toDate().getTime();
+                                    if (typeof bill.billDate === 'string' && bill.billDate.includes('/')) {
+                                        const parts = bill.billDate.split('/');
+                                        return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+                                    }
+                                    return new Date(bill.billDate).getTime();
+                                }
+                                if (bill.createdAt) {
+                                    if (bill.createdAt.toDate) return bill.createdAt.toDate().getTime();
+                                    return new Date(bill.createdAt).getTime();
+                                }
+                                // Fallback: từ period
+                                const period = parseInt(bill.period) || 11;
+                                return new Date(2025, period - 1, 1).getTime();
+                            };
+                            return getTime(b) - getTime(a); // Mới nhất trước
+                        });
                     
                     // 🔥 LUÔN RENDER DỮ LIỆU MỚI NHẤT TỪ FIREBASE (KHÔNG SKIP)
                     console.log('🔄 First load - rendering fresh data from Firebase');
@@ -1692,7 +1712,27 @@
                 const newBills = snapshot.docs
                     .map(doc => ({ id: doc.id, ...doc.data() }))
                     .filter(bill => bill.approved === true)
-                    .sort((a, b) => new Date(b.createdAt?.toDate?.() || b.createdAt || 0) - new Date(a.createdAt?.toDate?.() || a.createdAt || 0));
+                    .sort((a, b) => {
+                        // Ưu tiên billDate, fallback createdAt, cuối cùng là period
+                        const getTime = (bill) => {
+                            if (bill.billDate) {
+                                if (bill.billDate.toDate) return bill.billDate.toDate().getTime();
+                                if (typeof bill.billDate === 'string' && bill.billDate.includes('/')) {
+                                    const parts = bill.billDate.split('/');
+                                    return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+                                }
+                                return new Date(bill.billDate).getTime();
+                            }
+                            if (bill.createdAt) {
+                                if (bill.createdAt.toDate) return bill.createdAt.toDate().getTime();
+                                return new Date(bill.createdAt).getTime();
+                            }
+                            // Fallback: từ period
+                            const period = parseInt(bill.period) || 11;
+                            return new Date(2025, period - 1, 1).getTime();
+                        };
+                        return getTime(b) - getTime(a); // Mới nhất trước
+                    });
                 
                 // Check for real changes including status updates
                 const hasChanges = newBills.length !== bills.length || 
@@ -1761,7 +1801,7 @@
                                 title: 'Xác nhận thanh toán',
                                 message: `Chúng tôi đã nhận được khoản thanh toán ${formatCurrency(totalAmount)} của bạn. Xin cảm ơn!`,
                                 createdAt: transactionData.createdAt?.toDate ? transactionData.createdAt.toDate() : new Date(),
-                                isRead: isFirstTransactionLoad ? true : false, // Đánh dấu đã đọc nếu là load lần đầu
+                                isRead: false, // LUÔN chưa đọc để user phải bấm đọc
                                 data: { 
                                     transactionId: transactionData.id, 
                                     billId: transactionData.billId, 
@@ -1954,7 +1994,7 @@
                                 title: notificationData.title,
                                 message: messageToShow,
                                 createdAt: notificationData.createdAt?.toDate ? notificationData.createdAt.toDate() : new Date(),
-                                isRead: isFirstNotificationLoad ? true : false, // Đánh dấu đã đọc nếu là load lần đầu
+                                isRead: false, // LUÔN chưa đọc để user phải bấm đọc
                                 data: { 
                                     billId: notificationData.billId,
                                     amount: notificationData.amount,
@@ -1964,17 +2004,58 @@
                                 }
                             };
                             
-                            // Thêm vào danh sách
+                            // Thêm vào đầu danh sách
                             notifications.unshift(notification);
+                            
+                            // Sắp xếp theo THÁNG HÓA ĐƠN thay vì thời gian tạo
+                            notifications.sort((a, b) => {
+                                const getBillMonth = (notification) => {
+                                    const message = notification.message || notification.title || '';
+                                    const monthMatch = message.match(/tháng\s+(\d+)(?:-(\d+))?/i);
+                                    if (monthMatch) {
+                                        const month = parseInt(monthMatch[1]);
+                                        const year = monthMatch[2] ? parseInt(monthMatch[2]) : 2025;
+                                        return year * 100 + month;
+                                    }
+                                    if (notification.data?.billId && bills?.length > 0) {
+                                        const bill = bills.find(b => b.id === notification.data.billId);
+                                        if (bill?.period) return 2025 * 100 + parseInt(bill.period);
+                                    }
+                                    return 202511;
+                                };
+                                
+                                const monthA = getBillMonth(a);
+                                const monthB = getBillMonth(b);
+                                
+                                if (monthA === monthB) {
+                                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
+                                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
+                                    if (isPaymentA && !isPaymentB) return -1;
+                                    if (!isPaymentA && isPaymentB) return 1;
+                                }
+                                
+                                return monthB - monthA; // Tháng mới trước
+                            });
                             
                             // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
                             if (!isFirstNotificationLoad) {
                                 showInAppNotification(notificationData.title, messageToShow);
                             }
                             
-                            // Lưu và render
+                            // Lưu và render NGAY LẬP TỨC
                             saveNotificationsToStorage();
-                            renderNotificationsList();
+                            
+                            // 🔥 FORCE CLEAR DOM trước khi render lại
+                            const listEl = document.getElementById('notifications-list');
+                            if (listEl) {
+                                listEl.innerHTML = '<div class="text-center py-4">Đang cập nhật...</div>';
+                            }
+                            
+                            // Render với delay nhỏ để UI có thời gian update
+                            setTimeout(() => {
+                                renderNotificationsList();
+                                console.log('🔄 Forced notification list refresh');
+                            }, 10);
                         } else {
                             // console.log('⏭️ Notification already exists locally, skipping creation to preserve read status');
                         }
@@ -2216,6 +2297,28 @@
         function renderBillsList() {
             perfMon.track('renderBillsList');
             // console.log('📋 Rendering bills list with language:', currentLanguage);
+            
+            // 🔥 ĐẢMBẢO SẮP XẾP TRƯỚC KHI RENDER
+            bills.sort((a, b) => {
+                const getTime = (bill) => {
+                    if (bill.billDate) {
+                        if (bill.billDate.toDate) return bill.billDate.toDate().getTime();
+                        if (typeof bill.billDate === 'string' && bill.billDate.includes('/')) {
+                            const parts = bill.billDate.split('/');
+                            return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+                        }
+                        return new Date(bill.billDate).getTime();
+                    }
+                    if (bill.createdAt) {
+                        if (bill.createdAt.toDate) return bill.createdAt.toDate().getTime();
+                        return new Date(bill.createdAt).getTime();
+                    }
+                    const period = parseInt(bill.period) || 11;
+                    return new Date(2025, period - 1, 1).getTime();
+                };
+                return getTime(b) - getTime(a); // Mới nhất trước
+            });
+            
             // Render bills
             const billsList = document.getElementById('bills-list-page');
             if (!billsList) {
@@ -2236,11 +2339,50 @@
                     </div>
                 `;
             } else {
-                // Sắp xếp bills theo thời gian mới nhất
+                // Sắp xếp bills theo thời gian mới nhất với fallback tốt hơn
                 const sortedBills = bills.sort((a, b) => {
-                    const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-                    const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
-                    return dateB - dateA;
+                    // Ưu tiên billDate, fallback createdAt, cuối cùng là period + năm
+                    const getDateA = () => {
+                        if (a.billDate) {
+                            if (a.billDate.toDate) return a.billDate.toDate();
+                            if (typeof a.billDate === 'string' && a.billDate.includes('/')) {
+                                const parts = a.billDate.split('/');
+                                return new Date(parts[2], parts[1] - 1, parts[0]);
+                            }
+                            return new Date(a.billDate);
+                        }
+                        if (a.createdAt) {
+                            if (a.createdAt.toDate) return a.createdAt.toDate();
+                            return new Date(a.createdAt);
+                        }
+                        // Fallback: tạo date từ period (tháng hiện tại)
+                        const period = parseInt(a.period) || new Date().getMonth() + 1;
+                        return new Date(2025, period - 1, 1);
+                    };
+                    
+                    const getDateB = () => {
+                        if (b.billDate) {
+                            if (b.billDate.toDate) return b.billDate.toDate();
+                            if (typeof b.billDate === 'string' && b.billDate.includes('/')) {
+                                const parts = b.billDate.split('/');
+                                return new Date(parts[2], parts[1] - 1, parts[0]);
+                            }
+                            return new Date(b.billDate);
+                        }
+                        if (b.createdAt) {
+                            if (b.createdAt.toDate) return b.createdAt.toDate();
+                            return new Date(b.createdAt);
+                        }
+                        // Fallback: tạo date từ period (tháng hiện tại)
+                        const period = parseInt(b.period) || new Date().getMonth() + 1;
+                        return new Date(2025, period - 1, 1);
+                    };
+                    
+                    const dateA = getDateA();
+                    const dateB = getDateB();
+                    
+                    // Mới nhất trước (dateB - dateA)
+                    return dateB.getTime() - dateA.getTime();
                 });
 
                 billsList.innerHTML = sortedBills.map(bill => {
@@ -3754,8 +3896,14 @@
             
             saveNotificationsToStorage();
             
-            // ✅ CẬP NHẬT UI NGAY LẬP TỨC
-            renderNotificationsList();
+            // ✅ CẬP NHẬT UI NGAY LẬP TỨC với force refresh
+            const listEl = document.getElementById('notifications-list');
+            if (listEl) {
+                listEl.innerHTML = '<div class="text-center py-4">Đang cập nhật...</div>';
+            }
+            setTimeout(() => {
+                renderNotificationsList();
+            }, 10);
             
             // console.log('🔔 Creating notification popup for:', title);
             // console.log('🔔 Total notifications after add:', notifications.length);
@@ -3884,6 +4032,196 @@
             console.log('Performance stats:', perfMon.calls);
         };
         
+        // 🔧 DEBUG: Kiểm tra thứ tự sắp xếp
+        window.checkSortOrder = function() {
+            console.log('📊 BILLS SORT ORDER:');
+            bills.forEach((bill, index) => {
+                const date = bill.billDate?.toDate?.() || bill.createdAt?.toDate?.() || new Date(bill.createdAt || 0);
+                console.log(`${index + 1}. ${bill.id?.slice(-6)} - Tháng ${bill.period} - ${date.toLocaleString('vi-VN')}`);
+            });
+            
+            console.log('🔔 NOTIFICATIONS READ STATUS:');
+            notifications.forEach((notif, index) => {
+                const date = notif.createdAt instanceof Date ? notif.createdAt : (notif.createdAt?.toDate?.() || new Date(notif.createdAt));
+                const readStatus = notif.isRead ? '✅ ĐÃ ĐỌC' : '🔴 CHƯA ĐỌC';
+                console.log(`${index + 1}. ${readStatus} - ${notif.title} - ${date.toLocaleString('vi-VN')}`);
+            });
+        };
+        
+        // 🔍 DEBUG: Kiểm tra trạng thái thông báo chi tiết
+        window.checkNotificationStatus = function() {
+            console.log('🔔 DETAILED NOTIFICATION STATUS:');
+            console.log(`Total notifications: ${notifications.length}`);
+            
+            const unreadCount = notifications.filter(n => !n.isRead).length;
+            const readCount = notifications.filter(n => n.isRead).length;
+            
+            console.log(`📊 Summary: ${unreadCount} chưa đọc, ${readCount} đã đọc`);
+            console.log('\n📋 Chi tiết:');
+            
+            notifications.forEach((notif, index) => {
+                console.log(`${index + 1}. ID: ${notif.id}`);
+                console.log(`   Title: ${notif.title}`);
+                console.log(`   Status: ${notif.isRead ? '✅ ĐÃ ĐỌC' : '🔴 CHƯA ĐỌC'}`);
+                console.log(`   Type: ${notif.type || 'N/A'}`);
+                console.log(`   Created: ${notif.createdAt}`);
+                console.log('---');
+            });
+        };
+        
+        // ⚡ QUICK FIX: Sắp xếp theo tháng hóa đơn
+        window.fixNotifications = function() {
+            console.log('🚨 SORTING BY BILL MONTH...');
+            
+            // In ra thông báo hiện tại
+            notifications.forEach((n, i) => {
+                const message = n.message || n.title || '';
+                const monthMatch = message.match(/tháng\s+(\d+)/i);
+                const month = monthMatch ? monthMatch[1] : '?';
+                console.log(`${i+1}. ${n.title} (Tháng ${month})`);
+            });
+            
+            // Force sort by BILL MONTH
+            notifications.sort((a, b) => {
+                const getBillMonth = (notification) => {
+                    const message = notification.message || notification.title || '';
+                    const monthMatch = message.match(/tháng\s+(\d+)/i);
+                    if (monthMatch) {
+                        return parseInt(monthMatch[1]);
+                    }
+                    return 11; // default
+                };
+                
+                const monthA = getBillMonth(a);
+                const monthB = getBillMonth(b);
+                
+                // Cùng tháng thì "Xác nhận thanh toán" trước "Thông báo hóa đơn"
+                if (monthA === monthB) {
+                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
+                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
+                    if (isPaymentA && !isPaymentB) return -1;
+                    if (!isPaymentA && isPaymentB) return 1;
+                    return 0;
+                }
+                
+                return monthB - monthA; // Tháng mới trước
+            });
+            
+            console.log('📅 After sort by MONTH:');
+            notifications.forEach((n, i) => {
+                const message = n.message || n.title || '';
+                const monthMatch = message.match(/tháng\s+(\d+)/i);
+                const month = monthMatch ? monthMatch[1] : '?';
+                console.log(`${i+1}. ${n.title} (Tháng ${month})`);
+            });
+            
+            // Force clear và render
+            const listEl = document.getElementById('notifications-list');
+            if (listEl) listEl.innerHTML = '';
+            
+            setTimeout(() => {
+                renderNotificationsList();
+                console.log('✅ FIXED BY MONTH!');
+            }, 50);
+        };
+        
+        // 🧪 TEST: Simulate bill unapproved (xóa thông báo)
+        window.testBillUnapproved = function(billId) {
+            if (!billId) {
+                console.log('❌ Cần cung cấp billId. VD: testBillUnapproved("bill_id_here")');
+                return;
+            }
+            
+            console.log('🧪 Simulating bill unapproved - tìm và xóa thông báo bill_approved cho:', billId);
+            
+            // Tìm thông báo với billId này
+            const notificationToRemove = notifications.find(n => 
+                n.data?.billId === billId && n.type === 'bill_approved'
+            );
+            
+            if (notificationToRemove) {
+                console.log('🗑️ Tìm thấy thông báo, đang xóa:', notificationToRemove.title);
+                
+                // Xóa khỏi local array
+                const index = notifications.indexOf(notificationToRemove);
+                notifications.splice(index, 1);
+                
+                // Update storage và render
+                saveNotificationsToStorage();
+                renderNotificationsList();
+                
+                console.log('✅ Đã xóa thông báo bill_approved khỏi app');
+            } else {
+                console.log('❌ Không tìm thấy thông báo bill_approved cho billId:', billId);
+                console.log('📋 Available notifications:');
+                notifications.forEach(n => {
+                    console.log(`- ${n.title} (type: ${n.type}, billId: ${n.data?.billId})`);
+                });
+            }
+        };
+        
+        // 🧪 TEST: Comprehensive flow test
+        window.testCompleteFlow = function(billId) {
+            if (!billId) {
+                console.log('❌ Usage: testCompleteFlow("bill_id_here")');
+                console.log('📋 Available bills:');
+                bills.forEach(bill => {
+                    console.log(`- ${bill.id}: Tháng ${bill.period} (${bill.status})`);
+                });
+                return;
+            }
+            
+            console.log('🧪 TESTING COMPLETE FLOW FOR BILL:', billId);
+            
+            // Show current notifications
+            console.log('\n📋 Current notifications:');
+            notifications.forEach((n, i) => {
+                const relatedToBill = n.data?.billId === billId;
+                const marker = relatedToBill ? '🎯' : '  ';
+                console.log(`${marker} ${i+1}. ${n.title} (type: ${n.type}, billId: ${n.data?.billId})`);
+            });
+            
+            console.log('\n🔄 EXPECTED BEHAVIOR:');
+            console.log('1. Duyệt HĐ → Có thông báo "Thông báo hóa đơn"');
+            console.log('2. Thu tiền → Có thông báo "Xác nhận thanh toán"');
+            console.log('3. Hủy thu tiền → Xóa thông báo "Xác nhận thanh toán" + Xóa phiếu thu');
+            console.log('4. Bỏ duyệt HĐ → Xóa thông báo "Thông báo hóa đơn" + Ẩn HĐ');
+            console.log('\n✅ Tất cả thông báo và phiếu thu liên quan PHẢI biến mất!');
+        };
+        
+        // 🔄 FORCE SORT: Ép buộc sắp xếp lại
+        window.forceSortAndRender = function() {
+            console.log('🔄 Force sorting and rendering...');
+            
+            // Force sort bills
+            bills.sort((a, b) => {
+                const getTime = (bill) => {
+                    if (bill.billDate?.toDate) return bill.billDate.toDate().getTime();
+                    if (bill.createdAt?.toDate) return bill.createdAt.toDate().getTime();
+                    if (bill.createdAt) return new Date(bill.createdAt).getTime();
+                    return new Date(2025, (parseInt(bill.period) || 11) - 1, 1).getTime();
+                };
+                return getTime(b) - getTime(a);
+            });
+            
+            // Force sort notifications  
+            notifications.sort((a, b) => {
+                const getTime = (notif) => {
+                    if (notif.createdAt instanceof Date) return notif.createdAt.getTime();
+                    if (notif.createdAt?.toDate) return notif.createdAt.toDate().getTime();
+                    return new Date(notif.createdAt || Date.now()).getTime();
+                };
+                return getTime(b) - getTime(a);
+            });
+            
+            // Re-render everything
+            renderHomeData();
+            renderBillsList();
+            renderNotificationsList();
+            
+            console.log('✅ Forced sort and render completed');
+        };
+        
         // 🐛 Debug bill status sync
         window.debugBillStatus = function() {
             console.log('=== BILL STATUS DEBUG ===');
@@ -3987,9 +4325,16 @@
         window.markNotificationAsRead = async function(notificationId, isCurrentlyUnread) {
             console.log('🖱️ markNotificationAsRead called:', { notificationId, isCurrentlyUnread });
             
-            if (!isCurrentlyUnread) {
+            // Tìm notification trong local array
+            const localNotification = notifications.find(n => n.id === notificationId);
+            if (!localNotification) {
+                console.log('❌ Notification not found:', notificationId);
+                return;
+            }
+            
+            if (localNotification.isRead) {
                 console.log('⏭️ Already read, skipping');
-                return; // Already read, no action needed
+                return;
             }
             
             console.log('🔄 Marking notification as read:', notificationId);
@@ -4066,6 +4411,42 @@
             const listEl = document.getElementById('notifications-list');
             if (!listEl) return;
             
+            // 🔥 ĐẢMBẢO SẮP XẾP THEO THÁNG HÓA ĐƠN TRƯỚC KHI RENDER
+            notifications.sort((a, b) => {
+                const getBillMonth = (notification) => {
+                    // Tìm tháng từ message content
+                    const message = notification.message || notification.title || '';
+                    const monthMatch = message.match(/tháng\s+(\d+)(?:-(\d+))?/i);
+                    if (monthMatch) {
+                        const month = parseInt(monthMatch[1]);
+                        const year = monthMatch[2] ? parseInt(monthMatch[2]) : 2025;
+                        return year * 100 + month;
+                    }
+                    
+                    // Fallback: từ bill data
+                    if (notification.data?.billId && bills?.length > 0) {
+                        const bill = bills.find(b => b.id === notification.data.billId);
+                        if (bill?.period) return 2025 * 100 + parseInt(bill.period);
+                    }
+                    
+                    return 202511; // Default tháng 11/2025
+                };
+                
+                const monthA = getBillMonth(a);
+                const monthB = getBillMonth(b);
+                
+                // Cùng tháng thì "Xác nhận thanh toán" trước "Thông báo hóa đơn"
+                if (monthA === monthB) {
+                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
+                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
+                    
+                    if (isPaymentA && !isPaymentB) return -1;
+                    if (!isPaymentA && isPaymentB) return 1;
+                }
+                
+                return monthB - monthA; // Tháng mới nhất trước
+            });
+            
             // Cập nhật badge
             updateNotificationBadge();
             
@@ -4084,11 +4465,61 @@
                 return;
             }
 
-            // Sắp xếp theo thời gian tạo (mới nhất trước)
+            // Sắp xếp theo THÁNG HÓA ĐƠN (mới nhất trước) thay vì thời gian tạo
             const sortedNotifications = [...notifications].sort((a, b) => {
-                const timeA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
-                const timeB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
-                return timeB - timeA; // Mới nhất trước
+                const getBillMonth = (notification) => {
+                    // Tìm tháng từ message content
+                    const message = notification.message || notification.title || '';
+                    
+                    // Pattern: "tháng X-YYYY" hoặc "tháng X"
+                    const monthMatch = message.match(/tháng\s+(\d+)(?:-(\d+))?/i);
+                    if (monthMatch) {
+                        const month = parseInt(monthMatch[1]);
+                        const year = monthMatch[2] ? parseInt(monthMatch[2]) : 2025;
+                        return year * 100 + month; // VD: 2025*100 + 11 = 202511
+                    }
+                    
+                    // Fallback: tìm từ data.billId nếu có
+                    if (notification.data?.billId && bills?.length > 0) {
+                        const bill = bills.find(b => b.id === notification.data.billId);
+                        if (bill?.period) {
+                            const period = parseInt(bill.period);
+                            return 2025 * 100 + period;
+                        }
+                    }
+                    
+                    // Fallback cuối: dùng thời gian tạo
+                    if (notification.createdAt) {
+                        const date = notification.createdAt instanceof Date ? 
+                            notification.createdAt : 
+                            (notification.createdAt.toDate ? notification.createdAt.toDate() : new Date(notification.createdAt));
+                        return date.getFullYear() * 100 + (date.getMonth() + 1);
+                    }
+                    
+                    return 202511; // Default tháng 11/2025
+                };
+                
+                const monthA = getBillMonth(a);
+                const monthB = getBillMonth(b);
+                
+                // Nếu cùng tháng, sắp xếp theo loại: "Xác nhận thanh toán" trước "Thông báo hóa đơn"
+                if (monthA === monthB) {
+                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
+                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
+                    
+                    if (isPaymentA && !isPaymentB) return -1; // A (payment) lên trước
+                    if (!isPaymentA && isPaymentB) return 1;  // B (payment) lên trước
+                    
+                    // Cùng loại thì sắp xếp theo thời gian tạo
+                    const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : 
+                        (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime());
+                    const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : 
+                        (b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime());
+                    return timeB - timeA;
+                }
+                
+                // Tháng mới nhất trước (monthB - monthA)
+                return monthB - monthA;
             });
 
             // Virtual scrolling cho danh sách dài
@@ -4107,7 +4538,7 @@
                     <div class="notification-item bg-white p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${isUnread ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}" 
                          data-notification-id="${notification.id}" 
                          data-is-unread="${isUnread}"
-                         onclick="if(${isUnread}) markNotificationAsRead('${notification.id}', ${isUnread});">
+                         onclick="markNotificationAsRead('${notification.id}', ${isUnread});">
                         <div class="flex items-start gap-3">
                             <div class="w-12 h-12 rounded-lg bg-green-600 flex items-center justify-center flex-shrink-0">
                                 <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">

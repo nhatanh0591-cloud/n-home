@@ -1,11 +1,11 @@
 // js/modules/contracts.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, updateDoc, collection, serverTimestamp } from '../firebase.js';
-import { getContracts, getBuildings, getCustomers, getServices, getBills } from '../store.js';
+import { getContracts, getBuildings, getCustomers, getServices, getBills, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage
+    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage, safeToDate
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -156,6 +156,8 @@ export function initContracts() {
  * Tải, lọc, và chuẩn bị dữ liệu hợp đồng
  */
 export function loadContracts() {
+    if (contractsSection?.classList.contains('hidden')) return;
+    
     let allContracts = getContracts();
     
     // Tính toán trạng thái cho từng hợp đồng
@@ -254,14 +256,9 @@ function applyContractFilters(contracts = null) {
             // TRƯỜNG HỢP KHÔNG LỌC - SẮP XẾP THEO THỜI GIAN TẠO (mới nhất trước)
             const getCreatedTime = (contract) => {
                 if (contract.createdAt) {
-                    if (contract.createdAt.toDate) {
-                        // Firestore Timestamp
-                        return contract.createdAt.toDate().getTime();
-                    } else if (contract.createdAt instanceof Date) {
-                        return contract.createdAt.getTime();
-                    } else {
-                        return new Date(contract.createdAt).getTime();
-                    }
+                    // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+                    return safeToDate(contract.createdAt).getTime();
+                } else {
                 }
                 return 0;
             };
@@ -554,9 +551,12 @@ async function handleBodyClick(e) {
         if (confirmed) {
             try {
                 const contractId = deleteBtn.dataset.id;
+                // Delete Firebase
                 await deleteDoc(doc(db, 'contracts', contractId));
+                
+                // Delete localStorage
+                deleteFromLocalStorage('contracts', contractId);
                 showToast('Xóa hợp đồng thành công!');
-                // Store listener tự động cập nhật
             } catch (error) {
                 showToast('Lỗi xóa hợp đồng: ' + error.message, 'error');
             }
@@ -605,12 +605,21 @@ async function handleBodyClick(e) {
                     if (diffDays < 0) newStatus = 'expired';
                     else if (diffDays <= 30) newStatus = 'expiring';
                     
+                    // Update Firebase
                     await setDoc(doc(db, 'contracts', contractId), {
                         status: newStatus,
                         terminatedAt: null,
                         terminationBillId: null,
                         updatedAt: serverTimestamp()
                     }, { merge: true });
+                    
+                    // Update localStorage
+                    updateInLocalStorage('contracts', contractId, {
+                        status: newStatus,
+                        terminatedAt: null,
+                        terminationBillId: null,
+                        updatedAt: new Date()
+                    });
                     
                     showToast('Đã bỏ thanh lý hợp đồng thành công!');
                 } catch (error) {
@@ -626,13 +635,21 @@ async function handleBodyClick(e) {
                     showToast('Đang tạo hóa đơn thanh lý...', 'info');
                     const terminationBillId = await createTerminationBill(contract);
                     
-                    // Cập nhật trạng thái hợp đồng
+                    // Update Firebase
                     await setDoc(doc(db, 'contracts', contractId), {
                         status: 'terminated',
                         terminatedAt: serverTimestamp(),
                         terminationBillId: terminationBillId,
                         updatedAt: serverTimestamp()
                     }, { merge: true });
+                    
+                    // Update localStorage
+                    updateInLocalStorage('contracts', contractId, {
+                        status: 'terminated',
+                        terminatedAt: new Date(),
+                        terminationBillId: terminationBillId,
+                        updatedAt: new Date()
+                    });
                     
                     showToast('Đã thanh lý hợp đồng và tạo hóa đơn thanh lý thành công!');
                 } catch (error) {
@@ -882,19 +899,34 @@ async function handleContractFormSubmit(e) {
         };
 
         if (id) {
-            // Sửa
+            // Update Firebase
             await setDoc(doc(db, 'contracts', id), contractData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('contracts', id, contractData);
             showToast('Cập nhật hợp đồng thành công!');
         } else {
-            // Thêm mới
+            // Create Firebase
             contractData.status = 'active'; // Mặc định
             contractData.createdAt = serverTimestamp();
-            await addDoc(collection(db, 'contracts'), contractData);
+            const docRef = await addDoc(collection(db, 'contracts'), contractData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...contractData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.contracts.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:contracts:updated'));
+            
             showToast('Thêm hợp đồng thành công!');
         }
 
         closeModal(contractModal);
-        // Store listener sẽ tự động cập nhật
     } catch (error) {
         showToast('Lỗi lưu hợp đồng: ' + error.message, 'error');
     }
@@ -919,15 +951,26 @@ async function handleQuickCustomerSubmit(e) {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         };
+        // Create Firebase
         const docRef = await addDoc(collection(db, 'customers'), customerData);
+        
+        // Add to localStorage với Firebase ID
+        const newItem = { 
+            ...customerData, 
+            id: docRef.id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+        const state = getState();
+        state.customers.unshift(newItem);
+        saveToCache();
+        document.dispatchEvent(new CustomEvent('store:customers:updated'));
         
         // Thêm khách hàng mới vào danh sách đã chọn
         selectedCustomers.push(docRef.id);
         
-        // Cập nhật UI (chờ store cập nhật)
-        setTimeout(() => {
-            updateSelectedCustomersDisplay(docRef.id); // Tự động chọn làm đại diện
-        }, 500); // Chờ 500ms để store listener cập nhật
+        // Cập nhật UI ngay lập tức
+        updateSelectedCustomersDisplay(docRef.id); // Tự động chọn làm đại diện
         
         closeModal(quickCustomerModal);
         showToast(`Đã thêm khách hàng "${name}"!`);
@@ -952,8 +995,10 @@ async function handleBulkDelete() {
     const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedIds.length} hợp đồng đã chọn?`, 'Xác nhận xóa');
     if (confirmed) {
         try {
+            // Bulk delete Firebase + localStorage
             for (const id of selectedIds) {
                 await deleteDoc(doc(db, 'contracts', id));
+                deleteFromLocalStorage('contracts', id);
             }
             
             // Reset trạng thái checkbox sau khi xóa thành công
@@ -961,7 +1006,6 @@ async function handleBulkDelete() {
             resetBulkSelection();
             
             showToast(`Đã xóa ${selectedIds.length} hợp đồng thành công!`);
-            // Store listener tự động cập nhật
         } catch (error) {
             showToast('Lỗi xóa hợp đồng: ' + error.message, 'error');
         }
@@ -1218,7 +1262,19 @@ async function handleImportSubmit() {
                             createdAt: serverTimestamp(),
                             updatedAt: serverTimestamp()
                         };
+                        // Create Firebase
                         const docRef = await addDoc(collection(db, 'customers'), customerData);
+                        
+                        // Add to localStorage với Firebase ID
+                        const newItem = { 
+                            ...customerData, 
+                            id: docRef.id,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        };
+                        const state = getState();
+                        state.customers.unshift(newItem);
+                        
                         customer = { id: docRef.id, ...customerData };
                     }
                     
@@ -1299,7 +1355,19 @@ async function handleImportSubmit() {
                     
                     console.log(`💾 Contract data to save:`, contractData);
                     
-                    await addDoc(collection(db, 'contracts'), contractData);
+                    // Import to Firebase + localStorage
+                    const docRef = await addDoc(collection(db, 'contracts'), contractData);
+                    
+                    // Add to localStorage với Firebase ID
+                    const newItem = { 
+                        ...contractData, 
+                        id: docRef.id,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    };
+                    const state = getState();
+                    state.contracts.unshift(newItem);
+                    
                     successCount++;
                 } catch (error) {
                     errorDetails.push(`Dòng ${rowNumber}: ${error.message}`);
@@ -1307,10 +1375,13 @@ async function handleImportSubmit() {
                 }
             }
             
-            closeModal(importContractsModal);
+            // Save cache và dispatch event sau khi import xong
+            if (successCount > 0) {
+                saveToCache();
+                document.dispatchEvent(new CustomEvent('store:contracts:updated'));
+            }
             
-            // Reload danh sách hợp đồng sau khi import
-            loadContracts();
+            closeModal(importContractsModal);
             
             if (errorCount > 0) {
                 // Hiển thị chi tiết lỗi
@@ -1376,7 +1447,20 @@ async function createTerminationBill(contract) {
             updatedAt: serverTimestamp()
         };
         
+        // Create Firebase + localStorage
         await setDoc(doc(db, 'bills', billId), billData);
+        
+        // Add to localStorage với Firebase ID
+        const newItem = { 
+            ...billData,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+        const state = getState();
+        state.bills.unshift(newItem);
+        saveToCache();
+        document.dispatchEvent(new CustomEvent('store:bills:updated'));
+        
         return billId;
     } catch (error) {
         console.error('Lỗi tạo hóa đơn thanh lý:', error);

@@ -1,7 +1,7 @@
 // js/modules/services.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { getServices, getBuildings } from '../store.js';
+import { getServices, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { showToast, openModal, closeModal, formatNumber, parseFormattedNumber, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -145,6 +145,8 @@ async function syncServiceBuildingData() {
  * Tải và hiển thị danh sách dịch vụ
  */
 export function loadServices() {
+    if (servicesSection?.classList.contains('hidden')) return;
+    
     const allServices = getServices();
     const allBuildings = getBuildings();
     
@@ -337,9 +339,12 @@ async function handleBodyClick(e) {
         if (confirmed) {
             try {
                 const serviceId = deleteBtn.dataset.id;
+                // Delete Firebase
                 await deleteDoc(doc(db, 'services', serviceId));
+                
+                // Delete localStorage
+                deleteFromLocalStorage('services', serviceId);
                 showToast('Xóa dịch vụ thành công!');
-                // Store listener sẽ tự động cập nhật
             } catch (error) {
                 showToast('Lỗi xóa dịch vụ: ' + error.message, 'error');
             }
@@ -468,17 +473,33 @@ async function handleServiceFormSubmit(e) {
                 const oldService = getServices().find(s => s.id === id);
                 const oldBuildings = oldService ? oldService.buildings || [] : [];
                 
+                // Update Firebase
                 await setDoc(doc(db, 'services', id), serviceData, { merge: true });
                 serviceId = id;
+                
+                // Update localStorage
+                updateInLocalStorage('services', id, serviceData);
                 
                 // Cập nhật tòa nhà: loại bỏ dịch vụ khỏi tòa nhà cũ, thêm vào tòa nhà mới
                 await updateBuildingServices(serviceId, { ...newServiceData, id: serviceId }, oldBuildings, selectedBuildings);
                 showToast('Cập nhật dịch vụ thành công!');
             } else {
-                // Thêm mới
+                // Create Firebase
                 serviceData.createdAt = serverTimestamp();
                 const docRef = await addDoc(collection(db, 'services'), serviceData);
                 serviceId = docRef.id;
+                
+                // Add to localStorage với Firebase ID
+                const newItem = { 
+                    ...serviceData, 
+                    id: docRef.id,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+                const state = getState();
+                state.services.unshift(newItem);
+                saveToCache();
+                document.dispatchEvent(new CustomEvent('store:services:updated'));
                 
                 // Thêm dịch vụ vào các tòa nhà đã chọn
                 await updateBuildingServices(serviceId, { ...newServiceData, id: serviceId }, [], selectedBuildings);
@@ -527,7 +548,9 @@ async function handleBulkDelete() {
                 await updateBuildingServices(service.id, null, serviceToDelete.buildings, []);
             }
             
+            // Delete Firebase + localStorage
             await deleteDoc(doc(db, 'services', service.id));
+            deleteFromLocalStorage('services', service.id);
         }
         
         // Reset trạng thái checkbox sau khi xóa thành công
@@ -536,7 +559,6 @@ async function handleBulkDelete() {
         updateClearSelectionButton();
         
         showToast(`Đã xóa ${selected.length} dịch vụ thành công!`);
-        // Store listener sẽ tự động cập nhật
     } catch (error) {
         showToast('Lỗi xóa dịch vụ: ' + error.message, 'error');
     }

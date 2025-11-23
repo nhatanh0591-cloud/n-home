@@ -22,7 +22,8 @@ import {
     query, 
     where, 
     orderBy, 
-    getDocs 
+    getDocs,
+    Timestamp
 } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
 import { 
     getStorage, 
@@ -72,6 +73,7 @@ export {
     where,
     orderBy,
     getDocs,
+    Timestamp,
     
     // Storage
     ref,

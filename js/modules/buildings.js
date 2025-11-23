@@ -1,7 +1,7 @@
 // js/modules/buildings.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { getBuildings, getServices, getAccounts } from '../store.js';
+import { getBuildings, getServices, getAccounts, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { showToast, openModal, closeModal, formatNumber, formatMoney, exportToExcel, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -94,6 +94,8 @@ export function initBuildings() {
  * Tải và hiển thị danh sách tòa nhà
  */
 export function loadBuildings() {
+    if (buildingsSection?.classList.contains('hidden')) return;
+    
     let buildings = getBuildings(); // Lấy dữ liệu mới nhất từ store
     updateBuildingStats(buildings);
 
@@ -316,9 +318,12 @@ async function handleBodyClick(e) {
         const confirmed = await showConfirm('Bạn có chắc muốn xóa tòa nhà này?', 'Xác nhận xóa');
         if (confirmed) {
             try {
+                // Delete Firebase
                 await deleteDoc(doc(db, 'buildings', id));
+                
+                // Delete localStorage
+                deleteFromLocalStorage('buildings', id);
                 showToast('Xóa tòa nhà thành công!');
-                // Store listener sẽ tự động cập nhật UI
             } catch (error) {
                 showToast('Lỗi xóa tòa nhà: ' + error.message, 'error');
             }
@@ -467,14 +472,30 @@ async function handleBuildingFormSubmit(e) {
 
         let buildingId = id;
         if (id) {
-            // Sửa
+            // Update Firebase
             await setDoc(doc(db, 'buildings', id), buildingData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('buildings', id, buildingData);
             showToast('Cập nhật tòa nhà thành công!');
         } else {
-            // Thêm mới
+            // Create Firebase
             buildingData.createdAt = serverTimestamp();
             const docRef = await addDoc(collection(db, 'buildings'), buildingData);
             buildingId = docRef.id;
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...buildingData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.buildings.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:buildings:updated'));
+            
             showToast('Thêm tòa nhà thành công!');
         }
 
@@ -618,8 +639,10 @@ async function handleBulkDelete() {
     if (!confirmed) return;
 
     try {
+        // Bulk delete Firebase + localStorage
         for (const building of selected) {
             await deleteDoc(doc(db, 'buildings', building.id));
+            deleteFromLocalStorage('buildings', building.id);
         }
         
         // Reset trạng thái checkbox sau khi xóa thành công
@@ -628,7 +651,6 @@ async function handleBulkDelete() {
         updateClearSelectionButton();
         
         showToast(`Đã xóa ${selected.length} tòa nhà thành công!`);
-        // Store listener sẽ tự động cập nhật UI
     } catch (error) {
         showToast('Lỗi xóa tòa nhà: ' + error.message, 'error');
     }
@@ -787,12 +809,30 @@ function initImportModal() {
                                 updatedAt: serverTimestamp()
                             };
                             
-                            await addDoc(collection(db, 'buildings'), buildingData);
+                            // Import to Firebase + localStorage
+                            const docRef = await addDoc(collection(db, 'buildings'), buildingData);
+                            
+                            // Add to localStorage với Firebase ID
+                            const newItem = { 
+                                ...buildingData, 
+                                id: docRef.id,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            };
+                            const state = getState();
+                            state.buildings.unshift(newItem);
+                            
                             imported++;
                         } catch (err) {
                             console.error('Error importing row:', row, err);
                             errors++;
                         }
+                    }
+                    
+                    // Save cache và dispatch event sau khi import xong
+                    if (imported > 0) {
+                        saveToCache();
+                        document.dispatchEvent(new CustomEvent('store:buildings:updated'));
                     }
                     
                     closeModal(importBuildingsModal);

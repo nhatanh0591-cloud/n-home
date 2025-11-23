@@ -1,8 +1,8 @@
 // js/modules/notifications.js
 
-import { db, collection, query, where, getDocs, orderBy, onSnapshot, addDoc, setDoc, doc, deleteDoc, serverTimestamp } from '../firebase.js';
-import { getCustomers, getTasks } from '../store.js';
-import { showToast, formatDate, formatTime, showConfirm } from '../utils.js';
+import { db, collection, query, where, getDocs, orderBy, onSnapshot, addDoc, setDoc, doc, deleteDoc, serverTimestamp, updateDoc } from '../firebase.js';
+import { getCustomers, getTasks, getNotifications, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
+import { showToast, formatDate, formatTime, showConfirm, safeToDate } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let notificationsCache = [];
@@ -18,6 +18,9 @@ const notificationsSection = document.getElementById('notifications-section');
 const notificationsListEl = document.getElementById('notifications-list');
 
 // Filters
+const buildingFilterEl = document.getElementById('notification-building-filter');
+const roomFilterEl = document.getElementById('notification-room-filter');
+const customerFilterEl = document.getElementById('notification-customer-filter');
 const typeFilterEl = document.getElementById('notification-type-filter');
 const statusFilterEl = document.getElementById('notification-status-filter');
 const searchEl = document.getElementById('notification-search');
@@ -40,9 +43,15 @@ export function initNotifications() {
     document.body.addEventListener('click', handleBodyClick);
     
     // Lắng nghe sự kiện lọc
-    [typeFilterEl, statusFilterEl, searchEl].forEach(el => {
+    [buildingFilterEl, roomFilterEl, customerFilterEl, typeFilterEl, statusFilterEl, searchEl].forEach(el => {
         el?.addEventListener('input', applyNotificationFilters);
     });
+    
+    // Lắng nghe sự thay đổi của building filter để cập nhật room filter
+    buildingFilterEl?.addEventListener('change', handleBuildingFilterChange);
+    
+    // Lắng nghe sự thay đổi của room filter để cập nhật customer filter
+    roomFilterEl?.addEventListener('change', handleRoomFilterChange);
 
     // Lắng nghe select all
     selectAllCheckbox?.addEventListener('change', (e) => {
@@ -75,12 +84,23 @@ export function initNotifications() {
 
     // Setup real-time listeners để nhận thông báo từ app
     setupRealtimeListeners();
+    
+    // Initial load notifications
+    loadNotifications();
 }
 
 /**
  * Tải và hiển thị thông báo
  */
 export function loadNotifications() {
+    if (notificationsSection?.classList.contains('hidden')) return;
+    
+    // Load dữ liệu mới từ store
+    notificationsCache = getNotifications();
+    
+    // Load filter options khi section được hiển thị
+    loadNotificationFilterOptions();
+    
     applyNotificationFilters();
     updateNotificationBadge();
 }
@@ -153,39 +173,171 @@ function populateNotificationTypeFilter() {
 }
 
 /**
- * Setup real-time listeners để nhận thông báo từ app khách hàng
+ * Load filter options giống bills.js
+ */
+function loadNotificationFilterOptions() {
+    if (!buildingFilterEl) return;
+    
+    const buildings = getBuildings();
+    const currentBuilding = buildingFilterEl.value;
+    
+    // Populate type filter
+    populateNotificationTypeFilter();
+    
+    // Populate building filter
+    buildingFilterEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
+    buildings.forEach(building => {
+        buildingFilterEl.innerHTML += `<option value="${building.id}">${building.code}</option>`;
+    });
+    buildingFilterEl.value = currentBuilding;
+    
+    // Cập nhật phòng
+    handleBuildingFilterChange();
+}
+
+/**
+ * Xử lý khi thay đổi bộ lọc Tòa nhà
+ */
+function handleBuildingFilterChange() {
+    currentNotificationsPage = 1;
+    updateRoomFilterOptions();
+    applyNotificationFilters();
+}
+
+/**
+ * Xử lý khi thay đổi bộ lọc Phòng
+ */
+function handleRoomFilterChange() {
+    currentNotificationsPage = 1;
+    updateCustomerFilterOptions();
+    applyNotificationFilters();
+}
+
+/**
+ * Populate dropdown tòa nhà dựa trên dữ liệu thông báo
+ */
+function populateBuildingFilter() {
+    if (!buildingFilterEl) return;
+    
+    const buildings = getBuildings();
+    const currentValue = buildingFilterEl.value;
+    
+    // Xóa các option hiện tại
+    buildingFilterEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
+    
+    // Lấy danh sách tòa nhà có thông báo
+    const buildingsWithNotifications = new Set();
+    notificationsCache.forEach(notification => {
+        if (notification.buildingId) {
+            buildingsWithNotifications.add(notification.buildingId);
+        }
+    });
+    
+    // Thêm các tòa nhà từ dữ liệu
+    buildings.forEach(building => {
+        if (buildingsWithNotifications.has(building.id)) {
+            const option = document.createElement('option');
+            option.value = building.id;
+            option.textContent = building.code || building.name || building.id;
+            buildingFilterEl.appendChild(option);
+        }
+    });
+    
+    // Khôi phục giá trị đã chọn
+    buildingFilterEl.value = currentValue;
+}
+
+/**
+ * Cập nhật dropdown phòng dựa trên tòa nhà đã chọn
+ */
+function updateRoomFilterOptions() {
+    if (!roomFilterEl) return;
+    
+    const selectedBuildingId = buildingFilterEl?.value || 'all';
+    const currentRoom = roomFilterEl.value;
+    
+    // Xóa các option hiện tại
+    roomFilterEl.innerHTML = '<option value="all">Tất cả phòng</option>';
+    
+    let rooms = [];
+    if (selectedBuildingId !== 'all') {
+        // Lọc theo tòa nhà đã chọn
+        rooms = [...new Set(notificationsCache
+            .filter(n => n.buildingId === selectedBuildingId && n.room)
+            .map(n => n.room))].sort();
+    } else {
+        // Lấy tất cả phòng từ thông báo
+        rooms = [...new Set(notificationsCache
+            .filter(n => n.room)
+            .map(n => n.room))].sort();
+    }
+    
+    // Thêm các phòng
+    rooms.forEach(room => {
+        const option = document.createElement('option');
+        option.value = room;
+        option.textContent = room;
+        roomFilterEl.appendChild(option);
+    });
+    
+    // Khôi phục giá trị đã chọn (nếu còn tồn tại)
+    roomFilterEl.value = currentRoom;
+}
+
+/**
+ * Cập nhật dropdown khách hàng dựa trên phòng đã chọn
+ */
+function updateCustomerFilterOptions() {
+    if (!customerFilterEl) return;
+    
+    const selectedBuildingId = buildingFilterEl?.value || 'all';
+    const selectedRoom = roomFilterEl?.value || 'all';
+    const currentCustomer = customerFilterEl.value;
+    
+    // Xóa các option hiện tại
+    customerFilterEl.innerHTML = '<option value="all">Tất cả khách hàng</option>';
+    
+    // Lấy danh sách customer IDs từ thông báo đã lọc
+    let customerIds = [];
+    if (selectedBuildingId !== 'all' && selectedRoom !== 'all') {
+        // Lọc theo cả tòa nhà và phòng
+        customerIds = [...new Set(notificationsCache
+            .filter(n => n.buildingId === selectedBuildingId && n.room === selectedRoom && n.customerId)
+            .map(n => n.customerId))];
+    } else if (selectedBuildingId !== 'all') {
+        // Chỉ lọc theo tòa nhà
+        customerIds = [...new Set(notificationsCache
+            .filter(n => n.buildingId === selectedBuildingId && n.customerId)
+            .map(n => n.customerId))];
+    } else {
+        // Lấy tất cả khách hàng có thông báo
+        customerIds = [...new Set(notificationsCache
+            .filter(n => n.customerId)
+            .map(n => n.customerId))];
+    }
+    
+    // Lấy thông tin khách hàng và thêm vào dropdown
+    const customers = getCustomers();
+    customerIds.forEach(customerId => {
+        const customer = customers.find(c => c.id === customerId);
+        if (customer) {
+            const option = document.createElement('option');
+            option.value = customer.id;
+            option.textContent = customer.name || customer.phone || customer.id;
+            customerFilterEl.appendChild(option);
+        }
+    });
+    
+    // Khôi phục giá trị đã chọn (nếu còn tồn tại)
+    customerFilterEl.value = currentCustomer;
+}
+
+/**
+ * KHÔNG setup real-time listeners - chỉ dùng localStorage
  */
 function setupRealtimeListeners() {
-    // 💰 adminNotifications không có trong store → cần onSnapshot riêng
-    // Nhưng chỉ 1 listener duy nhất, không duplicate
-    
-    const notificationsQuery = query(
-        collection(db, 'adminNotifications'),
-        orderBy('createdAt', 'desc')
-    );
-
-    onSnapshot(notificationsQuery, (snapshot) => {
-        console.log(`📊 Firebase reads: ${snapshot.docChanges().length} changes detected`);
-        
-        // Cập nhật cache
-        notificationsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // 🔄 Cập nhật dropdown loại thông báo
-        populateNotificationTypeFilter();
-        
-        // Cập nhật badge ngay lập tức
-        updateNotificationBadge();
-        
-        // 🔥 Cập nhật table nếu đang ở tab notifications  
-        const notificationsSection = document.getElementById('notifications-section');
-        if (notificationsSection && !notificationsSection.classList.contains('hidden')) {
-            // Re-apply filters và render lại table
-            refreshNotificationsFromCache();
-            console.log('🔄 Real-time updated notifications table');
-        }
-        
-        console.log(`🔔 Total notifications: ${notificationsCache.length}, Unread: ${notificationsCache.filter(n => !n.isRead).length}`);
-    });
+    // DISABLED - không tự động load từ Firebase
+    console.log('🚫 Real-time listeners DISABLED - chỉ dùng localStorage');
 }
 
 /**
@@ -270,25 +422,38 @@ async function createNotification(notificationData) {
  */
 async function applyNotificationFilters() {
     try {
-        // Load notifications từ Firebase
-        const q = query(collection(db, 'adminNotifications'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
-        notificationsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Dùng data từ store thay vì Firebase
+        notificationsCache = getNotifications();
 
-        // 🔄 Cập nhật dropdown loại thông báo
-        populateNotificationTypeFilter();
+        // Lưu ý: Các dropdown đã được populate trong loadNotifications()
 
         // Lấy giá trị bộ lọc
+        const buildingId = buildingFilterEl?.value || 'all';
+        const room = roomFilterEl?.value || 'all';
+        const customerId = customerFilterEl?.value || 'all';
         const type = typeFilterEl?.value || 'all';
         const status = statusFilterEl?.value || 'all';
         const search = searchEl?.value.toLowerCase() || '';
 
         // Lọc
         notificationsCache_filtered = notificationsCache.filter(notification => {
+            // Lọc theo tòa nhà
+            if (buildingId !== 'all' && notification.buildingId !== buildingId) return false;
+            
+            // Lọc theo phòng
+            if (room !== 'all' && notification.room !== room) return false;
+            
+            // Lọc theo khách hàng
+            if (customerId !== 'all' && notification.customerId !== customerId) return false;
+            
+            // Lọc theo loại thông báo
             if (type !== 'all' && notification.type !== type) return false;
+            
+            // Lọc theo trạng thái
             if (status === 'read' && !notification.isRead) return false;
             if (status === 'unread' && notification.isRead) return false;
             
+            // Lọc theo tìm kiếm
             if (search) {
                 return (
                     notification.title?.toLowerCase().includes(search) ||
@@ -300,6 +465,13 @@ async function applyNotificationFilters() {
 
         // Reset về trang đầu khi filter thay đổi
         currentNotificationsPage = 1;
+
+        // Sắp xếp theo thời gian mới nhất lên đầu
+        notificationsCache_filtered.sort((a, b) => {
+            const timeA = safeToDate(a.createdAt);
+            const timeB = safeToDate(b.createdAt);
+            return timeB - timeA; // Mới nhất lên đầu
+        });
 
         renderNotificationsTable();
         updateNotificationBadge();
@@ -318,7 +490,7 @@ function renderNotificationsTable() {
     if (notificationsMobileListEl) notificationsMobileListEl.innerHTML = '';
 
     if (notificationsCache_filtered.length === 0) {
-        notificationsListEl.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-500">Không có thông báo nào.</td></tr>';
+        notificationsListEl.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-gray-500">Không có thông báo nào.</td></tr>';
         if (notificationsMobileListEl) {
             notificationsMobileListEl.innerHTML = '<div class="p-8 text-center text-gray-500">Không có thông báo nào.</div>';
         }
@@ -339,8 +511,11 @@ function renderNotificationsTable() {
     const customers = getCustomers();
 
     // Render desktop table
+    const buildings = getBuildings();
+    
     currentNotifications.forEach(notification => {
         const customer = customers.find(c => c.id === notification.customerId);
+        const building = buildings.find(b => b.id === notification.buildingId);
         const isUnread = !notification.isRead;
 
         const tr = document.createElement('tr');
@@ -373,6 +548,8 @@ function renderNotificationsTable() {
             </td>
             <td class="py-4 px-4 font-medium ${isUnread ? 'font-bold' : ''}">${notification.title || 'N/A'}</td>
             <td class="py-4 px-4 whitespace-pre-wrap">${notification.message || 'N/A'}</td>
+            <td class="py-4 px-4">${building?.code || building?.name || 'N/A'}</td>
+            <td class="py-4 px-4">${notification.room || 'N/A'}</td>
             <td class="py-4 px-4">${customer?.name || 'N/A'}</td>
             <td class="py-4 px-4">${formatDateTime(notification.createdAt)}</td>
             <td class="py-4 px-4">
@@ -388,6 +565,7 @@ function renderNotificationsTable() {
     if (notificationsMobileListEl) {
         currentNotifications.forEach(notification => {
             const customer = customers.find(c => c.id === notification.customerId);
+            const building = buildings.find(b => b.id === notification.buildingId);
             const isUnread = !notification.isRead;
             const isChecked = selectedMobileNotificationIds.has(notification.id);
 
@@ -408,6 +586,14 @@ function renderNotificationsTable() {
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Nội dung:</span>
                     <span class="mobile-card-value whitespace-pre-wrap">${notification.message || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Tòa nhà:</span>
+                    <span class="mobile-card-value">${building?.code || building?.name || 'N/A'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Phòng:</span>
+                    <span class="mobile-card-value">${notification.room || 'N/A'}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Khách hàng:</span>
@@ -476,42 +662,23 @@ function handleBodyClick(e) {
  */
 window.markAsRead = async function(notificationId) {
     try {
-        // 1. Cập nhật UI ngay lập tức (optimistic update)
-        const notificationElement = document.querySelector(`[data-notification-id="${notificationId}"]`);
-        if (notificationElement) {
-            notificationElement.classList.remove('bg-blue-50', 'border-blue-200');
-            notificationElement.classList.add('bg-gray-50', 'border-gray-200');
-            
-            const button = notificationElement.querySelector('button');
-            if (button) {
-                button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-                button.classList.add('bg-gray-400');
-                button.title = 'Đã đọc';
-                button.innerHTML = '<svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>';
-            }
-        }
-        
-        // 2. Cập nhật cache local
-        const notification = notificationsCache.find(n => n.id === notificationId);
-        if (notification) {
-            notification.isRead = true;
-            notification.updatedAt = new Date();
-        }
-        
-        // 3. Cập nhật Firestore (trong background)
-        await setDoc(doc(db, 'adminNotifications', notificationId), {
+        // Update Firebase + localStorage
+        await updateDoc(doc(db, 'adminNotifications', notificationId), {
             isRead: true,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
+            readAt: serverTimestamp()
+        });
         
-        // 4. Cập nhật badge count
-        updateNotificationBadge();
+        updateInLocalStorage('notifications', notificationId, {
+            isRead: true,
+            readAt: new Date()
+        });
+        
+        // Dispatch event để UI cập nhật
+        window.dispatchEvent(new CustomEvent('store:notifications:updated'));
         
         showToast('Đã đánh dấu đã đọc!');
     } catch (error) {
-        console.error('Error marking as read:', error);
-        // Revert UI changes on error
-        loadNotifications();
+        console.error('Lỗi khi đánh dấu thông báo đã đọc:', error);
         showToast('Lỗi: ' + error.message, 'error');
     }
 };
@@ -524,13 +691,22 @@ async function markAllAsRead() {
         const unreadNotifications = notificationsCache.filter(n => !n.isRead);
         
         for (const notification of unreadNotifications) {
-            await setDoc(doc(db, 'adminNotifications', notification.id), {
+            // Update Firebase
+            await updateDoc(doc(db, 'adminNotifications', notification.id), {
                 isRead: true,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
+                readAt: serverTimestamp()
+            });
+            
+            // Update localStorage
+            updateInLocalStorage('notifications', notification.id, {
+                isRead: true,
+                readAt: new Date()
+            });
         }
         
-        loadNotifications();
+        // Dispatch event để UI cập nhật
+        window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+        
         resetBulkSelection();
         showToast(`Đã đánh dấu ${unreadNotifications.length} thông báo là đã đọc!`);
     } catch (error) {
@@ -566,8 +742,13 @@ window.deleteNotification = async function(notificationId) {
     if (!confirmed) return;
     
     try {
+        // Delete Firebase + localStorage
         await deleteDoc(doc(db, 'adminNotifications', notificationId));
-        loadNotifications();
+        deleteFromLocalStorage('notifications', notificationId);
+        
+        // Dispatch event để UI cập nhật
+        window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+        
         showToast('Đã xóa thông báo!');
     } catch (error) {
         showToast('Lỗi xóa: ' + error.message, 'error');
@@ -598,14 +779,18 @@ async function bulkDeleteNotifications() {
 
     try {
         for (const id of selected) {
+            // Delete Firebase + localStorage
             await deleteDoc(doc(db, 'adminNotifications', id));
+            deleteFromLocalStorage('notifications', id);
         }
         
         // Xóa Set sau khi xóa thành công
         selectedMobileNotificationIds.clear();
         updateClearSelectionButton();
         
-        loadNotifications();
+        // Dispatch event để UI cập nhật
+        window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+        
         resetBulkSelection();
         showToast(`Đã xóa ${selected.length} thông báo!`);
     } catch (error) {
@@ -675,12 +860,8 @@ function getTypeText(type) {
 function formatDateTime(timestamp) {
     if (!timestamp) return 'N/A';
     
-    let date;
-    if (timestamp.toDate) {
-        date = timestamp.toDate();
-    } else {
-        date = new Date(timestamp);
-    }
+    // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+    const date = safeToDate(timestamp);
     
     return `${formatDate(date)} ${formatTime(date)}`;
 }
@@ -787,3 +968,13 @@ window.changeNotificationsPage = function(page) {
     currentNotificationsPage = page;
     renderNotificationsTable();
 };
+
+/**
+ * Listen for store updates để reload data
+ */
+document.addEventListener('store:notifications:updated', () => {
+    if (notificationsSection && !notificationsSection.classList.contains('hidden')) {
+        console.log('🔄 Notifications updated event - reloading notifications...');
+        loadNotifications();
+    }
+});

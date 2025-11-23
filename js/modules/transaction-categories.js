@@ -1,7 +1,7 @@
 // js/modules/transaction-categories.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
-import { getTransactions } from '../store.js';
+import { getTransactions, getTransactionCategories, updateInLocalStorage, deleteFromLocalStorage, getState, saveToCache } from '../store.js';
 import { showToast, openModal, closeModal, formatMoney, showConfirm } from '../utils.js';
 
 // --- DOM ELEMENTS ---
@@ -99,12 +99,22 @@ export function loadTransactionCategories() {
  * Tải danh sách hạng mục từ Firebase
  */
 async function loadTransactionCategoriesData() {
+    if (transactionCategoriesSection?.classList.contains('hidden')) return;
+    
     try {
-        const q = query(collection(db, 'transactionCategories'), orderBy('name', 'asc'));
-        const snapshot = await getDocs(q);
-        transactionCategoriesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('📝 DEBUG: loadTransactionCategoriesData() starting...');
+        
+        // Debug store state
+        console.log('📝 DEBUG: Checking store data...');
+        const storeData = getTransactionCategories();
+        console.log('📝 DEBUG: getTransactionCategories() returned:', storeData);
+        
+        // Dùng data từ store thay vì Firebase
+        transactionCategoriesCache = storeData;
+        console.log('📝 DEBUG: transactionCategoriesCache set to:', transactionCategoriesCache.length, 'items');
         
         renderTransactionCategories();
+        console.log('📝 DEBUG: renderTransactionCategories() called');
         
     } catch (error) {
         console.error('Error loading transaction categories:', error);
@@ -285,23 +295,38 @@ async function handleFormSubmit(e) {
         const id = idInput.value;
         
         if (id) {
-            // Update
+            // Update Firebase
             await setDoc(doc(db, 'transactionCategories', id), {
                 ...categoryData,
                 updatedAt: serverTimestamp()
             });
+            
+            // Update localStorage
+            updateInLocalStorage('transactionCategories', id, categoryData);
             showToast('Cập nhật hạng mục thành công', 'success');
         } else {
-            // Create
-            await addDoc(collection(db, 'transactionCategories'), {
+            // Create Firebase
+            const docRef = await addDoc(collection(db, 'transactionCategories'), {
                 ...categoryData,
                 createdAt: serverTimestamp()
             });
-            showToast('Thêm hạng mục thành công', 'success');
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...categoryData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.transactionCategories.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:transactionCategories:updated'));
+            
+            showToast('Thêm hạng mục thành công', 'success'); 
         }
         
         closeModal(modal);
-        loadTransactionCategoriesData();
         
     } catch (error) {
         console.error('Error saving category:', error);
@@ -320,9 +345,12 @@ async function deleteCategory(id) {
     if (!confirmed) return;
     
     try {
+        // Delete Firebase
         await deleteDoc(doc(db, 'transactionCategories', id));
+        
+        // Delete localStorage
+        deleteFromLocalStorage('transactionCategories', id);
         showToast('Xóa hạng mục thành công', 'success');
-        loadTransactionCategoriesData();
     } catch (error) {
         console.error('Error deleting category:', error);
         showToast('Lỗi xóa hạng mục: ' + error.message, 'error');
@@ -351,7 +379,11 @@ async function bulkDeleteCategories() {
     if (!confirmed) return;
     
     try {
+        // Bulk delete Firebase
         await Promise.all(selectedIds.map(id => deleteDoc(doc(db, 'transactionCategories', id))));
+        
+        // Bulk delete localStorage
+        selectedIds.forEach(id => deleteFromLocalStorage('transactionCategories', id));
         
         // Reset trạng thái checkbox sau khi xóa thành công
         selectedMobileCategoryIds.clear();
@@ -359,7 +391,6 @@ async function bulkDeleteCategories() {
         updateClearSelectionButton();
         
         showToast(`Xóa thành công ${selectedIds.length} hạng mục`, 'success');
-        loadTransactionCategoriesData();
     } catch (error) {
         console.error('Error bulk deleting categories:', error);
         showToast('Lỗi xóa hạng mục: ' + error.message, 'error');
@@ -414,20 +445,9 @@ async function createDefaultCategories() {
 
         for (const category of defaultCategories) {
             try {
-                // Kiểm tra xem đã tồn tại chưa
-                const existingDoc = await getDocs(query(
-                    collection(db, 'transactionCategories'),
-                    where('name', '==', category.name)
-                ));
-
-                if (existingDoc.empty) {
-                    // Tạo mới với ID cố định
-                    await setDoc(doc(db, 'transactionCategories', category.id), {
-                        name: category.name,
-                        createdAt: serverTimestamp()
-                    });
-                    console.log(`Created default category: ${category.name}`);
-                }
+                // KHÔNG kiểm tra Firebase - skip tạo default categories
+                console.log('🚫 Skip creating default category:', category.name);
+                continue;
             } catch (error) {
                 console.log(`Category ${category.name} may already exist or error:`, error.message);
             }
@@ -436,3 +456,15 @@ async function createDefaultCategories() {
         console.error('Error creating default categories:', error);
     }
 }
+
+/**
+ * Listen for store updates để reload data
+ */
+document.addEventListener('store:transactionCategories:updated', () => {
+    console.log('📝 TransactionCategories: Store updated, reloading data...');
+    console.log('📝 DEBUG: About to call loadTransactionCategories()');
+    loadTransactionCategories();
+    console.log('📝 DEBUG: loadTransactionCategories() called');
+});
+
+console.log('📝 DEBUG: TransactionCategories event listener registered for store:transactionCategories:updated');

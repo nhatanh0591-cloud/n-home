@@ -1,11 +1,11 @@
     // js/modules/bills.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
-import { getBills, getBuildings, getCustomers, getContracts, getServices, getAccounts } from '../store.js';
+import { getBills, getBuildings, getCustomers, getContracts, getServices, getAccounts, getTransactionCategories, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage
+    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage, safeToDate
 } from '../utils.js';
 
 // --- HÀM HELPER ---
@@ -265,14 +265,9 @@ function applyBillFilters() {
             // TRƯỜNG HỢP KHÔNG LỌC - SẮP XẾP THEO THỜI GIAN TẠO (mới nhất trước)
             const getCreatedTime = (bill) => {
                 if (bill.createdAt) {
-                    if (bill.createdAt.toDate) {
-                        // Firestore Timestamp
-                        return bill.createdAt.toDate().getTime();
-                    } else if (bill.createdAt instanceof Date) {
-                        return bill.createdAt.getTime();
-                    } else {
-                        return new Date(bill.createdAt).getTime();
-                    }
+                    // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+                    return safeToDate(bill.createdAt).getTime();
+                } else {
                 }
                 // Fallback về billDate nếu không có createdAt
                 return parseDateInput(bill.billDate) || 0;
@@ -924,17 +919,36 @@ async function handleBillFormSubmit(e) {
         console.log('Final bill data:', billData);
 
         if (billId) {
-            // Sửa
+            // Update Firebase
             await setDoc(doc(db, 'bills', billId), billData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('bills', billId, billData);
+            
+            // Dispatch event để UI cập nhật ngay
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
+            
             showToast('Cập nhật Hóa đơn thành công!');
         } else {
-            // Thêm mới
+            // Create Firebase
             billData.id = generateId(); // Tạo ID ở client
             billData.status = 'unpaid';
             billData.approved = false;
             billData.paidAmount = 0; // ĐẶT RÕ RÀNG = 0 KHI TẠO MỚI
             billData.createdAt = serverTimestamp();
             await setDoc(doc(db, 'bills', billData.id), billData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...billData, 
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.bills.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:bills:updated'));
+            
             showToast('Tạo Hóa đơn thành công!');
         }
         
@@ -983,9 +997,12 @@ async function deleteBill(billId) {
             }
         }
         
+        // Delete Firebase + localStorage
         await deleteDoc(doc(db, 'bills', billId));
+        deleteFromLocalStorage('bills', billId);
+        
         showToast(bill && bill.isTerminationBill ? 'Đã xóa hóa đơn thanh lý và khôi phục hợp đồng!' : 'Đã xóa hóa đơn thành công!');
-        // Store listener tự động cập nhật
+        // Event đã được dispatch bởi deleteFromLocalStorage
     } catch (error) {
         showToast('Lỗi xóa hóa đơn: ' + error.message, 'error');
     }
@@ -1009,10 +1026,20 @@ async function toggleBillApproval(billId) {
     try {
         const newApproved = !bill.approved;
         console.log('🔄 Changing approved status to:', newApproved);
+        // Update Firebase
         await setDoc(doc(db, 'bills', billId), {
             approved: newApproved,
             updatedAt: serverTimestamp()
         }, { merge: true });
+        
+        // Update localStorage
+        updateInLocalStorage('bills', billId, {
+            approved: newApproved,
+            updatedAt: new Date()
+        });
+        
+        // Dispatch event để UI cập nhật ngay
+        window.dispatchEvent(new CustomEvent('store:bills:updated'));
 
         // Tạo thông báo admin khi duyệt hóa đơn
         if (newApproved) {
@@ -1035,7 +1062,7 @@ async function toggleBillApproval(billId) {
                     message: `Hóa đơn tháng ${bill.period}-${billYear} cho phòng ${building.code}-${bill.room} đã được duyệt`,
                     customerMessage: `Bạn có hóa đơn tiền nhà tháng ${bill.period}-${billYear} cần thanh toán. Vui lòng kiểm tra và thanh toán đúng hạn.`,
                     amount: bill.totalAmount,
-                    isRead: true, // Thông báo từ web gửi app không cần đánh dấu chưa đọc
+                    isRead: true, // ĐÃ ĐỌC theo logic cũ của bạn
                     createdAt: serverTimestamp()
                 };
 
@@ -1051,7 +1078,8 @@ async function toggleBillApproval(billId) {
             console.log('❌ Bill unapproved! Deleting old approved notification...');
             
             try {
-                // Tìm và xóa thông báo duyệt cũ cho billId này
+                // Tìm và xóa thông báo duyệt cũ cho billId này từ Firebase
+                console.log('🗑️ Tìm và xóa thông báo bill_approved cho bill:', bill.id);
                 const notificationsQuery = query(
                     collection(db, 'adminNotifications'), 
                     where('billId', '==', bill.id),
@@ -1065,9 +1093,19 @@ async function toggleBillApproval(billId) {
                 
                 if (deletePromises.length > 0) {
                     await Promise.all(deletePromises);
-                    console.log(`✅ Đã xóa ${deletePromises.length} thông báo duyệt cũ cho bill ${bill.id}`);
+                    console.log(`✅ Đã xóa ${deletePromises.length} thông báo bill_approved từ Firebase cho bill ${bill.id}`);
+                    
+                    // 🗑️ XÓA KHỎI LOCALSTORAGE NGAY LẬP TỨC
+                    notificationsSnapshot.docs.forEach(docSnapshot => {
+                        deleteFromLocalStorage('notifications', docSnapshot.id);
+                        console.log(`✅ Đã xóa thông báo bill_approved khỏi localStorage: ${docSnapshot.id}`);
+                    });
+                    
+                    // 🔄 Dispatch event để UI notifications cập nhật ngay
+                    window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+                    console.log(`🔄 Dispatched notifications update event`);
                 } else {
-                    console.log('ℹ️ Không tìm thấy thông báo duyệt cũ để xóa');
+                    console.log('ℹ️ Không tìm thấy thông báo bill_approved để xóa cho bill:', bill.id);
                 }
                 
             } catch (error) {
@@ -1084,8 +1122,13 @@ async function toggleBillApproval(billId) {
 
 async function toggleBillStatus(billId, paymentDate = null) {
     const bill = getBills().find(b => b.id === billId);
-    if (!bill) return;
+    if (!bill) {
+        console.error('Không tìm thấy bill:', billId);
+        return;
+    }
 
+    console.log('Bắt đầu toggleBillStatus cho bill:', billId, 'trạng thái hiện tại:', bill.status);
+    
     try {
         const newStatus = bill.status === 'paid' ? 'unpaid' : 'paid';
         let message = '';
@@ -1125,16 +1168,39 @@ async function toggleBillStatus(billId, paymentDate = null) {
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             };
-            await addDoc(collection(db, 'transactions'), transactionData);
+            // Create transaction Firebase + localStorage
+            const transactionDocRef = await addDoc(collection(db, 'transactions'), transactionData);
             
-            // 💰 CẬP NHẬT PAIDAMOUNT VÀO BILL
+            // Add to localStorage với Firebase ID
+            const newTransactionItem = { 
+                ...transactionData,
+                id: transactionDocRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.transactions.unshift(newTransactionItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:transactions:updated'));
+            
+            // 💰 CẬP NHẬT PAIDAMOUNT VÀO BILL - Firebase + localStorage
             const totalPaid = bill.totalAmount; // Thanh toán đủ
-            await setDoc(doc(db, 'bills', billId), {
+            const updateData = {
                 status: newStatus,
                 paidAmount: totalPaid,
                 paidDate: transactionDate, // Lưu ngày thu tiền
                 updatedAt: serverTimestamp()
-            }, { merge: true });
+            };
+            await setDoc(doc(db, 'bills', billId), updateData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('bills', billId, {
+                ...updateData,
+                updatedAt: new Date()
+            });
+            
+            // Dispatch event để UI cập nhật ngay
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
             
             message = 'Đã thu tiền và tạo phiếu thu!';
             
@@ -1177,7 +1243,7 @@ async function toggleBillStatus(billId, paymentDate = null) {
             }
         } else {
             // Chuyển sang "Chưa thanh toán" -> Xóa phiếu thu liên quan
-            console.log(`🗑️ Hủy thanh toán - xóa transaction cho bill ${billId}`);
+            console.log(`🗑️ Hủy thanh toán - Tìm và xóa transactions cho bill: ${billId}`);
             const q = query(collection(db, 'transactions'), where('billId', '==', billId));
             const querySnapshot = await getDocs(q);
             
@@ -1185,38 +1251,89 @@ async function toggleBillStatus(billId, paymentDate = null) {
             for (const docSnapshot of querySnapshot.docs) {
                 await deleteDoc(doc(db, 'transactions', docSnapshot.id));
                 console.log(`✅ Đã xóa transaction: ${docSnapshot.id}`);
+                
+                // 🗑️ XÓA KHỎI LOCALSTORAGE NGAY LẬP TỨC
+                deleteFromLocalStorage('transactions', docSnapshot.id);
+                console.log(`✅ [WEB-DEBUG] Đã xóa transaction khỏi localStorage: ${docSnapshot.id}`);
+            }
+            
+            // 🔄 Dispatch event để UI transactions cập nhật ngay
+            if (querySnapshot.docs.length > 0) {
+                window.dispatchEvent(new CustomEvent('store:transactions:updated'));
+                console.log(`🔄 [WEB-DEBUG] Dispatched transactions update event`);
             }
             
             // 🗑️ XÓA THÔNG BÁO WEB ADMIN KHI HỦY THU TIỀN
-            console.log(`🗑️ Hủy thanh toán - xóa thông báo web admin cho bill ${billId}`);
+            console.log(`🔍 [WEB-DEBUG] Hủy thanh toán - Tìm thông báo payment_collected cho bill: ${billId}`);
             const adminNotifQuery = query(
                 collection(db, 'adminNotifications'),
                 where('billId', '==', billId),
                 where('type', '==', 'payment_collected')
             );
-            
             const adminNotifSnapshot = await getDocs(adminNotifQuery);
-            console.log(`🗑️ Tìm thấy ${adminNotifSnapshot.docs.length} thông báo web admin để xóa`);
+            
+            console.log(`🔍 [WEB-DEBUG] Query result: ${adminNotifSnapshot.docs.length} thông báo tìm thấy`);
+            
+            if (adminNotifSnapshot.docs.length === 0) {
+                console.log(`⚠️ [WEB-DEBUG] KHÔNG tìm thấy thông báo nào cho billId: ${billId}, type: payment_collected`);
+                
+                // DEBUG: Kiểm tra tất cả thông báo có billId này
+                const allBillNotifQuery = query(
+                    collection(db, 'adminNotifications'),
+                    where('billId', '==', billId)
+                );
+                const allBillNotifSnapshot = await getDocs(allBillNotifQuery);
+                console.log(`🔍 [WEB-DEBUG] Tất cả thông báo cho bill ${billId}:`, 
+                    allBillNotifSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                );
+            } else {
+                console.log(`🗑️ [WEB-DEBUG] Tìm thấy ${adminNotifSnapshot.docs.length} thông báo để xóa:`,
+                    adminNotifSnapshot.docs.map(doc => ({ id: doc.id, type: doc.data().type, billId: doc.data().billId }))
+                );
+            }
             
             for (const notifDoc of adminNotifSnapshot.docs) {
                 await deleteDoc(doc(db, 'adminNotifications', notifDoc.id));
-                console.log(`✅ Đã xóa thông báo web admin: ${notifDoc.id}`);
+                console.log(`✅ [WEB-DEBUG] Đã xóa thông báo: ${notifDoc.id} (type: ${notifDoc.data().type})`);
+                
+                // 🗑️ XÓA KHỎI LOCALSTORAGE NGAY LẬP TỨC
+                deleteFromLocalStorage('notifications', notifDoc.id);
+                console.log(`✅ [WEB-DEBUG] Đã xóa thông báo khỏi localStorage: ${notifDoc.id}`);
             }
             
-            // 💰 ĐẶT LẠI PAIDAMOUNT VỀ 0
-            await setDoc(doc(db, 'bills', billId), {
+            // 🔄 Dispatch event để UI notifications cập nhật ngay
+            if (adminNotifSnapshot.docs.length > 0) {
+                window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+                console.log(`🔄 [WEB-DEBUG] Dispatched notifications update event`);
+            }
+            
+            // 💰 ĐẶT LẠI PAIDAMOUNT VỀ 0 - Firebase + localStorage
+            const updateData = {
                 status: newStatus,
                 paidAmount: 0,
                 updatedAt: serverTimestamp()
-            }, { merge: true });
+            };
+            await setDoc(doc(db, 'bills', billId), updateData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('bills', billId, {
+                ...updateData,
+                updatedAt: new Date()
+            });
+            
+            // Dispatch event để UI cập nhật ngay
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
             
             // App sẽ tự động xóa thông báo payment thông qua transaction listener
             message = 'Đã hủy thanh toán và xóa phiếu thu!';
         }
 
+        console.log('✅ Hoàn thành toggleBillStatus:', message);
         showToast(message);
         // Store listener sẽ tự động cập nhật
     } catch (error) {
+        console.error('❌ Lỗi trong toggleBillStatus:', error);
+        console.error('❌ Stack trace:', error.stack);
         showToast('Lỗi cập nhật: ' + error.message, 'error');
     }
 }
@@ -1260,10 +1377,20 @@ async function bulkApprove(approve) {
 
     try {
         for (const billId of selected) {
+            // Update Firebase
             await setDoc(doc(db, 'bills', billId), {
                 approved: approve,
                 updatedAt: serverTimestamp()
             }, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('bills', billId, {
+                approved: approve,
+                updatedAt: new Date()
+            });
+            
+            // Dispatch event để UI cập nhật ngay
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
 
             // Tạo/xóa thông báo admin
             if (approve) {
@@ -1287,7 +1414,7 @@ async function bulkApprove(approve) {
                             message: `Hóa đơn tháng ${bill.period}-${billYear} cho phòng ${building.code}-${bill.room} đã được duyệt`,
                             customerMessage: `Bạn có hóa đơn tiền nhà tháng ${bill.period}-${billYear} cần thanh toán. Vui lòng kiểm tra và thanh toán đúng hạn.`,
                             amount: bill.totalAmount,
-                            isRead: true, // Thông báo từ web gửi app không cần đánh dấu chưa đọc
+                            isRead: true, // ĐÃ ĐỌC theo logic cũ của bạn
                             createdAt: serverTimestamp()
                         };
 
@@ -1300,23 +1427,33 @@ async function bulkApprove(approve) {
                 console.log('❌ [BULK] Bỏ duyệt - xóa thông báo duyệt cũ cho bill:', billId);
                 
                 try {
-                    // Tìm và xóa thông báo duyệt cũ cho billId này
+                    // Tìm và xóa thông báo duyệt cũ cho billId này từ Firebase
+                    console.log('🗑️ [BULK] Tìm và xóa thông báo bill_approved cho bill:', billId);
                     const notificationsQuery = query(
-                        collection(db, 'adminNotifications'), 
+                        collection(db, 'adminNotifications'),
                         where('billId', '==', billId),
                         where('type', '==', 'bill_approved')
                     );
                     const notificationsSnapshot = await getDocs(notificationsQuery);
-                    
                     const deletePromises = notificationsSnapshot.docs.map(doc => 
                         deleteDoc(doc.ref)
                     );
                     
                     if (deletePromises.length > 0) {
                         await Promise.all(deletePromises);
-                        console.log(`✅ [BULK] Đã xóa ${deletePromises.length} thông báo duyệt cũ cho bill ${billId}`);
+                        console.log(`✅ [BULK] Đã xóa ${deletePromises.length} thông báo bill_approved từ Firebase cho bill ${billId}`);
+                        
+                        // 🗑️ XÓA KHỎI LOCALSTORAGE NGAY LẬP TỨC
+                        notificationsSnapshot.docs.forEach(docSnapshot => {
+                            deleteFromLocalStorage('notifications', docSnapshot.id);
+                            console.log(`✅ [BULK] Đã xóa thông báo bill_approved khỏi localStorage: ${docSnapshot.id}`);
+                        });
+                        
+                        // 🔄 Dispatch event để UI notifications cập nhật ngay
+                        window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+                        console.log(`🔄 [BULK] Dispatched notifications update event`);
                     } else {
-                        console.log('ℹ️ [BULK] Không tìm thấy thông báo duyệt cũ để xóa cho bill:', billId);
+                        console.log('ℹ️ [BULK] Không tìm thấy thông báo bill_approved để xóa cho bill:', billId);
                     }
                     
                 } catch (error) {
@@ -1403,7 +1540,21 @@ async function bulkCollect(billIds = null, paymentDate = null) {
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                 };
-                await addDoc(collection(db, 'transactions'), transactionData);
+                // Create transaction Firebase + localStorage
+                const transactionDocRef = await addDoc(collection(db, 'transactions'), transactionData);
+                
+                // Add to localStorage với Firebase ID
+                const { getState, saveToCache } = await import('../store.js');
+                const newTransactionItem = { 
+                    ...transactionData,
+                    id: transactionDocRef.id,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+                const state = getState();
+                state.transactions.unshift(newTransactionItem);
+                saveToCache();
+                document.dispatchEvent(new CustomEvent('store:transactions:updated'));
             }
             
             // 🔔 GỬI THÔNG BÁO ĐẨY KHI THANH TOÁN THÀNH CÔNG (giống như thu tiền đơn lẻ)
@@ -1504,8 +1655,8 @@ async function bulkUncollect() {
         for (const billId of selected) {
             console.log(`📝 Cập nhật hóa đơn ${billId}`);
             
-            // 🗑️ XÓA TRANSACTION LIÊN QUAN (giống như hủy thu tiền đơn lẻ)
-            console.log(`🗑️ [BULK] Hủy thanh toán - xóa transaction cho bill ${billId}`);
+            // 🗑️ XÓA TRANSACTION LIÊN QUAN
+            console.log(`🗑️ [BULK] Hủy thanh toán - Tìm và xóa transactions cho bill: ${billId}`);
             const q = query(collection(db, 'transactions'), where('billId', '==', billId));
             const querySnapshot = await getDocs(q);
             
@@ -1513,22 +1664,60 @@ async function bulkUncollect() {
             for (const docSnapshot of querySnapshot.docs) {
                 await deleteDoc(doc(db, 'transactions', docSnapshot.id));
                 console.log(`✅ [BULK] Đã xóa transaction: ${docSnapshot.id}`);
+                
+                // 🗑️ XÓA KHỎI LOCALSTORAGE NGAY LẬP TỨC
+                deleteFromLocalStorage('transactions', docSnapshot.id);
+                console.log(`✅ [BULK-DEBUG] Đã xóa transaction khỏi localStorage: ${docSnapshot.id}`);
             }
             
-            // 🗑️ XÓA THÔNG BÁO WEB ADMIN (giống như hủy thu tiền đơn lẻ)
-            console.log(`🗑️ [BULK] Hủy thanh toán - xóa thông báo web admin cho bill ${billId}`);
+            // 🔄 Dispatch event để UI transactions cập nhật ngay
+            if (querySnapshot.docs.length > 0) {
+                window.dispatchEvent(new CustomEvent('store:transactions:updated'));
+                console.log(`🔄 [BULK-DEBUG] Dispatched transactions update event`);
+            }
+            
+            // 🗑️ XÓA THÔNG BÁO WEB ADMIN
+            console.log(`🔍 [BULK-DEBUG] Hủy thanh toán - Tìm thông báo payment_collected cho bill: ${billId}`);
             const adminNotifQuery = query(
                 collection(db, 'adminNotifications'),
                 where('billId', '==', billId),
                 where('type', '==', 'payment_collected')
             );
-            
             const adminNotifSnapshot = await getDocs(adminNotifQuery);
-            console.log(`🗑️ [BULK] Tìm thấy ${adminNotifSnapshot.docs.length} thông báo web admin để xóa`);
+            
+            console.log(`🔍 [BULK-DEBUG] Query result: ${adminNotifSnapshot.docs.length} thông báo tìm thấy`);
+            
+            if (adminNotifSnapshot.docs.length === 0) {
+                console.log(`⚠️ [BULK-DEBUG] KHÔNG tìm thấy thông báo nào cho billId: ${billId}, type: payment_collected`);
+                
+                // DEBUG: Kiểm tra tất cả thông báo có billId này
+                const allBillNotifQuery = query(
+                    collection(db, 'adminNotifications'),
+                    where('billId', '==', billId)
+                );
+                const allBillNotifSnapshot = await getDocs(allBillNotifQuery);
+                console.log(`🔍 [BULK-DEBUG] Tất cả thông báo cho bill ${billId}:`, 
+                    allBillNotifSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                );
+            } else {
+                console.log(`🗑️ [BULK-DEBUG] Tìm thấy ${adminNotifSnapshot.docs.length} thông báo để xóa:`,
+                    adminNotifSnapshot.docs.map(doc => ({ id: doc.id, type: doc.data().type, billId: doc.data().billId }))
+                );
+            }
             
             for (const notifDoc of adminNotifSnapshot.docs) {
                 await deleteDoc(doc(db, 'adminNotifications', notifDoc.id));
-                console.log(`✅ [BULK] Đã xóa thông báo web admin: ${notifDoc.id}`);
+                console.log(`✅ [BULK-DEBUG] Đã xóa thông báo: ${notifDoc.id} (type: ${notifDoc.data().type})`);
+                
+                // 🗑️ XÓA KHỎI LOCALSTORAGE NGAY LẬP TỨC
+                deleteFromLocalStorage('notifications', notifDoc.id);
+                console.log(`✅ [BULK-DEBUG] Đã xóa thông báo khỏi localStorage: ${notifDoc.id}`);
+            }
+            
+            // 🔄 Dispatch event để UI notifications cập nhật ngay
+            if (adminNotifSnapshot.docs.length > 0) {
+                window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+                console.log(`🔄 [BULK-DEBUG] Dispatched notifications update event`);
             }
             
             // Cập nhật trạng thái hóa đơn
@@ -1572,7 +1761,9 @@ async function bulkDelete() {
 
     try {
         for (const billId of selected) {
+            // Delete Firebase + localStorage
             await deleteDoc(doc(db, 'bills', billId));
+            deleteFromLocalStorage('bills', billId);
         }
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
@@ -1740,50 +1931,59 @@ function handleBillRoomChange() {
     
     if (buildingId && room) {
         const contracts = getContracts();
-        console.log('All contracts:', contracts);
-        console.log('Looking for:', { buildingId, room });
         
-        // Debug: xem tất cả buildingId và room của hợp đồng
-        contracts.forEach((c, i) => {
-            console.log(`Contract ${i}:`, { 
-                buildingId: c.buildingId, 
-                room: c.room, 
-                representativeId: c.representativeId,
-                status: c.status 
-            });
+        // Tìm hợp đồng còn hiệu lực
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let contract = contracts.find(c => {
+            if (c.buildingId !== buildingId) return false;
+            
+            // Loại bỏ hợp đồng đã thanh lý
+            if (c.status === 'terminated') return false;
+            
+            // Kiểm tra ngày hết hạn - chỉ chấp nhận hợp đồng còn hiệu lực
+            const endDate = parseDateInput(c.endDate);
+            if (!endDate) return false;
+            endDate.setHours(0, 0, 0, 0);
+            if (endDate < today) return false; // Loại bỏ hợp đồng quá hạn
+            
+            // Kiểm tra room match
+            const cRoom = c.room ? c.room.trim() : '';
+            const sRoom = room ? room.trim() : '';
+            
+            // Thử match trực tiếp
+            if (cRoom === sRoom) return true;
+            if (cRoom.toLowerCase() === sRoom.toLowerCase()) return true;
+            
+            // Thử normalize: G01 <-> G1, A02 <-> A2
+            const toShort = (r) => {
+                if (/^[A-Za-z]0\d+$/i.test(r)) {
+                    return r.replace(/^([A-Za-z])0+/i, '$1');
+                }
+                return r;
+            };
+            
+            const toLong = (r) => {
+                if (/^[A-Za-z]\d$/i.test(r)) {
+                    return r.charAt(0) + '0' + r.charAt(1);
+                }
+                return r;
+            };
+            
+            // Thử tất cả combinations
+            const cShort = toShort(cRoom);
+            const cLong = toLong(cRoom);
+            const sShort = toShort(sRoom);
+            const sLong = toLong(sRoom);
+            
+            return cShort === sRoom || cLong === sRoom || 
+                   cRoom === sShort || cRoom === sLong ||
+                   cShort.toLowerCase() === sRoom.toLowerCase() ||
+                   cLong.toLowerCase() === sRoom.toLowerCase() ||
+                   cRoom.toLowerCase() === sShort.toLowerCase() ||
+                   cRoom.toLowerCase() === sLong.toLowerCase();
         });
-        
-        // Normalize room name để khớp với contract data
-        // VD: G01 -> G1, G02 -> G2, nhưng giữ nguyên số như 101, 201
-        function normalizeRoomName(roomName) {
-            // Nếu room bắt đầu bằng chữ và có số 0 đầu -> bỏ số 0
-            // VD: G01 -> G1, A02 -> A2
-            if (/^[A-Za-z]\d+$/.test(roomName) && roomName.match(/^[A-Za-z]0(\d+)$/)) {
-                return roomName.replace(/^([A-Za-z])0+/, '$1');
-            }
-            return roomName;
-        }
-        
-        const normalizedRoom = normalizeRoomName(room);
-        console.log(`Normalized room: ${room} -> ${normalizedRoom}`);
-        
-        // Tìm hợp đồng bất kỳ trước (không cần active) - thử cả room gốc và normalized
-        let contract = contracts.find(c => 
-            c.buildingId === buildingId && 
-            (c.room === room || c.room === normalizedRoom)
-        );
-        
-        console.log('Found any contract:', contract);
-        
-        // Nếu có thì kiểm tra status
-        if (contract) {
-            const status = getContractStatus(contract);
-            console.log('Contract status:', status);
-            if (status !== 'active') {
-                console.log('Contract not active, using dummy contract');
-                contract = null; // Không dùng hợp đồng không active
-            }
-        }
         
         const building = getBuildings().find(b => b.id === buildingId);
         
@@ -2326,7 +2526,9 @@ async function showBillDetail(billId) {
     setEl('bill-detail-customer-name', customer ? customer.name : 'N/A');
     setEl('bill-detail-address', building ? building.address : 'N/A');
     
-    const billYear = parseDateInput(bill.createdAt?.toDate() || bill.billDate).getFullYear();
+    const billYear = parseDateInput(
+        bill.createdAt ? safeToDate(bill.createdAt) : bill.billDate
+    ).getFullYear();
     setEl('bill-detail-title', `Hóa Đơn Tiền Nhà Tháng ${String(bill.period).padStart(2, '0')}-${billYear}`);
 
     const tableBody = document.getElementById('bill-detail-services-table');
@@ -2959,7 +3161,18 @@ async function handleImportSubmit() {
                     updatedAt: serverTimestamp()
                 };
                 
+                // Import to Firebase + localStorage
                 await setDoc(doc(db, 'bills', billData.id), billData);
+                
+                // Add to localStorage với Firebase ID
+                const newItem = { 
+                    ...billData,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+                const state = getState();
+                state.bills.unshift(newItem);
+                
                 successCount++;
             } catch (err) {
                 console.error('Lỗi import hóa đơn:', err);
@@ -2967,12 +3180,15 @@ async function handleImportSubmit() {
             }
         }
         
+        // Save cache và dispatch event sau khi import xong
+        if (successCount > 0) {
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:bills:updated'));
+        }
+        
         closeModal(importBillsModal);
         showToast(`Nhập thành công ${successCount} hóa đơn!${errorCount > 0 ? ` (${errorCount} lỗi)` : ''}`, 
                   successCount > 0 ? 'success' : 'error');
-        
-        // Làm mới danh sách hóa đơn
-        loadBills();
         
     } catch (error) {
         console.error('Lỗi nhập dữ liệu:', error);
@@ -3103,36 +3319,26 @@ function generateId() {
  * Tạo transaction items từ bill với category ID thực từ database
  */
 async function createTransactionItemsFromBillWithRealCategories(bill) {
-    // Load categories từ Firebase
-    const categoriesSnapshot = await getDocs(query(collection(db, 'transactionCategories'), orderBy('createdAt', 'desc')));
-    let categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // ✅ Load categories từ store
+    let categories = getTransactionCategories();
     
-    // Tự tạo hạng mục nếu chưa có
-    const ensureCategoryExists = async (name, type = 'income') => {
+    // Tìm hạng mục hoặc dùng default
+    const ensureCategoryExists = (name, type = 'income') => {
         let category = categories.find(c => c.name === name);
         if (!category) {
-            console.log(`[AUTO CREATE] Tạo hạng mục mới: ${name}`);
-            const newCategoryData = {
-                name: name,
-                type: type,
-                code: name.replace(/\s+/g, '_').toLowerCase(),
-                description: `Hạng mục tự động tạo từ hệ thống`,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            };
-            const newCategoryRef = await addDoc(collection(db, 'transactionCategories'), newCategoryData);
-            category = { id: newCategoryRef.id, ...newCategoryData };
-            categories.push(category); // Thêm vào cache
+            console.log(`[WARNING] Không tìm thấy hạng mục: ${name}, dùng default`);
+            // Dùng hạng mục đầu tiên cùng loại hoặc tạo ID giả
+            category = categories.find(c => c.type === type) || { id: 'default-' + type };
         }
         return category.id;
     };
     
     // Đảm bảo các hạng mục tồn tại
-    const electricCategoryId = await ensureCategoryExists('Tiền điện', 'income');  
-    const waterCategoryId = await ensureCategoryExists('Tiền nước', 'income');
-    const houseCategoryId = await ensureCategoryExists('Tiền nhà', 'income');
-    const commissionCategoryId = await ensureCategoryExists('Tiền hoa hồng', 'income');
-    const otherCategoryId = await ensureCategoryExists('Chi phí khác', 'income');
+    const electricCategoryId = ensureCategoryExists('Tiền điện', 'income');  
+    const waterCategoryId = ensureCategoryExists('Tiền nước', 'income');
+    const houseCategoryId = ensureCategoryExists('Tiền nhà', 'income');
+    const commissionCategoryId = ensureCategoryExists('Tiền hoa hồng', 'income');
+    const otherCategoryId = ensureCategoryExists('Chi phí khác', 'income');
     
     const items = [];
     

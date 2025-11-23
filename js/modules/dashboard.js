@@ -12,7 +12,7 @@ import {
     getTransactions, 
     getTasks 
 } from '../store.js';
-import { formatCurrency } from '../utils.js';
+import { formatCurrency, safeToDate } from '../utils.js';
 
 // Cache DOM elements
 const dashboardSection = document.getElementById('dashboard-section');
@@ -172,10 +172,9 @@ function calculateContractStats() {
         let contractEndDate;
         if (typeof contract.endDate === 'string') {
             contractEndDate = new Date(contract.endDate);
-        } else if (contract.endDate.toDate) {
-            contractEndDate = contract.endDate.toDate();
         } else {
-            contractEndDate = new Date(contract.endDate);
+            // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+            contractEndDate = safeToDate(contract.endDate);
         }
         
         return contractEndDate >= today && contractEndDate <= thirtyDaysLater;
@@ -188,10 +187,9 @@ function calculateContractStats() {
         let contractEndDate;
         if (typeof contract.endDate === 'string') {
             contractEndDate = new Date(contract.endDate);
-        } else if (contract.endDate.toDate) {
-            contractEndDate = contract.endDate.toDate();
         } else {
-            contractEndDate = new Date(contract.endDate);
+            // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
+            contractEndDate = safeToDate(contract.endDate);
         }
         
         return contractEndDate < today;
@@ -283,9 +281,9 @@ function calculateTransactionStats(month, year) {
                 transactionYear = parseInt(y);
                 transactionMonth = parseInt(m);
             }
-        } else if (transaction.date.toDate) {
-            // Firestore Timestamp
-            const date = transaction.date.toDate();
+        } else if (transaction.date.toDate || transaction.date.seconds) {
+            // Firestore Timestamp - sử dụng safeToDate
+            const date = safeToDate(transaction.date);
             transactionMonth = date.getMonth() + 1;
             transactionYear = date.getFullYear();
         }

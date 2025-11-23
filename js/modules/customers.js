@@ -1,7 +1,7 @@
 // js/modules/customers.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { getCustomers, getContracts, getBuildings } from '../store.js';
+import { getCustomers, getContracts, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showConfirm } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -113,6 +113,8 @@ export function initCustomers() {
  * Tải, lọc, và chuẩn bị dữ liệu khách hàng
  */
 export function loadCustomers() {
+    if (customersSection?.classList.contains('hidden')) return;
+    
     const allCustomers = getCustomers();
     const contracts = getContracts();
     const buildings = getBuildings();
@@ -450,9 +452,12 @@ async function handleBodyClick(e) {
         const confirmed = await showConfirm('Bạn có chắc muốn xóa khách hàng này?', 'Xác nhận xóa');
         if (confirmed) {
             try {
+                // Delete Firebase
                 await deleteDoc(doc(db, 'customers', id));
+                
+                // Delete localStorage
+                deleteFromLocalStorage('customers', id);
                 showToast('Xóa khách hàng thành công!');
-                // Store listener sẽ tự động cập nhật
             } catch (error) {
                 showToast('Lỗi xóa khách hàng: ' + error.message, 'error');
             }
@@ -505,16 +510,33 @@ async function handleCustomerFormSubmit(e) {
         };
 
         if (id) {
+            // Update Firebase
             await setDoc(doc(db, 'customers', id), customerData, { merge: true });
+            
+            // Update localStorage
+            updateInLocalStorage('customers', id, customerData);
             showToast('Cập nhật khách hàng thành công!');
         } else {
+            // Create Firebase
             customerData.createdAt = serverTimestamp();
-            await addDoc(collection(db, 'customers'), customerData);
+            const docRef = await addDoc(collection(db, 'customers'), customerData);
+            
+            // Add to localStorage với Firebase ID
+            const newItem = { 
+                ...customerData, 
+                id: docRef.id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            const state = getState();
+            state.customers.unshift(newItem);
+            saveToCache();
+            document.dispatchEvent(new CustomEvent('store:customers:updated'));
+            
             showToast('Thêm khách hàng thành công!');
         }
 
         closeModal(customerModal);
-        // Store listener sẽ tự động cập nhật
     } catch (error) {
         showToast('Lỗi lưu khách hàng: ' + error.message, 'error');
     }
@@ -537,8 +559,10 @@ async function handleBulkDelete() {
     const confirmed = await showConfirm(`Bạn có chắc muốn xóa ${selectedIds.length} khách hàng đã chọn?`, 'Xác nhận xóa');
     if (confirmed) {
         try {
+            // Bulk delete Firebase + localStorage
             for (const id of selectedIds) {
                 await deleteDoc(doc(db, 'customers', id));
+                deleteFromLocalStorage('customers', id);
             }
             showToast(`Đá xóa ${selectedIds.length} khách hàng thành công!`);
             
@@ -546,8 +570,6 @@ async function handleBulkDelete() {
             selectedMobileCustomerIds.clear();
             document.querySelectorAll('.customer-checkbox').forEach(cb => cb.checked = false);
             if (selectAllCheckbox) selectAllCheckbox.checked = false;
-            
-            // Store listener sẽ tự động cập nhật
         } catch (error) {
             showToast('Lỗi xóa khách hàng: ' + error.message, 'error');
         }
@@ -642,21 +664,39 @@ function initImportModal() {
                 }
 
                 try {
-                    await addDoc(collection(db, 'customers'), {
+                    // Import to Firebase + localStorage
+                    const docRef = await addDoc(collection(db, 'customers'), {
                         name: name.toString().trim(),
                         phone: phone,
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
+                    
+                    // Add to localStorage với Firebase ID
+                    const newItem = {
+                        name: name.toString().trim(),
+                        phone: phone,
+                        id: docRef.id,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    };
+                    const state = getState();
+                    state.customers.unshift(newItem);
+                    
                     successCount++;
                 } catch (err) {
                     errorCount++;
                 }
             }
             
+            // Save cache và dispatch event sau khi import xong
+            if (successCount > 0) {
+                saveToCache();
+                document.dispatchEvent(new CustomEvent('store:customers:updated'));
+            }
+            
             closeModal(importCustomersModal);
             showToast(`Nhập thành công ${successCount} khách hàng${errorCount > 0 ? `, lỗi ${errorCount}` : ''}!`);
-            // Store listener sẽ tự động cập nhật
         } catch (error) {
             showToast('Lỗi nhập dữ liệu: ' + error.message, 'error');
         }
