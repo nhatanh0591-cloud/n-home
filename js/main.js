@@ -6,6 +6,7 @@ import { initializeStore, getBuildings, refreshStore } from './store.js';
 import { initNavigation, showSection } from './navigation.js';
 import { showToast } from './utils.js';
 import { initAuth, addLogoutButton, getCurrentUser, hideUnauthorizedMenus, logoutAdmin } from './auth.js';
+import { initSyncUI } from './sync-ui.js';
 
 // --- 2. NHẬP CÁC MODULE CHỨC NĂNG ---
 // Nhập cả hàm init (để cài đặt) và hàm load (để điều hướng)
@@ -22,7 +23,20 @@ import { initNotifications, loadNotifications } from './modules/notifications.js
 import { initReports, loadReportData } from './modules/reports.js';
 import { initDashboard, loadDashboard } from './modules/dashboard.js';
 
-// --- 3. KHỞI ĐỘNG ỨNG DỤNG ---
+// --- 3. GLOBAL FUNCTIONS - Sẵn sàng ngay ---
+// Global logout function for HTML onclick - PHẢI CÓ NGAY KHI LOAD
+window.logout = async function() {
+    try {
+        if (confirm('Bạn có chắc muốn đăng xuất?')) {
+            await logoutAdmin();
+        }
+    } catch (error) {
+        console.error('Lỗi đăng xuất:', error);
+        window.location.reload();
+    }
+};
+
+// --- 4. KHỞI ĐỘNG ỨNG DỤNG ---
 document.addEventListener('DOMContentLoaded', async () => {
     const loadingOverlay = document.getElementById('loading-overlay');
     loadingOverlay.classList.remove('hidden');
@@ -98,6 +112,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 🔐 BƯỚC 8: Thêm nút đăng xuất và ẩn menu không có quyền  
         addLogoutButton();
         hideUnauthorizedMenus();
+        
+        // 🔄 BƯỚC 9: Khởi tạo Sync UI
+        initSyncUI();
         
         console.log("Main: ✅ HOÀN TẤT! Web chỉ dùng localStorage - KHÔNG tự động load Firebase!");
         
@@ -410,15 +427,4 @@ window.downloadBuildingsTemplate = downloadBuildingsTemplate;
 window.downloadCustomersTemplate = downloadCustomersTemplate;
 window.downloadContractTemplate = downloadContractTemplate;
 window.importFromExcel = importFromExcel;
-
-// Global logout function for HTML onclick
-window.logout = async function() {
-    try {
-        await logoutAdmin();
-    } catch (error) {
-        console.error('Lỗi đăng xuất:', error);
-        // Force reload nếu có lỗi
-        window.location.reload();
-    }
-};
 

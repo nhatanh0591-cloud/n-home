@@ -211,7 +211,7 @@
                      <span class="font-medium text-gray-800">Đặng Nhật Anh</span>
                      
                      <!-- 🔄 SYNC DATA BUTTON -->
-                     <button id="sync-data-btn" class="sync-data-btn p-2 rounded-lg hover:bg-blue-50 transition-colors group" title="Đồng bộ dữ liệu từ Firebase" onclick="if(window.openSyncModal) window.openSyncModal(); else console.log('Sync not ready');">
+                     <button id="sync-data-btn" class="sync-data-btn p-2 rounded-lg hover:bg-blue-50 transition-colors group" title="Đồng bộ dữ liệu từ Firebase">
                          <svg class="w-6 h-6 text-gray-600 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                          </svg>
@@ -250,7 +250,7 @@
                      </div>
                      
                      <!-- Logout icon button -->
-                     <button onclick="if(window.logout) { if(confirm('Bạn có chắc muốn đăng xuất?')) window.logout(); } else { console.log('Logout function not available'); alert('Chức năng đăng xuất chưa sẵn sàng'); }" class="p-2 rounded-lg hover:bg-red-50 transition-colors group" title="Đăng xuất">
+                     <button onclick="logout()" class="p-2 rounded-lg hover:bg-red-50 transition-colors group" title="Đăng xuất">
                          <svg class="w-6 h-6 text-gray-600 group-hover:text-red-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                          </svg>

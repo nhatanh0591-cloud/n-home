@@ -61,24 +61,12 @@ export function initSyncUI() {
  * Bind các event listeners
  */
 function bindEvents() {
-    // Open modal - Support both click and touch events for mobile
-    console.log('🔗 Binding events to sync button:', syncDataBtn);
-    
-    const handleSyncClick = (e) => {
-        console.log('🔥 SYNC BUTTON TRIGGERED!', e.type, e);
-        e.preventDefault();
-        e.stopPropagation();
+    // Open modal
+    console.log('🔗 Binding click event to sync button:', syncDataBtn);
+    syncDataBtn.addEventListener('click', (e) => {
+        console.log('🔥 SYNC BUTTON CLICKED!', e);
         openSyncModal();
-    };
-    
-    // Add multiple event types for better mobile support
-    syncDataBtn.addEventListener('click', handleSyncClick);
-    syncDataBtn.addEventListener('touchend', handleSyncClick, { passive: false });
-    
-    // Also add a fallback using pointer events (modern mobile browsers)
-    if ('PointerEvent' in window) {
-        syncDataBtn.addEventListener('pointerup', handleSyncClick);
-    }
+    });
     
     // Close modal
     modalCloseBtn.addEventListener('click', closeSyncModal);
@@ -418,9 +406,3 @@ window.testSyncUI = () => {
     console.log('syncDataModal:', document.getElementById('sync-data-modal'));
     initSyncUI();
 };
-
-// Export openSyncModal to window for HTML onclick fallback
-window.openSyncModal = openSyncModal;
-
-// Export openSyncModal to window for HTML onclick fallback
-window.openSyncModal = openSyncModal;

@@ -3,21 +3,6 @@
     background-color: #f0f2f5;
 }
 
-/* Mobile touch support - Enable touch-action for better mobile interaction */
-button, .cursor-pointer {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-
-/* Ensure sync and logout buttons are always clickable on mobile */
-#sync-data-btn,
-.user-info button {
-    user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-}
-
 /* Close button (X) styles - Make all X buttons bigger and consistent */
 button[id*="close-"],
 button[id*="close-"]:not([class*="text-"]) {
