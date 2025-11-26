@@ -119,7 +119,13 @@ export function initTransactions() {
     [filterRoomEl, filterTypeEl, filterAccountEl, 
      filterStartDateEl, filterEndDateEl, filterCategoryEl, filterApprovalEl]
     .filter(el => el) // Loại bỏ các element null
-    .forEach(el => el.addEventListener('input', applyTransactionFilters));
+    .forEach(el => {
+        el.addEventListener('input', applyTransactionFilters);
+        // Date inputs cũng cần listen 'change' event từ calendar picker
+        if (el === filterStartDateEl || el === filterEndDateEl) {
+            el.addEventListener('change', applyTransactionFilters);
+        }
+    });
     
     // Lắng nghe riêng search để reset page
     console.log('🔍 searchEl:', searchEl);
@@ -245,6 +251,52 @@ function applyTransactionFilters() {
     const category = filterCategoryEl?.value || '';
     const approval = filterApprovalEl?.value || '';
     const search = searchEl?.value?.toLowerCase() || '';
+
+    console.log('🔍 Filter dates - INPUT VALUES:', 
+        'FROM:', filterStartDateEl?.value, 
+        'TO:', filterEndDateEl?.value
+    );
+    console.log('🔍 Filter dates - PARSED:', 
+        'startDate:', startDate, 
+        'endDate:', endDate
+    );
+    if (startDate && endDate) {
+        console.log('🔍 COMPARISON:', 
+            'startDate > endDate?', startDate > endDate,
+            'Start:', startDate.toISOString(),
+            'End:', endDate.toISOString()
+        );
+    }
+
+    // ⚠️ VALIDATE: Nếu startDate > endDate thì KHÔNG HIỂN THỊ GÌ HẾT
+    if (startDate && endDate && startDate > endDate) {
+        console.log('🚨 VALIDATION FAILED! startDate > endDate:', {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString()
+        });
+        
+        // FORCE CLEAR cache trước
+        transactionsCache_filtered = [];
+        
+        // Reset về trang 1
+        currentPage = 1;
+        
+        console.log('🚨 Rendering EMPTY table...');
+        
+        // Render empty state NGAY LẬP TỨC - PHẢI TRUYỀN EMPTY ARRAY
+        renderTransactionsTable([]);
+        updateTransactionStats([]);
+        
+        console.log('🚨 Validation complete - showing toast');
+        
+        // Show error
+        showToast('Lỗi: "Từ ngày" phải nhỏ hơn "Đến ngày"', 'error');
+        
+        // STOP execution - không chạy filter nữa
+        return;
+    }
+    
+    console.log('✅ Date validation passed or no dates:', { startDate, endDate });
 
     // Lọc
     transactionsCache_filtered = transactions.filter(t => {

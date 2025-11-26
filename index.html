@@ -32,7 +32,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=8.5">
     
     <!-- PWA Service Worker Registration & Install Prompt -->
     <script>
@@ -1282,7 +1282,7 @@
                                         <div class="relative">
                                             <input type="text" id="filter-transaction-start-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
                                                    pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Từ ngày (dd-mm-yyyy)" 
-                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)">
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)" autocomplete="off">
                                             <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
                                             </svg>
@@ -1292,7 +1292,7 @@
                                         <div class="relative">
                                             <input type="text" id="filter-transaction-end-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
                                                    pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Đến ngày (dd-mm-yyyy)" 
-                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)">
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)" autocomplete="off">
                                             <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
                                             </svg>
@@ -1424,7 +1424,7 @@
                                         <div class="relative">
                                             <input type="text" id="filter-task-start-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
                                                    pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Từ ngày (dd-mm-yyyy)" 
-                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)">
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)" autocomplete="off">
                                             <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
                                             </svg>
@@ -1434,7 +1434,7 @@
                                         <div class="relative">
                                             <input type="text" id="filter-task-end-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50 text-gray-700" 
                                                    pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="Đến ngày (dd-mm-yyyy)" 
-                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)">
+                                                   title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)" autocomplete="off">
                                             <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
                                             </svg>
@@ -1928,7 +1928,7 @@
                             <div class="relative">
                                 <input type="text" id="contract-start-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50" 
                                        pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
-                                       title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)">
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 01-11-2025)" autocomplete="off">
                                 <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                 </svg>
@@ -1939,7 +1939,7 @@
                             <div class="relative">
                                 <input type="text" id="contract-end-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50" 
                                        pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
-                                       title="Định dạng: dd-mm-yyyy (ví dụ: 28-02-2026)">
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 28-02-2026)" autocomplete="off">
                                 <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                 </svg>
@@ -2151,7 +2151,7 @@
                             <div class="relative">
                                 <input type="text" id="bill-date" class="w-full p-2.5 pr-10 border rounded-lg bg-gray-50" 
                                        pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
-                                       title="Định dạng: dd-mm-yyyy (ví dụ: 04-11-2025)">
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 04-11-2025)" autocomplete="off">
                                 <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                 </svg>
@@ -2275,7 +2275,7 @@
                             <div class="relative">
                                 <input type="text" id="transaction-date" class="w-full p-2.5 pr-10 border rounded-lg bg-white" 
                                        pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" required
-                                       title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)">
+                                       title="Định dạng: dd-mm-yyyy (ví dụ: 05-11-2025)" autocomplete="off">
                                 <svg class="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z"/>
                                 </svg>
@@ -2456,9 +2456,6 @@
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b text-left text-gray-600">
-                                <th class="py-3 px-3">
-                                    <input type="checkbox" id="select-all-categories" class="w-4 h-4 cursor-pointer">
-                                </th>
                                 <th class="py-3 px-3">Tên hạng mục</th>
                                 <th class="py-3 px-3">Thao tác</th>
                             </tr>
@@ -2632,7 +2629,7 @@
             <div class="p-6">
                 <div>
                     <label for="payment-date" class="block text-sm font-medium text-gray-700 mb-3">Chọn ngày thu tiền</label>
-                    <input type="date" id="payment-date" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg cursor-pointer" onclick="this.showPicker()">
+                    <input type="text" id="payment-date" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg cursor-pointer" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
                 </div>
             </div>
             
@@ -2659,7 +2656,7 @@
             <div class="p-6 space-y-4">
                 <div>
                     <label for="bulk-payment-date" class="block text-sm font-medium text-gray-700 mb-3">Chọn ngày thu tiền</label>
-                    <input type="date" id="bulk-payment-date" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg cursor-pointer" onclick="this.showPicker()">
+                    <input type="text" id="bulk-payment-date" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg cursor-pointer" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
                 </div>
                 
                 <div class="bg-green-50 p-4 rounded-lg text-center">
@@ -3303,8 +3300,8 @@
         };
     </script>
 
-    <script type="module" src="js/main.js?v=8.3"></script>
-
+    <script type="module" src="js/main.js?v=8.5"></script>
+    <script src="js/calendar.js?v=1.2"></script>
 
     <script type="module" src="js/store.js?v=8.3"></script>
     <script type="module" src="js/sync.js?v=8.3"></script>
@@ -3403,11 +3400,11 @@
                             <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
                                 <div class="flex flex-col flex-1">
                                     <label class="text-xs sm:text-sm font-medium text-gray-600 mb-1">Từ ngày:</label>
-                                    <input type="date" id="sync-date-from" class="border border-gray-300 rounded-lg px-3 py-3 sm:py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm sm:text-base">
+                                    <input type="text" id="sync-date-from" class="border border-gray-300 rounded-lg px-3 py-3 sm:py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm sm:text-base" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
                                 </div>
                                 <div class="flex flex-col flex-1">
                                     <label class="text-xs sm:text-sm font-medium text-gray-600 mb-1">Đến ngày:</label>
-                                    <input type="date" id="sync-date-to" class="border border-gray-300 rounded-lg px-3 py-3 sm:py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm sm:text-base">
+                                    <input type="text" id="sync-date-to" class="border border-gray-300 rounded-lg px-3 py-3 sm:py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm sm:text-base" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
                                 </div>
                             </div>
                         </div>
@@ -3432,6 +3429,8 @@
             </div>
         </div>
     </div>
+
+
     
 </body>
 </html>

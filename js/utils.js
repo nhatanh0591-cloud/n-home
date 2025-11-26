@@ -66,6 +66,7 @@ export function formatDateDisplay(dateStr) {
 
 /**
  * Chuyển đổi nhiều định dạng ngày (DD-MM-YYYY, YYYY-MM-DD, số từ Excel) sang Date object
+ * VALIDATE để đảm bảo date hợp lệ, tránh bug 1983
  */
 export function parseDateInput(dateStr) {
     if (!dateStr) return null;
@@ -79,37 +80,63 @@ export function parseDateInput(dateStr) {
         const result = new Date(excelEpoch.getTime() + days * 24 * 60 * 60 * 1000);
         
         // Đảm bảo sử dụng UTC để tránh vấn đề timezone
-        return new Date(result.getFullYear(), result.getMonth(), result.getDate());
+        const validDate = new Date(result.getFullYear(), result.getMonth(), result.getDate());
+        return isNaN(validDate.getTime()) ? null : validDate;
     }
     
     // 2. Nếu là chuỗi
     if (typeof dateStr === 'string') {
+        const trimmed = dateStr.trim();
+        
         // Định dạng DD-MM-YYYY
-        if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
-            const [day, month, year] = dateStr.split('-');
-            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) {
+            const [day, month, year] = trimmed.split('-').map(v => parseInt(v, 10));
+            const date = new Date(year, month - 1, day);
+            // VALIDATE: Kiểm tra date có đúng với input không (tránh auto-correct của JS)
+            if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year) {
+                return date;
+            }
+            return null;
         }
+        
         // Định dạng YYYY-MM-DD
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            const [year, month, day] = dateStr.split('-');
-            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            const [year, month, day] = trimmed.split('-').map(v => parseInt(v, 10));
+            const date = new Date(year, month - 1, day);
+            // VALIDATE
+            if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year) {
+                return date;
+            }
+            return null;
         }
+        
         // Định dạng DD/MM/YYYY
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-            const [day, month, year] = dateStr.split('/');
-            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+            const [day, month, year] = trimmed.split('/').map(v => parseInt(v, 10));
+            const date = new Date(year, month - 1, day);
+            // VALIDATE
+            if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year) {
+                return date;
+            }
+            return null;
         }
+        
         // Định dạng DD/MM/YYYY (với dấu phẩy hoặc khoảng trắng)
-        const cleanStr = dateStr.trim().replace(/[,\s]/g, '');
+        const cleanStr = trimmed.replace(/[,\s]/g, '');
         if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(cleanStr)) {
-            const [day, month, year] = cleanStr.split('/');
-            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            const [day, month, year] = cleanStr.split('/').map(v => parseInt(v, 10));
+            const date = new Date(year, month - 1, day);
+            // VALIDATE
+            if (date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year) {
+                return date;
+            }
+            return null;
         }
     }
     
     // 3. Thử tạo Date trực tiếp (cho trường hợp ISO string)
     const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
+    if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
         return date;
     }
 

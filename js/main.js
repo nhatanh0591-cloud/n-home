@@ -166,55 +166,369 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// --- DATE INPUT HANDLERS (copy từ index1.html) ---
+// ESC hint functionality removed - keeping ESC key functionality only
+
+// ESC hint removed - ESC key functionality is handled in individual modules
+
+// --- CUSTOM CALENDAR INTEGRATION ---
+let currentCalendar = null;
+let currentDateInput = null;
+let calendarDropdown = null;
+
+// Function to show calendar dropdown
+function showCalendarDropdown(inputElement) {
+    // Hide any existing dropdown
+    hideCalendarDropdown();
+    
+    currentDateInput = inputElement;
+    
+    // Parse current value or use today's date
+    let initialDate = new Date();
+    const currentValue = inputElement.value.trim();
+    if (currentValue && currentValue.match(/^\d{2}-\d{2}-\d{4}$/)) {
+        const [day, month, year] = currentValue.split('-').map(v => parseInt(v, 10));
+        // Validate parsed date
+        const parsedDate = new Date(year, month - 1, day);
+        // Check if date is valid (not Invalid Date or out of range)
+        if (!isNaN(parsedDate.getTime()) && 
+            parsedDate.getFullYear() === year && 
+            parsedDate.getMonth() === month - 1 && 
+            parsedDate.getDate() === day) {
+            initialDate = parsedDate;
+        }
+    }
+    
+    // Create dropdown container
+    calendarDropdown = document.createElement('div');
+    calendarDropdown.className = 'calendar-dropdown-container';
+    calendarDropdown.innerHTML = '<div id="dropdown-calendar"></div>';
+    
+    // Find the closest positioned parent or use body
+    let positionParent = inputElement.offsetParent || document.body;
+    
+    // Get input position relative to its container
+    const inputRect = inputElement.getBoundingClientRect();
+    const container = inputElement.closest('.modal-content') || 
+                     inputElement.closest('form') || 
+                     document.body;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Check if input is in sync modal - if yes, position ABOVE, else BELOW
+    const isSyncModal = inputElement.closest('#sync-data-modal');
+    const dropdownHeight = 320; // Approximate calendar height
+    let top, left;
+    
+    if (isSyncModal) {
+        // Position ABOVE the input for sync modal
+        top = inputRect.top - containerRect.top - dropdownHeight - 3;
+    } else {
+        // Position BELOW the input for all other cases
+        top = inputRect.bottom - containerRect.top + 3;
+    }
+    
+    left = inputRect.left - containerRect.left;
+    
+    // Adjust left position if dropdown would go outside container
+    const dropdownWidth = 280;
+    const containerWidth = containerRect.width;
+    if (left + dropdownWidth > containerWidth) {
+        left = containerWidth - dropdownWidth - 10;
+    }
+    if (left < 0) {
+        left = 10;
+    }
+    
+    calendarDropdown.style.cssText = `
+        position: absolute !important;
+        top: ${top}px !important;
+        left: ${left}px !important;
+        bottom: auto !important;
+        z-index: 1050 !important;
+        transform: translateY(0) !important;
+        margin-top: 0 !important;
+    `;
+    
+    // Add to the same container as input or body (reuse container variable)
+    // container is already defined above
+    
+    container.appendChild(calendarDropdown);
+    
+    // Create calendar instance with validated date
+    currentCalendar = new CustomCalendar('dropdown-calendar', {
+        selectedDate: initialDate,
+        isDropdown: true,
+        onDateSelect: (date, dateStr) => {
+            // Validate selected date before setting
+            if (!isNaN(date.getTime())) {
+                currentDateInput.value = dateStr;
+                
+                // Trigger change event
+                const changeEvent = new Event('change', { bubbles: true });
+                currentDateInput.dispatchEvent(changeEvent);
+            }
+            
+            // Close dropdown after short delay
+            setTimeout(() => {
+                hideCalendarDropdown();
+            }, 150);
+        }
+    });
+    
+    // Update position on scroll/resize - check if sync modal for positioning
+    const updatePosition = () => {
+        if (!calendarDropdown || !currentDateInput) return;
+        
+        const rect = currentDateInput.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        // Check if input is in sync modal
+        const isSyncModal = currentDateInput.closest('#sync-data-modal');
+        const dropdownHeight = 320;
+        let newTop;
+        
+        if (isSyncModal) {
+            // Position ABOVE the input for sync modal
+            newTop = rect.top - containerRect.top - dropdownHeight - 3;
+        } else {
+            // Position BELOW the input for all other cases
+            newTop = rect.bottom - containerRect.top + 3;
+        }
+        
+        let newLeft = rect.left - containerRect.left;
+        
+        // Keep dropdown within container bounds
+        const dropdownWidth = 280;
+        const containerWidth = containerRect.width;
+        if (newLeft + dropdownWidth > containerWidth) {
+            newLeft = containerWidth - dropdownWidth - 10;
+        }
+        if (newLeft < 0) {
+            newLeft = 10;
+        }
+        
+        calendarDropdown.style.top = `${newTop}px`;
+        calendarDropdown.style.left = `${newLeft}px`;
+    };
+    
+    // Store the update function for later cleanup
+    calendarDropdown._updatePosition = updatePosition;
+    
+    // Close calendar on scroll (don't follow scroll)
+    const closeOnScroll = () => {
+        hideCalendarDropdown();
+    };
+    
+    calendarDropdown._closeOnScroll = closeOnScroll;
+    
+    // Add listeners: close on scroll, update position on resize only
+    window.addEventListener('scroll', closeOnScroll, { passive: true, capture: true });
+    window.addEventListener('resize', updatePosition, { passive: true });
+    
+    // Also close on scroll inside modal/container
+    const scrollableParent = inputElement.closest('.overflow-x-auto, .overflow-y-auto, .overflow-auto') || document.querySelector('.modal-content');
+    if (scrollableParent) {
+        scrollableParent.addEventListener('scroll', closeOnScroll, { passive: true });
+        calendarDropdown._scrollableParent = scrollableParent;
+    }
+}
+
+// Function to hide calendar dropdown
+function hideCalendarDropdown() {
+    if (calendarDropdown) {
+        // Remove scroll and resize listeners
+        if (calendarDropdown._updatePosition) {
+            window.removeEventListener('resize', calendarDropdown._updatePosition);
+        }
+        if (calendarDropdown._closeOnScroll) {
+            window.removeEventListener('scroll', calendarDropdown._closeOnScroll, { capture: true });
+        }
+        if (calendarDropdown._scrollableParent && calendarDropdown._closeOnScroll) {
+            calendarDropdown._scrollableParent.removeEventListener('scroll', calendarDropdown._closeOnScroll);
+        }
+        
+        // Remove dropdown from DOM
+        if (calendarDropdown.parentNode) {
+            calendarDropdown.parentNode.removeChild(calendarDropdown);
+        }
+        
+        calendarDropdown = null;
+        currentCalendar = null;
+        currentDateInput = null;
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (calendarDropdown && currentDateInput) {
+        const isClickInsideDropdown = calendarDropdown.contains(e.target);
+        const isClickOnInput = currentDateInput.contains ? currentDateInput.contains(e.target) : currentDateInput === e.target;
+        
+        if (!isClickInsideDropdown && !isClickOnInput) {
+            hideCalendarDropdown();
+        }
+    }
+});
+
+// Note: Position update listeners are now handled per dropdown instance
+
+// --- ESC KEY HANDLER - Close modals/forms with ESC ---
+document.addEventListener('keydown', function(e) {
+    // Check if ESC key was pressed
+    if (e.key === 'Escape' || e.keyCode === 27) {
+        e.preventDefault();
+        
+        // Priority order: Calendar dropdown > Modals > Other
+        
+        // 1. Close calendar dropdown first if open
+        if (calendarDropdown && currentDateInput) {
+            hideCalendarDropdown();
+            return;
+        }
+        
+        // 2. Find and close any visible modal
+        const visibleModals = document.querySelectorAll('.modal-backdrop:not(.hidden), .fixed:not(.hidden)');
+        let modalClosed = false;
+        
+        visibleModals.forEach(modal => {
+            // Skip if not actually a modal
+            if (!modal.id || !modal.id.includes('modal')) return;
+            
+            // Find the close button and click it
+            const closeBtn = modal.querySelector('[id*="close-"], .close, [data-dismiss="modal"], button[onclick*="hide"], button[onclick*="close"]');
+            if (closeBtn) {
+                closeBtn.click();
+                modalClosed = true;
+                return;
+            }
+            
+            // Or hide modal directly
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            modalClosed = true;
+        });
+        
+        if (modalClosed) {
+            // Re-enable body scroll
+            document.body.style.overflow = '';
+            return;
+        }
+        
+        // 3. Close any visible dropdown menus
+        const openDropdowns = document.querySelectorAll('.dropdown-content.show, .show');
+        openDropdowns.forEach(dropdown => {
+            dropdown.classList.remove('show');
+        });
+        
+        // 4. Clear any form focus if nothing else to close
+        if (document.activeElement && document.activeElement.tagName !== 'BODY') {
+            document.activeElement.blur();
+        }
+    }
+});
+
+// Enhanced modal detection for common modal patterns
+function findAndCloseActiveModal() {
+    // Common modal selectors
+    const modalSelectors = [
+        '#contract-modal',
+        '#bill-modal', 
+        '#customer-modal',
+        '#building-modal',
+        '#service-modal',
+        '#account-modal',
+        '#transaction-modal',
+        '#task-modal',
+        '#notification-modal',
+        '#sync-data-modal',
+        '#payment-modal',
+        '#bulk-payment-modal',
+        '.modal:not(.hidden)',
+        '.modal-backdrop:not(.hidden)'
+    ];
+    
+    for (const selector of modalSelectors) {
+        const modal = document.querySelector(selector);
+        if (modal && !modal.classList.contains('hidden') && modal.style.display !== 'none') {
+            // Try to find close button
+            const closeBtn = modal.querySelector('button[id*="close"], .modal-close, [data-dismiss="modal"]');
+            if (closeBtn) {
+                closeBtn.click();
+                return true;
+            }
+            
+            // Manually hide modal
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// --- DATE INPUT HANDLERS - Updated to use Custom Calendar Dropdown ---
 document.addEventListener('click', function(e) {
     // Check if clicked element is a date input (has date-related pattern)
     if (e.target.type === 'text' && e.target.pattern === '[0-9]{2}-[0-9]{2}-[0-9]{4}') {
-        const currentValue = e.target.value;
+        // Show calendar dropdown when clicking anywhere on the input
+        // But allow focusing for text input after calendar is shown
         
-        // Kiểm tra xem có phải mobile không
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-        
-        // Temporarily change to date type to show picker
-        e.target.type = 'date';
-        
-        // Convert dd-mm-yyyy to yyyy-mm-dd for date input
-        if (currentValue && currentValue.match(/^\d{2}-\d{2}-\d{4}$/)) {
-            const [day, month, year] = currentValue.split('-');
-            e.target.value = `${year}-${month}-${day}`;
-        }
-        
-        // Chỉ sử dụng showPicker() trên desktop, không dùng trên mobile
-        if (!isMobile && typeof e.target.showPicker === 'function') {
-            try {
-                setTimeout(() => e.target.showPicker(), 10);
-            } catch (error) {
-                console.log('showPicker not supported, falling back to normal date input');
-            }
-        }
-        // Trên mobile sẽ tự động hiển thị date picker khi focus vào input type="date"
-        
-        // Handle when user selects a date or closes picker
-        const handleDateChange = function() {
-            const dateValue = this.value;
-            this.type = 'text';
-            this.pattern = '[0-9]{2}-[0-9]{2}-[0-9]{4}';
-            this.placeholder = 'dd-mm-yyyy';
+        // Check if CustomCalendar is available
+        if (typeof CustomCalendar !== 'undefined') {
+            // Don't prevent default - allow focus and text input
+            showCalendarDropdown(e.target);
+        } else {
+            // Fallback to original date picker behavior
+            const currentValue = e.target.value;
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
             
-            // Convert yyyy-mm-dd back to dd-mm-yyyy
-            if (dateValue) {
-                const [year, month, day] = dateValue.split('-');
-                this.value = `${day}-${month}-${year}`;
-            } else {
-                this.value = currentValue; // Restore original value if cancelled
+            e.target.type = 'date';
+            
+            if (currentValue && currentValue.match(/^\d{2}-\d{2}-\d{4}$/)) {
+                const [day, month, year] = currentValue.split('-');
+                e.target.value = `${year}-${month}-${day}`;
             }
             
-            this.removeEventListener('blur', handleDateChange);
-            this.removeEventListener('change', handleDateChange);
-        };
-        
-        e.target.addEventListener('blur', handleDateChange, { once: true });
-        e.target.addEventListener('change', handleDateChange, { once: true });
+            if (!isMobile && typeof e.target.showPicker === 'function') {
+                try {
+                    setTimeout(() => e.target.showPicker(), 10);
+                } catch (error) {
+                    console.log('showPicker not supported, falling back to normal date input');
+                }
+            }
+            
+            const handleDateChange = function() {
+                const dateValue = this.value;
+                this.type = 'text';
+                this.pattern = '[0-9]{2}-[0-9]{2}-[0-9]{4}';
+                this.placeholder = 'dd-mm-yyyy';
+                
+                if (dateValue) {
+                    const [year, month, day] = dateValue.split('-');
+                    this.value = `${day}-${month}-${year}`;
+                } else {
+                    this.value = currentValue;
+                }
+                
+                this.removeEventListener('blur', handleDateChange);
+                this.removeEventListener('change', handleDateChange);
+            };
+            
+            e.target.addEventListener('blur', handleDateChange, { once: true });
+            e.target.addEventListener('change', handleDateChange, { once: true });
+        }
+    }
+});
+
+// Add keyboard shortcut to open calendar with F2 or Down arrow
+document.addEventListener('keydown', function(e) {
+    if (e.target.type === 'text' && e.target.pattern === '[0-9]{2}-[0-9]{2}-[0-9]{4}') {
+        // F2 key or Down arrow to open calendar
+        if ((e.key === 'F2' || e.key === 'ArrowDown') && typeof CustomCalendar !== 'undefined') {
+            e.preventDefault();
+            showCalendarDropdown(e.target);
+        }
     }
 });
 

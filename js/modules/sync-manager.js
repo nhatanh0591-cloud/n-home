@@ -77,12 +77,28 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
         const conditions = [];
         
         if (dateFrom) {
-            const fromTimestamp = Timestamp.fromDate(new Date(dateFrom + 'T00:00:00'));
+            // Convert to Date object if needed
+            let fromDate = dateFrom instanceof Date ? dateFrom : new Date(dateFrom);
+            // Validate date
+            if (isNaN(fromDate.getTime())) {
+                throw new Error('Ngày bắt đầu không hợp lệ');
+            }
+            // Set to start of day
+            fromDate.setHours(0, 0, 0, 0);
+            const fromTimestamp = Timestamp.fromDate(fromDate);
             conditions.push(where('createdAt', '>=', fromTimestamp));
         }
         
         if (dateTo) {
-            const toTimestamp = Timestamp.fromDate(new Date(dateTo + 'T23:59:59'));
+            // Convert to Date object if needed
+            let toDate = dateTo instanceof Date ? dateTo : new Date(dateTo);
+            // Validate date
+            if (isNaN(toDate.getTime())) {
+                throw new Error('Ngày kết thúc không hợp lệ');
+            }
+            // Set to end of day
+            toDate.setHours(23, 59, 59, 999);
+            const toTimestamp = Timestamp.fromDate(toDate);
             conditions.push(where('createdAt', '<=', toTimestamp));
         }
         

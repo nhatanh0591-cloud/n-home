@@ -1092,6 +1092,14 @@ function filterTasks() {
     const startDate = parseDateInput(filterTaskStartDateEl?.value || '');
     const endDate = parseDateInput(filterTaskEndDateEl?.value || '');
     
+    // ⚠️ VALIDATE: Nếu startDate > endDate thì không hiển thị gì
+    if (startDate && endDate && startDate > endDate) {
+        renderTasks([]);
+        updateStatsWithFiltered([]);
+        showToast('Lỗi: "Từ ngày" phải nhỏ hơn "Đến ngày"', 'error');
+        return [];
+    }
+    
     const filtered = tasksCache.filter(task => {
         const matchBuilding = !buildingFilter || task.buildingId === buildingFilter;
         const matchRoom = !roomFilter || (task.room && task.room.toLowerCase().includes(roomFilter.toLowerCase()));
@@ -1129,6 +1137,11 @@ function getFilteredTasks() {
     const searchText = taskSearchEl?.value?.toLowerCase() || '';
     const startDate = parseDateInput(filterTaskStartDateEl?.value || '');
     const endDate = parseDateInput(filterTaskEndDateEl?.value || '');
+    
+    // ⚠️ VALIDATE: Nếu startDate > endDate thì return empty
+    if (startDate && endDate && startDate > endDate) {
+        return [];
+    }
     
     return tasksCache.filter(task => {
         const matchBuilding = !buildingFilter || task.buildingId === buildingFilter;

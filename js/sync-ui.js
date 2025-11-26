@@ -3,7 +3,7 @@
  */
 
 import { syncSelectedCollections } from './modules/sync-manager.js';
-import { showToast } from './utils.js';
+import { showToast, formatDateDisplay, parseDateInput } from './utils.js';
 import { getCurrentUserRole } from './auth.js';
 
 // DOM Elements
@@ -92,8 +92,16 @@ function bindEvents() {
         radio.addEventListener('change', handleDateOptionChange);
     });
     
-    // Confirm sync
+    // Confirm sync với debounce
     confirmBtn.addEventListener('click', handleConfirmSync);
+    
+    // Prevent form submission on Enter
+    syncDataModal.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !isSyncing) {
+            e.preventDefault();
+            handleConfirmSync();
+        }
+    });
     
     // ESC key to close
     document.addEventListener('keydown', (e) => {
@@ -113,13 +121,13 @@ function openSyncModal() {
     document.body.style.overflow = 'hidden';
     
     // Set default date to today
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDateDisplay(new Date());
     dateToInput.value = today;
     
     // Set from date to 30 days ago
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    dateFromInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+    dateFromInput.value = formatDateDisplay(thirtyDaysAgo);
     
     // Ẩn các module bị hạn chế cho viewer
     hideRestrictedModulesForViewer();
@@ -271,8 +279,18 @@ function handleDateOptionChange() {
 /**
  * Xử lý confirm sync
  */
+let isSyncing = false; // Prevent double-click
 async function handleConfirmSync() {
+    // Prevent double execution
+    if (isSyncing) {
+        console.log('🚫 Already syncing, ignoring...');
+        return;
+    }
+    
     try {
+        isSyncing = true;
+        console.log('🔄 Starting sync...');
+        
         // Validate selections
         const selectedModules = Array.from(moduleCheckboxes)
             .filter(cb => cb.checked)
@@ -289,8 +307,11 @@ async function handleConfirmSync() {
         let dateTo = null;
         
         if (dateOption === 'range') {
-            dateFrom = dateFromInput.value || null;
-            dateTo = dateToInput.value || null;
+            const dateFromStr = dateFromInput.value || null;
+            const dateToStr = dateToInput.value || null;
+            
+            dateFrom = dateFromStr ? parseDateInput(dateFromStr) : null;
+            dateTo = dateToStr ? parseDateInput(dateToStr) : null;
             
             if (dateFrom && dateTo && dateFrom > dateTo) {
                 showToast('Ngày bắt đầu không thể lớn hơn ngày kết thúc', 'error');
@@ -320,6 +341,8 @@ async function handleConfirmSync() {
         showToast('Lỗi cập nhật dữ liệu: ' + error.message, 'error');
     } finally {
         showSyncLoading(false);
+        isSyncing = false; // Reset flag
+        console.log('✅ Sync process completed');
     }
 }
 
@@ -348,44 +371,98 @@ function showSyncLoading(isLoading) {
 }
 
 /**
- * Hiển thị popup thành công tùy chỉnh
+ * Hiển thị popup thành công gọn đẹp và dễ hiểu
  */
 function showSyncSuccessModal(moduleCount, totalReads, dateRangeText) {
-    // Tạo modal success
-    const successModal = document.createElement('div');
-    successModal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
-    successModal.style.backdropFilter = 'blur(4px)';
+    // Xóa modal cũ nếu có
+    const existingModal = document.querySelector('.sync-success-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
     
-    successModal.innerHTML = `
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 text-center">
-            <div class="mb-4">
-                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">🎉 Cập nhật thành công!</h3>
-                <p class="text-gray-600">
-                    Đã cập nhật <strong>${moduleCount} module</strong><br>
-                    <span class="text-sm text-gray-500">${totalReads} records - ${dateRangeText}</span>
-                </p>
+    // Tạo modal success mới với animation
+    const successModal = document.createElement('div');
+    successModal.className = 'sync-success-modal fixed inset-0 bg-black bg-opacity-40 z-[9999] flex items-center justify-center p-4';
+    
+    // Tạo content với design đẹp hơn
+    const content = document.createElement('div');
+    content.className = 'bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform scale-95 opacity-0 transition-all duration-300';
+    
+    // Tạo nội dung rõ ràng và gọn gàng
+    const formatModuleText = (count) => {
+        if (count === 1) return '1 hạng mục';
+        return `${count} hạng mục`;
+    };
+    
+    const formatRecordText = (count) => {
+        if (count === 0) return 'Không có dữ liệu mới';
+        if (count === 1) return '1 dữ liệu';
+        return `${count.toLocaleString('vi-VN')} dữ liệu`;
+    };
+
+    content.innerHTML = `
+        <div class="mb-6">
+            <div class="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
             </div>
-            <div class="flex gap-3 justify-center">
-                <button onclick="this.closest('.fixed').remove()" class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    Đóng
-                </button>
+            <h3 class="text-2xl font-bold text-gray-800 mb-3">✅ Đồng bộ thành công!</h3>
+            <div class="space-y-2 text-gray-600">
+                <p class="text-lg font-semibold text-green-600">${formatModuleText(moduleCount)}</p>
+                <p class="text-sm">${formatRecordText(totalReads)}</p>
             </div>
         </div>
+        <button id="sync-success-ok-btn" class="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 font-semibold text-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+            Đóng
+        </button>
     `;
     
+    successModal.appendChild(content);
     document.body.appendChild(successModal);
     
-    // Auto remove after 10 seconds
-    setTimeout(() => {
-        if (successModal.parentNode) {
-            successModal.remove();
+    // Animate in
+    requestAnimationFrame(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    });
+    
+    // Add click handlers
+    const okBtn = document.getElementById('sync-success-ok-btn');
+    
+    const closeModal = () => {
+        content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            if (document.body.contains(successModal)) {
+                successModal.remove();
+            }
+        }, 300);
+    };
+    
+    okBtn.addEventListener('click', closeModal);
+    
+    // Click outside to close
+    successModal.addEventListener('click', (e) => {
+        if (e.target === successModal) {
+            closeModal();
         }
-    }, 10000);
+    });
+    
+    // ESC key to close
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+    
+    // Auto close after 8 seconds
+    setTimeout(() => {
+        if (document.body.contains(successModal)) {
+            closeModal();
+        }
+    }, 8000);
 }
 
 // Auto-initialize when DOM is ready

@@ -3458,7 +3458,7 @@ function openPaymentModal(billId) {
     if (!bill) return;
     
     // Set ngày mặc định là hôm nay
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDateDisplay(new Date());
     document.getElementById('payment-date').value = today;
     
     // Lưu billId để sử dụng khi confirm
@@ -3497,7 +3497,7 @@ function openBulkPaymentModal() {
     document.getElementById('bulk-payment-count').textContent = selectedBills.length;
     
     // Set ngày mặc định là hôm nay
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDateDisplay(new Date());
     document.getElementById('bulk-payment-date').value = today;
     
     // Lưu danh sách billIds để sử dụng khi confirm
@@ -3512,7 +3512,8 @@ function openBulkPaymentModal() {
 async function handleSinglePaymentConfirm() {
     const modal = document.getElementById('payment-modal');
     const billId = modal.dataset.billId;
-    const paymentDate = document.getElementById('payment-date').value;
+    const paymentDateStr = document.getElementById('payment-date').value;
+    const paymentDate = parseDateInput(paymentDateStr);
     
     if (!paymentDate) {
         showToast('Vui lòng chọn ngày thu tiền!', 'error');
@@ -3525,7 +3526,8 @@ async function handleSinglePaymentConfirm() {
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = 'Đang xử lý...';
         
-        await toggleBillStatus(billId, paymentDate);
+        const paymentDateFormatted = paymentDate ? formatDateDisplay(paymentDate) : null;
+        await toggleBillStatus(billId, paymentDateFormatted);
         closeModal(modal);
         showToast('Thu tiền thành công!');
         
@@ -3558,7 +3560,8 @@ async function handleSinglePaymentConfirm() {
 async function handleBulkPaymentConfirm() {
     const modal = document.getElementById('bulk-payment-modal');
     const billIds = JSON.parse(modal.dataset.billIds || '[]');
-    const paymentDate = document.getElementById('bulk-payment-date').value;
+    const paymentDateStr = document.getElementById('bulk-payment-date').value;
+    const paymentDate = parseDateInput(paymentDateStr);
     
     if (!paymentDate) {
         showToast('Vui lòng chọn ngày thu tiền!', 'error');
@@ -3576,7 +3579,8 @@ async function handleBulkPaymentConfirm() {
         confirmBtn.disabled = true;
         confirmBtn.innerHTML = 'Đang xử lý...';
         
-        await bulkCollect(billIds, paymentDate);
+        const paymentDateFormatted = paymentDate ? formatDateDisplay(paymentDate) : null;
+        await bulkCollect(billIds, paymentDateFormatted);
         closeModal(modal);
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
