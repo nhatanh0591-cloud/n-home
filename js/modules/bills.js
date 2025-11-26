@@ -350,7 +350,7 @@ function renderBillsTable(bills) {
             </td>
             <td class="py-4 px-4">Tháng ${bill.period}</td>
             <td class="py-4 px-4">${getPaymentDueDate(bill)}</td>
-            <td class="py-4 px-4">${formatMoney(bill.totalAmount)} VNĐ</td>
+            <td class="py-4 px-4">${formatMoney(bill.totalAmount)}</td>
             <td class="py-4 px-4">
                 <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? 'bg-gray-100 text-gray-800' : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
                     ${bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
@@ -391,7 +391,7 @@ function renderBillsTable(bills) {
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Tổng tiền:</span>
-                    <span class="mobile-card-value font-bold text-green-600">${formatMoney(bill.totalAmount)} VNĐ</span>
+                    <span class="mobile-card-value font-bold text-green-600">${formatMoney(bill.totalAmount)}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
@@ -2269,7 +2269,7 @@ function addServiceRow(item) {
     }
 
     rowHTML += `
-        <td class="py-2 px-3 font-bold text-blue-600 service-total">${formatMoney(item.amount)} VNĐ</td>
+        <td class="py-2 px-3 font-bold text-blue-600 service-total">${formatMoney(item.amount)}</td>
         <td class="py-2 px-3">
             <button type="button" class="remove-service-btn text-red-600 hover:text-red-800 p-1 rounded">
                 <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2533,6 +2533,7 @@ async function showBillDetail(billId) {
 
     const tableBody = document.getElementById('bill-detail-services-table');
     const mobileServicesEl = document.getElementById('bill-detail-services-mobile');
+    // Chỉ xóa nội dung tbody, không xóa header
     tableBody.innerHTML = '';
     if (mobileServicesEl) mobileServicesEl.innerHTML = '';
     
@@ -2581,11 +2582,11 @@ async function showBillDetail(billId) {
         const formattedUnitPrice = formatMoney(unitPrice);
 
         row.innerHTML = `
-            <td class="py-2 px-3 border border-gray-800">${index + 1}</td>
+            <td class="py-2 px-3 text-center border border-gray-800">${index + 1}</td>
             <td class="py-2 px-3 border border-gray-800">${content}</td>
-            <td class="py-2 px-3 text-center border border-gray-800">${formattedUnitPrice}</td>
-            <td class="py-2 px-3 text-center border border-gray-800">${quantity}</td>
-            <td class="py-2 px-3 text-right font-medium border border-gray-800">${formatMoney(item.amount)} VNĐ</td>
+            <td class="py-2 px-3 text-right border border-gray-800">${formattedUnitPrice}</td>
+            <td class="py-2 px-3 text-right border border-gray-800">${quantity}</td>
+            <td class="py-2 px-3 text-right font-medium border border-gray-800">${formatMoney(item.amount)}</td>
         `;
         tableBody.appendChild(row);
         
@@ -2596,7 +2597,7 @@ async function showBillDetail(billId) {
             mobileCard.innerHTML = `
                 <div class="flex justify-between items-start mb-2">
                     <span class="font-semibold text-gray-900">${index + 1}. ${item.name || item.serviceName || 'Dịch vụ không xác định'}</span>
-                    <span class="font-bold text-green-600">${formatMoney(item.amount)} VNĐ</span>
+                    <span class="font-bold text-green-600">${formatMoney(item.amount)}</span>
                 </div>
                 ${extraInfo ? `<div class="text-xs text-gray-500 mb-2">${extraInfo}</div>` : ''}
                 <div class="grid grid-cols-2 gap-2 text-sm">

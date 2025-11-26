@@ -154,7 +154,7 @@
         <div id="mobile-overlay" class="mobile-overlay" onclick="closeMobileSidebar()"></div>
         
         <aside id="sidebar" class="sidebar">
-            <div id="n-home-logo" class="p-4 text-center bg-green-600 text-white text-4xl font-bold" style="display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 999 !important;">
+            <div id="n-home-logo" class="p-4 text-center bg-gradient-to-r from-green-500 to-green-700 text-white text-4xl font-bold shadow-lg" style="display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 999 !important;">
                 N-Home
             </div>
             <nav class="mt-4">
@@ -360,13 +360,12 @@
                                         <th class="py-3 px-4 w-12">
                                             <input type="checkbox" id="select-all-buildings" class="w-4 h-4 cursor-pointer">
                                         </th>
-                                        <th class="py-3 px-4">Mã</th>
-                                        <th class="py-3 px-4">Thao tác</th>
-                                        <th class="py-3 px-4">Địa chỉ</th>
-                                        <th class="py-3 px-4">Số phòng</th>
-                                        <th class="py-3 px-4">Danh sách phòng</th>
-                                        <th class="py-3 px-4">Sổ quỹ</th>
-                                        <th class="py-3 px-4">Trạng thái</th>
+                                        <th class="py-3 px-4 w-28">Mã</th>
+                                        <th class="py-3 px-4 w-20">Thao tác</th>
+                                        <th class="py-3 px-4 min-w-0">Địa chỉ</th>
+                                        <th class="py-3 px-4 w-24 text-center whitespace-nowrap">Số phòng</th>
+                                        <th class="py-3 px-4 w-44">Sổ quỹ</th>
+                                        <th class="py-3 px-4 w-28 text-center whitespace-nowrap">Trạng thái</th>
                                     </tr>
                                 </thead>
                                 <tbody id="buildings-list">
@@ -1635,6 +1634,30 @@
                                 </table>
                             </div>
                             
+                            <!-- Average Profit Card - Beautiful Design -->
+                            <div id="average-profit-box" class="hidden mt-6">
+                                <div class="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border border-emerald-200 shadow-md">
+                                    <div class="px-4 sm:px-6 py-4">
+                                        <div class="flex flex-col sm:flex-row items-center sm:justify-between text-center sm:text-left space-y-3 sm:space-y-0">
+                                            <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                                                <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                                    </svg>
+                                                </div>
+                                                <div class="text-center sm:text-left">
+                                                    <h3 class="text-lg font-bold text-green-700" id="average-profit-title">Lợi nhuận trung bình</h3>
+                                                    <p class="text-sm text-gray-500 italic" id="average-profit-period">Thời gian tính toán</p>
+                                                </div>
+                                            </div>
+                                            <div class="text-center sm:text-right">
+                                                <div class="text-2xl font-bold text-green-600" id="average-profit-value">0</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <!-- Mobile Cards -->
                             <div class="block md:hidden space-y-6" id="quarterly-report-mobile-cards">
                                 <!-- Mobile cards will be loaded here -->
@@ -2192,7 +2215,7 @@
                     <div class="flex justify-end">
                         <div class="bg-blue-50 p-4 rounded-lg">
                             <div class="text-sm text-gray-600">Tổng thành tiền:</div>
-                            <div class="text-xl font-bold text-blue-600" id="bill-total-amount">0 VNĐ</div>
+                            <div class="text-xl font-bold text-blue-600" id="bill-total-amount">0</div>
                         </div>
                     </div>
                 </div>
@@ -2501,18 +2524,19 @@
                     <div class="mb-8">
                         <!-- Desktop Table -->
                         <div id="bill-detail-services-table-wrapper" class="desktop-table">
-                            <table class="w-full border-2 border-gray-800">
-                                <thead class="bg-green-600 text-white">
+                            <table class="w-full border-2 border-gray-800" style="border-collapse: collapse; table-layout: fixed; word-wrap: break-word;">
+                                <thead style="background-color: #16a34a !important; color: white !important;">
                                     <tr>
-                                        <th class="py-2 px-3 text-left font-semibold border border-gray-800">STT</th>
-                                        <th class="py-2 px-3 text-left font-semibold border border-gray-800">Nội dung</th>
-                                        <th class="py-2 px-3 text-center font-semibold border border-gray-800">Đơn giá (VNĐ)</th>
-                                        <th class="py-2 px-3 text-center font-semibold border border-gray-800">Số lượng</th>
-                                        <th class="py-2 px-3 text-right font-semibold border border-gray-800">Thành tiền</th>
+                                        <th class="py-2 px-2 text-center font-semibold border border-gray-800" style="background-color: #16a34a !important; color: white !important; border: 1px solid #374151 !important; width: 8%; overflow-wrap: break-word; text-align: center !important;">STT</th>
+                                        <th class="py-2 px-2 text-center font-semibold border border-gray-800" style="background-color: #16a34a !important; color: white !important; border: 1px solid #374151 !important; width: 30%; overflow-wrap: break-word; text-align: center !important;">Nội dung</th>
+                                        <th class="py-2 px-2 text-right font-semibold border border-gray-800" style="background-color: #16a34a !important; color: white !important; border: 1px solid #374151 !important; width: 23%; overflow-wrap: break-word; text-align: right !important;">Đơn giá (VNĐ)</th>
+                                        <th class="py-2 px-2 text-right font-semibold border border-gray-800" style="background-color: #16a34a !important; color: white !important; border: 1px solid #374151 !important; width: 14%; overflow-wrap: break-word; text-align: right !important;">Số lượng</th>
+                                        <th class="py-2 px-2 text-right font-semibold border border-gray-800" style="background-color: #16a34a !important; color: white !important; border: 1px solid #374151 !important; width: 25%; overflow-wrap: break-word; text-align: right !important;">Thành tiền (VNĐ)</th>
                                     </tr>
                                 </thead>
                                 <tbody id="bill-detail-services-table">
-                                    </tbody>
+                                    <!-- Dữ liệu sẽ được load ở đây -->
+                                </tbody>
                             </table>
                         </div>
                         
@@ -2525,18 +2549,18 @@
                                <img id="bill-detail-qr" src="" alt="" class="w-full h-full object-contain"/>
                             </div>
                             <div class="text-right space-y-2">
-                             <div class="flex justify-between">
+                             <div class="flex justify-between gap-4">
                                 <span>Tổng cộng:</span>
                                 <span id="bill-detail-subtotal" class="font-medium"></span>
                             </div>
-                             <div class="flex justify-between">
+                             <div class="flex justify-between gap-4">
                                 <span>Đã thanh toán:</span>
                                 <span id="bill-detail-paid" class="font-medium">0 VNĐ</span>
                             </div>
                             <div class="border-t my-2"></div>
-                             <div class="flex justify-between items-center text-base">
+                             <div class="flex justify-between items-center text-base gap-4">
                                     <span class="font-bold text-red-600">Còn lại:</span>
-                                    <span id="bill-detail-due-amount" class="font-bold text-red-600 ml-4"></span>
+                                    <span id="bill-detail-due-amount" class="font-bold text-red-600"></span>
                                 </div>
                             </div>
                         </div>

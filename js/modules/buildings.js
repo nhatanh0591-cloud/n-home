@@ -174,7 +174,11 @@ function renderBuildingsTable(buildings) {
             <td class="py-4 px-4">
                 <input type="checkbox" class="building-checkbox w-4 h-4 cursor-pointer" data-id="${building.id}" data-code="${building.code}">
             </td>
-            <td class="py-4 px-4 font-bold text-blue-600">${building.code || 'N/A'}</td>
+            <td class="py-4 px-4">
+                <button data-building-id="${building.id}" data-building-code="${building.code}" data-rooms='${JSON.stringify(building.rooms)}' class="view-rooms-btn font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left">
+                    ${building.code || 'N/A'}
+                </button>
+            </td>
             <td class="py-4 px-4">
                 <div class="flex gap-3">
                     <button data-id="${building.id}" class="edit-building-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
@@ -186,15 +190,10 @@ function renderBuildingsTable(buildings) {
                 </div>
             </td>
             <td class="py-4 px-4 font-medium">${building.address}</td>
-            <td class="py-4 px-4">${building.rooms.length} phòng</td>
-            <td class="py-4 px-4">
-                <button data-building-id="${building.id}" data-building-code="${building.code}" data-rooms='${JSON.stringify(building.rooms)}' class="view-rooms-btn text-blue-600 hover:underline font-medium text-sm">
-                    [Xem danh sách]
-                </button>
-            </td>
+            <td class="py-4 px-4 text-center whitespace-nowrap">${building.rooms.length} phòng</td>
             <td class="py-4 px-4">${accountDisplay}</td>
-            <td class="py-4 px-4">
-                <span class="px-3 py-1 rounded-full text-xs font-semibold ${building.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+            <td class="py-4 px-4 text-center">
+                <span class="px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${building.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                     ${building.isActive !== false ? 'Hoạt động' : 'Không hoạt động'}
                 </span>
             </td>
@@ -220,14 +219,12 @@ function renderBuildingsTable(buildings) {
                     <span class="mobile-card-value font-medium">${building.address}</span>
                 </div>
                 <div class="mobile-card-row">
-                    <span class="mobile-card-label">Số phòng:</span>
-                    <span class="mobile-card-value">${building.rooms.length} phòng</span>
-                </div>
-                <div class="mobile-card-row">
-                    <span class="mobile-card-label">Danh sách:</span>
-                    <button data-building-id="${building.id}" data-building-code="${building.code}" data-rooms='${JSON.stringify(building.rooms)}' class="view-rooms-btn text-blue-600 hover:underline font-medium text-sm">
-                        [Xem danh sách phòng]
-                    </button>
+                    <span class="mobile-card-label">Mã:</span>
+                    <div class="mobile-card-value">
+                        <button data-building-id="${building.id}" data-building-code="${building.code}" data-rooms='${JSON.stringify(building.rooms)}' class="view-rooms-btn font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
+                            ${building.code || 'N/A'}
+                        </button>
+                    </div>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Sổ quỹ:</span>

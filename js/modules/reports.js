@@ -12,7 +12,13 @@ import {
 } from '../firebase.js';
 
 import { getTransactions, getBills, getBuildings, getTransactionCategories } from '../store.js';
-import { formatMoney, safeToDate } from '../utils.js';
+import { safeToDate } from '../utils.js';
+
+// Format money function for reports - rounded to whole numbers with dots
+function formatMoney(amount) {
+    if (amount == null || isNaN(amount)) return '0';
+    return Math.round(amount).toLocaleString('de-DE');
+}
 
 // DOM Elements
 const reportsSection = document.getElementById('reports-section');
@@ -376,6 +382,22 @@ function renderReport(quarters, selectedYear, selectedBuilding) {
         });
     }
     
+    // Tính lợi nhuận trung bình chỉ trên những tháng có chi phí
+    let monthsWithExpense = 0;
+    let totalProfitWithExpense = 0;
+    
+    for (let q = 1; q <= 4; q++) {
+        quarters[q].months.forEach(m => {
+            const monthData = quarters[q].monthlyData[m];
+            if (monthData.expense > 0) {
+                monthsWithExpense++;
+                totalProfitWithExpense += monthData.profit;
+            }
+        });
+    }
+    
+    const averageProfitWithExpense = monthsWithExpense > 0 ? totalProfitWithExpense / monthsWithExpense : 0;
+    
     // Total row
     html += `
         <tr class="border bg-gray-100">
@@ -392,6 +414,12 @@ function renderReport(quarters, selectedYear, selectedBuilding) {
     
     reportsTableBody.innerHTML = html;
     
+    // Lưu dữ liệu quarters để sử dụng trong calculateDateRangeWithExpense
+    window.currentQuartersData = quarters;
+    
+    // Hiển thị ô lợi nhuận trung bình riêng biệt
+    displayAverageProfitBox(monthsWithExpense, averageProfitWithExpense);
+    
     // Render mobile cards
     renderQuarterlyReportMobileCards(quarters, selectedYear, selectedBuilding);
 }
@@ -402,6 +430,74 @@ function renderReport(quarters, selectedYear, selectedBuilding) {
 function getRomanNumeral(num) {
     const numerals = ['I', 'II', 'III', 'IV'];
     return numerals[num - 1] || num;
+}
+
+/**
+ * Hiển thị card lợi nhuận trung bình theo chuẩn design system
+ */
+function displayAverageProfitBox(monthsWithExpense, averageProfitWithExpense) {
+    const averageProfitBox = document.getElementById('average-profit-box');
+    const averageProfitTitle = document.getElementById('average-profit-title');
+    const averageProfitPeriod = document.getElementById('average-profit-period');
+    const averageProfitValue = document.getElementById('average-profit-value');
+    
+    if (averageProfitBox && averageProfitTitle && averageProfitPeriod && averageProfitValue) {
+        if (monthsWithExpense > 0) {
+            averageProfitBox.classList.remove('hidden');
+            
+            // Tính khoảng thời gian
+            const currentYear = parseInt(document.getElementById('report-year').value);
+            const dateRange = calculateDateRangeWithExpense(currentYear);
+            
+            // Cập nhật nội dung
+            averageProfitTitle.textContent = 'Lợi nhuận trung bình';
+            averageProfitPeriod.textContent = `${dateRange}`;
+            averageProfitValue.textContent = formatMoney(averageProfitWithExpense);
+            
+            // Thay đổi màu sắc dựa trên lời lỗ
+            if (averageProfitWithExpense >= 0) {
+                averageProfitValue.className = 'text-2xl font-bold text-green-600';
+            } else {
+                averageProfitValue.className = 'text-2xl font-bold text-red-500';
+            }
+        } else {
+            averageProfitBox.classList.add('hidden');
+        }
+    }
+}
+
+/**
+ * Tính khoảng thời gian từ tháng đầu đến tháng cuối có chi phí
+ */
+function calculateDateRangeWithExpense(year) {
+    // Lấy dữ liệu quarters từ context hiện tại
+    const quarters = window.currentQuartersData;
+    if (!quarters) return `01/01/${year} - 31/12/${year}`;
+    
+    let firstMonthWithExpense = null;
+    let lastMonthWithExpense = null;
+    
+    // Tìm tháng đầu và cuối có chi phí
+    for (let q = 1; q <= 4; q++) {
+        quarters[q].months.forEach(m => {
+            const monthData = quarters[q].monthlyData[m];
+            if (monthData.expense > 0) {
+                if (firstMonthWithExpense === null) {
+                    firstMonthWithExpense = m;
+                }
+                lastMonthWithExpense = m;
+            }
+        });
+    }
+    
+    if (firstMonthWithExpense && lastMonthWithExpense) {
+        const firstDate = `01/${firstMonthWithExpense.toString().padStart(2, '0')}/${year}`;
+        const lastDay = new Date(year, lastMonthWithExpense, 0).getDate();
+        const lastDate = `${lastDay}/${lastMonthWithExpense.toString().padStart(2, '0')}/${year}`;
+        return `${firstDate} - ${lastDate}`;
+    }
+    
+    return `01/01/${year} - 31/12/${year}`;
 }
 
 /**
@@ -832,13 +928,7 @@ function renderQuarterlyReportMobileCards(reportData, selectedYear, selectedBuil
     const buildingName = selectedBuilding === 'all' ? 'Tất cả tòa nhà' : 
                         (buildings.find(b => b.id === selectedBuilding)?.code || 'N/A');
     
-    let html = `
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <div class="text-sm font-medium text-blue-800">
-                📊 Báo cáo năm ${selectedYear} - ${buildingName}
-            </div>
-        </div>
-    `;
+    let html = ``;
     
     for (let q = 1; q <= 4; q++) {
         const quarter = reportData[q];
@@ -886,6 +976,25 @@ function renderQuarterlyReportMobileCards(reportData, selectedYear, selectedBuil
             </div>
         `;
     }
+    
+    // Tính lợi nhuận trung bình chỉ trên những tháng có chi phí cho mobile
+    let monthsWithExpense = 0;
+    let totalProfitWithExpense = 0;
+    
+    for (let q = 1; q <= 4; q++) {
+        reportData[q].months.forEach(m => {
+            const monthData = reportData[q].monthlyData[m];
+            if (monthData.expense > 0) {
+                monthsWithExpense++;
+                totalProfitWithExpense += monthData.profit;
+            }
+        });
+    }
+    
+    const averageProfitWithExpense = monthsWithExpense > 0 ? totalProfitWithExpense / monthsWithExpense : 0;
+    
+    // Hiển thị ô lợi nhuận trung bình riêng biệt (dùng chung cho cả desktop và mobile)
+    displayAverageProfitBox(monthsWithExpense, averageProfitWithExpense);
     
     mobileContainer.innerHTML = html;
 }
