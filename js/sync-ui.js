@@ -124,10 +124,10 @@ function openSyncModal() {
     const today = formatDateDisplay(new Date());
     dateToInput.value = today;
     
-    // Set from date to 30 days ago
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    dateFromInput.value = formatDateDisplay(thirtyDaysAgo);
+    // Set from date to 3 days ago
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    dateFromInput.value = formatDateDisplay(threeDaysAgo);
     
     // Ẩn các module bị hạn chế cho viewer
     hideRestrictedModulesForViewer();
@@ -151,13 +151,13 @@ function hideRestrictedModulesForViewer() {
     
     // Danh sách các module bị cấm cho viewer
     const restrictedModules = [
-        'buildings',           // 1. Tòa nhà
-        'services',           // 2. Phí dịch vụ
-        'transactionCategories', // 3. Hạng mục thu chi
-        'accounts',           // 4. Sổ quỹ
-        'contracts',          // 5. Hợp đồng thuê
-        'transactions',       // 6. Thu chi
-        'notifications'       // 7. Thông báo
+        // 'buildings',        // Bỏ comment - viewer cần buildings để load dropdown
+        'services',           // 1. Phí dịch vụ
+        'transactionCategories', // 2. Hạng mục thu chi
+        'accounts',           // 3. Sổ quỹ
+        'contracts',          // 4. Hợp đồng thuê
+        'transactions',       // 5. Thu chi
+        'notifications'       // 6. Thông báo
     ];
     
     // Ẩn từng module

@@ -36,7 +36,7 @@ const PERMISSIONS = {
     viewer: {
         // Quản lý chỉ được XEM 3 thứ
         dashboard: true, // Được xem dashboard
-        buildings: false, // Không xem tòa nhà
+        buildings: { view: true }, // Được xem tòa nhà (để load dropdown)
         services: false, // Không xem dịch vụ
         accounts: false, // Không xem sổ quỹ
         transactionCategories: false, // Không xem hạng mục
