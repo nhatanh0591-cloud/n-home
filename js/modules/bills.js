@@ -649,7 +649,7 @@ async function handleBodyClick(e) {
         await bulkUncollect();
     }
     // Nút "Xóa hàng loạt" (desktop hoặc mobile)
-    else if (target.id === 'bulk-delete-bills-btn' || target.id === 'bulk-delete-bills-mobile-btn') {
+    else if (target.id === 'bulk-delete-bills-btn') {
         await bulkDelete();
     }
     // Nút "Xuất Excel"
@@ -1870,7 +1870,7 @@ function updateBulkApprovalButtons() {
             bulkUnapproveBtn.classList.add('hidden');
             bulkCollectBtn.classList.add('hidden');
             bulkUncollectBtn.classList.add('hidden');
-            document.getElementById('bulk-delete-bills-mobile-btn')?.classList.add('hidden');
+            document.getElementById('bulk-delete-bills-btn')?.classList.add('hidden');
             return;
         }
         billsData = Array.from(checkedBoxes).map(cb => {
@@ -1883,7 +1883,7 @@ function updateBulkApprovalButtons() {
         bulkUnapproveBtn.classList.add('hidden');
         bulkCollectBtn.classList.add('hidden');
         bulkUncollectBtn.classList.add('hidden');
-        document.getElementById('bulk-delete-bills-mobile-btn')?.classList.add('hidden');
+        document.getElementById('bulk-delete-bills-btn')?.classList.add('hidden');
         return;
     }
     
@@ -1905,10 +1905,10 @@ function updateBulkApprovalButtons() {
     bulkCollectBtn.classList.toggle('hidden', !(allApproved && allUnpaid));
     bulkUncollectBtn.classList.toggle('hidden', !allPaid);
     
-    // Nút xóa mobile: chỉ hiện khi tất cả chưa duyệt
-    const deleteMobileBtn = document.getElementById('bulk-delete-bills-mobile-btn');
-    if (deleteMobileBtn) {
-        deleteMobileBtn.classList.toggle('hidden', someApproved);
+    // Nút xóa: chỉ hiện khi tất cả chưa duyệt
+    const deleteBtn = document.getElementById('bulk-delete-bills-btn');
+    if (deleteBtn) {
+        deleteBtn.classList.toggle('hidden', someApproved);
     }
 }
 
@@ -3056,9 +3056,9 @@ async function handleImportSubmit() {
                     continue;
                 }
 
-                // Tìm hợp đồng
+                // Tìm hợp đồng (bỏ điều kiện active)
                 const contract = getContracts().find(c => 
-                    c.buildingId === building.id && c.room === room && getContractStatus(c) === 'active'
+                    c.buildingId === building.id && c.room === room
                 );
                 if (!contract) { 
                     console.log(`Không tìm thấy hợp đồng cho phòng ${room}`);

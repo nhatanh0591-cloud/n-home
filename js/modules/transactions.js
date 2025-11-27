@@ -1839,6 +1839,7 @@ function updateBulkApprovalButtons() {
     
     const allApproved = states.every(s => s === true);
     const allUnapproved = states.every(s => s === false);
+    const someApproved = states.some(s => s === true);
 
     // Hiển thị nút phù hợp
     if (bulkApproveTransactionsBtn) {
@@ -1846,6 +1847,12 @@ function updateBulkApprovalButtons() {
     }
     if (bulkUnapproveTransactionsBtn) {
         bulkUnapproveTransactionsBtn.classList.toggle('hidden', !allApproved);
+    }
+    
+    // Nút xóa hàng loạt: chỉ hiện khi tất cả chưa duyệt
+    const bulkDeleteBtn = document.getElementById('bulk-delete-transactions-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.classList.toggle('hidden', someApproved);
     }
     
     // Cập nhật clear button
