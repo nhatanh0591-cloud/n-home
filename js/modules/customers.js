@@ -6,7 +6,7 @@ import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showC
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentCustomerPage = 1;
-const customersPerPage = 20;
+const customersPerPage = 100;
 let customersCache_filtered = []; // Cache đã lọc để phân trang
 let selectedMobileCustomerIds = new Set(); // Checkbox mobile persistent
 

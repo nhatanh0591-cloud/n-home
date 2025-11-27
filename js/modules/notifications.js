@@ -10,7 +10,7 @@ let notificationsCache_filtered = [];
 const selectedMobileNotificationIds = new Set();
 
 // Pagination variables
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 100;
 let currentNotificationsPage = 1;
 
 // --- DOM ELEMENTS ---
@@ -22,6 +22,8 @@ const buildingFilterEl = document.getElementById('notification-building-filter')
 const roomFilterEl = document.getElementById('notification-room-filter');
 const customerFilterEl = document.getElementById('notification-customer-filter');
 const typeFilterEl = document.getElementById('notification-type-filter');
+const monthFilterEl = document.getElementById('notification-month-filter');
+const yearFilterEl = document.getElementById('notification-year-filter');
 const statusFilterEl = document.getElementById('notification-status-filter');
 const searchEl = document.getElementById('notification-search');
 const selectAllCheckbox = document.getElementById('select-all-notifications');
@@ -43,7 +45,7 @@ export function initNotifications() {
     document.body.addEventListener('click', handleBodyClick);
     
     // Lắng nghe sự kiện lọc
-    [buildingFilterEl, roomFilterEl, customerFilterEl, typeFilterEl, statusFilterEl, searchEl].forEach(el => {
+    [buildingFilterEl, roomFilterEl, customerFilterEl, typeFilterEl, monthFilterEl, yearFilterEl, statusFilterEl, searchEl].forEach(el => {
         el?.addEventListener('input', applyNotificationFilters);
     });
     
@@ -184,6 +186,9 @@ function loadNotificationFilterOptions() {
     // Populate type filter
     populateNotificationTypeFilter();
     
+    // Populate year filter
+    populateNotificationYearFilter();
+    
     // Populate building filter
     buildingFilterEl.innerHTML = '<option value="all">Tất cả tòa nhà</option>';
     buildings.forEach(building => {
@@ -193,6 +198,34 @@ function loadNotificationFilterOptions() {
     
     // Cập nhật phòng
     handleBuildingFilterChange();
+}
+
+/**
+ * Populate dropdown năm
+ */
+function populateNotificationYearFilter() {
+    if (!yearFilterEl) return;
+
+    // Lấy năm hiện tại và 2 năm trước
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear, currentYear - 1, currentYear - 2];
+    
+    // Lưu giá trị hiện tại
+    const currentValue = yearFilterEl.value;
+
+    // Xóa các option hiện tại
+    yearFilterEl.innerHTML = '<option value="all">Tất cả năm</option>';
+
+    // Thêm các năm
+    years.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = `Năm ${year}`;
+        yearFilterEl.appendChild(option);
+    });
+
+    // Khôi phục giá trị đã chọn nếu còn tồn tại
+    yearFilterEl.value = currentValue;
 }
 
 /**
@@ -432,6 +465,8 @@ async function applyNotificationFilters() {
         const room = roomFilterEl?.value || 'all';
         const customerId = customerFilterEl?.value || 'all';
         const type = typeFilterEl?.value || 'all';
+        const month = monthFilterEl?.value || 'all';
+        const year = yearFilterEl?.value || 'all';
         const status = statusFilterEl?.value || 'all';
         const search = searchEl?.value.toLowerCase() || '';
 
@@ -448,6 +483,47 @@ async function applyNotificationFilters() {
             
             // Lọc theo loại thông báo
             if (type !== 'all' && notification.type !== type) return false;
+            
+            // Lọc theo tháng và năm (dựa trên tiêu đề thông báo)
+            if (month !== 'all' || year !== 'all') {
+                const title = (notification.title || '').toLowerCase();
+                const message = (notification.message || '').toLowerCase();
+                
+                // Nếu chọn cả tháng và năm
+                if (month !== 'all' && year !== 'all') {
+                    const monthNum = parseInt(month);
+                    const pattern1 = `tháng ${monthNum}-${year}`;  // "tháng 6-2025"
+                    const pattern2 = `tháng ${monthNum}/${year}`;  // "tháng 6/2025"
+                    const pattern3 = `tháng ${String(monthNum).padStart(2, '0')}-${year}`;  // "tháng 06-2025"
+                    
+                    const match = title.includes(pattern1) || title.includes(pattern2) || title.includes(pattern3) ||
+                        message.includes(pattern1) || message.includes(pattern2) || message.includes(pattern3);
+                    
+                    if (!match) return false;
+                }
+                // Nếu chỉ chọn tháng (không chọn năm)
+                else if (month !== 'all') {
+                    const monthNum = parseInt(month);
+                    const pattern = `tháng ${monthNum}-`;  // "tháng 6-"
+                    const pattern2 = `tháng ${monthNum}/`;  // "tháng 6/"
+                    const pattern3 = `tháng ${String(monthNum).padStart(2, '0')}-`;  // "tháng 06-"
+                    
+                    const match = title.includes(pattern) || title.includes(pattern2) || title.includes(pattern3) ||
+                        message.includes(pattern) || message.includes(pattern2) || message.includes(pattern3);
+                    
+                    if (!match) return false;
+                }
+                // Nếu chỉ chọn năm (không chọn tháng)
+                else if (year !== 'all') {
+                    const pattern = `-${year}`;  // "-2025"
+                    const pattern2 = `/${year}`;  // "/2025"
+                    
+                    const match = title.includes(pattern) || title.includes(pattern2) ||
+                        message.includes(pattern) || message.includes(pattern2);
+                    
+                    if (!match) return false;
+                }
+            }
             
             // Lọc theo trạng thái
             if (status === 'read' && !notification.isRead) return false;

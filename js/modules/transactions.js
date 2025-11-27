@@ -17,7 +17,7 @@ const selectedMobileTransactionIds = new Set(); // Set lưu trạng thái checkb
 
 // Pagination variables
 let currentPage = 1;
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 100;
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Thu Chi) ---
 const transactionsSection = document.getElementById('transactions-section');
@@ -455,10 +455,29 @@ function renderTransactionsTable(transactions) {
     const buildings = getBuildings();
     const customers = getCustomers();
     const accounts = getAccounts();
+    const categories = transactionCategoriesCache;
     
     transactionsToShow.forEach(t => {
         const building = buildings.find(b => b.id === t.buildingId);
         const customer = customers.find(c => c.id === t.customerId);
+        
+        // Lấy category từ items (vì mỗi transaction có thể có nhiều items với các category khác nhau)
+        // Hiển thị tất cả categories của các items, hoặc category đầu tiên
+        let categoryDisplay = '-';
+        if (t.items && t.items.length > 0) {
+            const itemCategories = t.items
+                .map(item => {
+                    const cat = categories.find(c => c.id === item.categoryId);
+                    return cat ? cat.name : null;
+                })
+                .filter(name => name !== null);
+            
+            if (itemCategories.length > 0) {
+                // Lấy unique categories
+                const uniqueCategories = [...new Set(itemCategories)];
+                categoryDisplay = uniqueCategories.join(', ');
+            }
+        }
         
         // TÍNH TỔNG SỐ TIỀN TỪ ITEMS
         const totalAmount = t.items && t.items.length > 0 
@@ -509,7 +528,7 @@ function renderTransactionsTable(transactions) {
             <td class="py-4 px-4 ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? 'Thu' : 'Chi'}</td>
             <td class="py-4 px-4">${building ? building.code : '-'}</td>
             <td class="py-4 px-4">${t.payer || (customer ? customer.name : '-')}</td>
-            <td class="py-4 px-4">${formatDateForDisplay(t.date)}</td>
+            <td class="py-4 px-4">${categoryDisplay}</td>
             <td class="py-4 px-4 font-medium">${formatMoney(totalAmount)}</td>
             <td class="py-4 px-4">${accountDisplay}</td>
         `;
@@ -1293,8 +1312,20 @@ async function deleteTransaction(id) {
             await setDoc(doc(db, 'bills', t.billId), {
                 status: 'unpaid',
                 paidAmount: 0,
+                paidDate: null,
                 updatedAt: serverTimestamp()
             }, { merge: true });
+            
+            // ✅ CẬP NHẬT LOCALSTORAGE CHO BILL
+            updateInLocalStorage('bills', t.billId, {
+                status: 'unpaid',
+                paidAmount: 0,
+                paidDate: null
+            });
+            console.log(`✅ Đã cập nhật bill ${t.billId} trong localStorage về unpaid`);
+            
+            // ✅ DISPATCH EVENT ĐỂ UI BILLS CẬP NHẬT
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
             
             showToast('Đã xóa phiếu thu, cập nhật hóa đơn và xóa thông báo!');
         } else {

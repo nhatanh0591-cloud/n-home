@@ -49,7 +49,7 @@ let selectedMobileBillIds = new Set(); // Checkbox mobile persistent
 
 // Pagination variables
 let currentPage = 1;
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 100;
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Hóa đơn) ---
 const billsSection = document.getElementById('bills-section');
@@ -1603,6 +1603,14 @@ async function bulkCollect(billIds = null, paymentDate = null) {
                 paidDate: transactionDate, // Sử dụng ngày thu tiền đã chọn
                 updatedAt: serverTimestamp()
             }, { merge: true });
+            
+            // ✅ CẬP NHẬT LOCALSTORAGE NGAY LẬP TỨC
+            updateInLocalStorage('bills', billId, {
+                status: 'paid',
+                paidAmount: bill.totalAmount,
+                paidDate: transactionDate
+            });
+            console.log(`✅ [BULK] Đã cập nhật bill ${billId} trong localStorage`);
         }
         
         // Chỉ reset khi không được gọi từ modal
@@ -1614,7 +1622,9 @@ async function bulkCollect(billIds = null, paymentDate = null) {
         }
         
         showToast(`Đã thu tiền và tạo ${selected.length} phiếu thu!`);
-        // Store listener tự động cập nhật
+        
+        // ✅ REFRESH LẠI DANH SÁCH HÓA ĐƠN
+        await loadBills();
     } catch (error) {
         showToast('Lỗi: ' + error.message, 'error');
     }
@@ -1727,6 +1737,14 @@ async function bulkUncollect() {
                 paidAmount: 0, // Reset số tiền đã thu
                 updatedAt: serverTimestamp()
             }, { merge: true });
+            
+            // ✅ CẬP NHẬT LOCALSTORAGE NGAY LẬP TỨC
+            updateInLocalStorage('bills', billId, {
+                status: 'unpaid',
+                paidDate: null,
+                paidAmount: 0
+            });
+            console.log(`✅ [BULK] Đã cập nhật bill ${billId} trong localStorage`);
         }
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt
@@ -1736,7 +1754,9 @@ async function bulkUncollect() {
         
         console.log('✅ Hoàn thành cập nhật');
         showToast(`Đã hủy thu tiền cho ${selected.length} hóa đơn!`);
-        // Store listener tự động cập nhật
+        
+        // ✅ REFRESH LẠI DANH SÁCH HÓA ĐƠN
+        await loadBills();
     } catch (error) {
         console.error('❌ Lỗi:', error);
         showToast('Lỗi: ' + error.message, 'error');
@@ -3318,81 +3338,28 @@ function generateId() {
  */
 /**
  * Tạo transaction items từ bill với category ID thực từ database
+ * KHI THU TIỀN TỪ HÓA ĐƠN → CHỈ TẠO 1 ITEM DUY NHẤT VỚI HẠNG MỤC "TIỀN HÓA ĐƠN"
  */
 async function createTransactionItemsFromBillWithRealCategories(bill) {
     // ✅ Load categories từ store
     let categories = getTransactionCategories();
     
-    // Tìm hạng mục hoặc dùng default
-    const ensureCategoryExists = (name, type = 'income') => {
-        let category = categories.find(c => c.name === name);
-        if (!category) {
-            console.log(`[WARNING] Không tìm thấy hạng mục: ${name}, dùng default`);
-            // Dùng hạng mục đầu tiên cùng loại hoặc tạo ID giả
-            category = categories.find(c => c.type === type) || { id: 'default-' + type };
-        }
-        return category.id;
-    };
-    
-    // Đảm bảo các hạng mục tồn tại
-    const electricCategoryId = ensureCategoryExists('Tiền điện', 'income');  
-    const waterCategoryId = ensureCategoryExists('Tiền nước', 'income');
-    const houseCategoryId = ensureCategoryExists('Tiền nhà', 'income');
-    const commissionCategoryId = ensureCategoryExists('Tiền hoa hồng', 'income');
-    const otherCategoryId = ensureCategoryExists('Chi phí khác', 'income');
+    // Tìm hạng mục "Tiền hóa đơn"
+    let billCategory = categories.find(c => c.name === 'Tiền hóa đơn');
+    if (!billCategory) {
+        console.log(`[WARNING] Không tìm thấy hạng mục "Tiền hóa đơn", dùng hạng mục income đầu tiên`);
+        // Dùng hạng mục income đầu tiên hoặc tạo ID giả
+        billCategory = categories.find(c => c.type === 'income') || { id: 'default-income' };
+    }
     
     const items = [];
     
-    if (bill.services && bill.services.length > 0) {
-        bill.services.forEach(service => {
-            const serviceName = (service.name || service.serviceName || '').toLowerCase();
-            
-            // Phân loại theo tên service
-            if (serviceName.includes('điện')) {
-                items.push({
-                    name: `Tiền điện (${service.name || service.serviceName})`,
-                    amount: service.amount || 0,
-                    categoryId: electricCategoryId
-                });
-            } else if (serviceName.includes('nước')) {
-                items.push({
-                    name: `Tiền nước (${service.name || service.serviceName})`,
-                    amount: service.amount || 0,
-                    categoryId: waterCategoryId
-                });
-            } else if (serviceName.includes('tiền nhà') || serviceName.includes('nhà') ||
-                       serviceName.includes('dịch vụ') || serviceName.includes('xe') ||
-                       serviceName.includes('house') || serviceName.includes('rent')) {
-                items.push({
-                    name: `Tiền nhà (${service.name || service.serviceName})`,
-                    amount: service.amount || 0,
-                    categoryId: houseCategoryId
-                });
-            } else if (serviceName.includes('cọc') || serviceName.includes('deposit')) {
-                items.push({
-                    name: `Tiền hoa hồng (${service.name || service.serviceName})`,
-                    amount: service.amount || 0,
-                    categoryId: commissionCategoryId
-                });
-            } else {
-                // Các dịch vụ khác không khớp từ khóa → Chi phí khác
-                items.push({
-                    name: `Chi phí khác (${service.name || service.serviceName})`,
-                    amount: service.amount || 0,
-                    categoryId: otherCategoryId
-                });
-            }
-        });
-    }
-    
-    // Nếu không có services, tạo 1 item mặc định cho tiền nhà
-    if (items.length === 0) {
-        items.push({
-            name: 'Tiền nhà',
-            amount: bill.totalAmount || 0,
-            categoryId: houseCategoryId
-        });
-    }
+    // TẠO 1 ITEM DUY NHẤT CHO TOÀN BỘ HÓA ĐƠN
+    items.push({
+        name: 'Tiền hóa đơn',
+        amount: bill.totalAmount || 0,
+        categoryId: billCategory.id
+    });
     
     console.log('[BILL TRANSACTION] Items tạo ra:', items);
     return items;

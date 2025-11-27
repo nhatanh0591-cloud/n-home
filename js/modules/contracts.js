@@ -10,7 +10,7 @@ import {
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentContractPage = 1;
-const contractsPerPage = 20;
+const contractsPerPage = 100;
 let contractsCache_filtered = []; // Cache đã lọc để phân trang
 let selectedCustomers = []; // Khách hàng tạm thời cho modal
 let currentContractServices = []; // Dịch vụ tạm thời cho modal

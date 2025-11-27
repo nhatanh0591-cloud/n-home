@@ -39,7 +39,7 @@ let buildingsCache = [];
 const selectedMobileTaskIds = new Set();
 
 // Pagination variables
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 100;
 let currentTasksPage = 1;
 
 // DOM Elements

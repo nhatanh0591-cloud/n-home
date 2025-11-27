@@ -731,6 +731,28 @@
                                         </select>
                                     </div>
                                     <div class="flex-1">
+                                        <select id="notification-month-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="all">Tất cả tháng</option>
+                                            <option value="1">Tháng 1</option>
+                                            <option value="2">Tháng 2</option>
+                                            <option value="3">Tháng 3</option>
+                                            <option value="4">Tháng 4</option>
+                                            <option value="5">Tháng 5</option>
+                                            <option value="6">Tháng 6</option>
+                                            <option value="7">Tháng 7</option>
+                                            <option value="8">Tháng 8</option>
+                                            <option value="9">Tháng 9</option>
+                                            <option value="10">Tháng 10</option>
+                                            <option value="11">Tháng 11</option>
+                                            <option value="12">Tháng 12</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex-1">
+                                        <select id="notification-year-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                            <option value="all">Tất cả năm</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex-1">
                                         <select id="notification-status-filter" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
                                             <option value="all" selected>Tất cả trạng thái</option>
                                             <option value="unread">Chưa đọc</option>
@@ -1328,7 +1350,7 @@
                                         <th class="py-4 px-4">Loại</th>
                                         <th class="py-4 px-4">Tòa nhà</th>
                                         <th class="py-4 px-4">Người nộp/Người nhận</th>
-                                        <th class="py-4 px-4">Ngày thực thu/chi</th>
+                                        <th class="py-4 px-4">Loại thu/chi</th>
                                         <th class="py-4 px-4">Số tiền</th>
                                         <th class="py-4 px-4">Sổ quỹ</th>
                                     </tr>
@@ -2316,7 +2338,7 @@
                     <div class="overflow-x-auto mb-4">
                         <table class="w-full text-sm">
                             <thead>
-                                <tr class="border-b text-left text-gray-600">
+                                <tr class="text-left text-gray-600">
                                     <th class="py-3 px-4 font-medium">Hạng mục</th>
                                     <th class="py-3 px-4 font-medium">Số tiền</th>
                                     <th class="py-3 px-4 font-medium text-center">Xóa</th>
