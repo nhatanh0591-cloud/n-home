@@ -203,55 +203,49 @@ function showCalendarDropdown(inputElement) {
     calendarDropdown.className = 'calendar-dropdown-container';
     calendarDropdown.innerHTML = '<div id="dropdown-calendar"></div>';
     
-    // Find the closest positioned parent or use body
-    let positionParent = inputElement.offsetParent || document.body;
-    
-    // Get input position relative to its container
+    // Get input position relative to viewport
     const inputRect = inputElement.getBoundingClientRect();
-    const container = inputElement.closest('.modal-content') || 
-                     inputElement.closest('form') || 
-                     document.body;
-    const containerRect = container.getBoundingClientRect();
     
-    // Check if input is in sync modal - if yes, position ABOVE, else BELOW
+    // Check if input is in a modal
+    const isInModal = inputElement.closest('.modal-content');
     const isSyncModal = inputElement.closest('#sync-data-modal');
     const dropdownHeight = 320; // Approximate calendar height
+    const dropdownWidth = 280;
+    
     let top, left;
     
     if (isSyncModal) {
         // Position ABOVE the input for sync modal
-        top = inputRect.top - containerRect.top - dropdownHeight - 3;
+        top = inputRect.top - dropdownHeight - 3;
     } else {
         // Position BELOW the input for all other cases
-        top = inputRect.bottom - containerRect.top + 3;
+        top = inputRect.bottom + 3;
     }
     
-    left = inputRect.left - containerRect.left;
+    left = inputRect.left;
     
-    // Adjust left position if dropdown would go outside container
-    const dropdownWidth = 280;
-    const containerWidth = containerRect.width;
-    if (left + dropdownWidth > containerWidth) {
-        left = containerWidth - dropdownWidth - 10;
+    // Adjust left position if dropdown would go outside viewport
+    const viewportWidth = window.innerWidth;
+    if (left + dropdownWidth > viewportWidth) {
+        left = viewportWidth - dropdownWidth - 10;
     }
     if (left < 0) {
         left = 10;
     }
     
+    // Always use fixed positioning and append to body for modals
     calendarDropdown.style.cssText = `
-        position: absolute !important;
+        position: fixed !important;
         top: ${top}px !important;
         left: ${left}px !important;
         bottom: auto !important;
-        z-index: 1050 !important;
+        z-index: 1100 !important;
         transform: translateY(0) !important;
         margin-top: 0 !important;
     `;
     
-    // Add to the same container as input or body (reuse container variable)
-    // container is already defined above
-    
-    container.appendChild(calendarDropdown);
+    // Always append to body to avoid overflow issues with modals
+    document.body.appendChild(calendarDropdown);
     
     // Create calendar instance with validated date
     currentCalendar = new CustomCalendar('dropdown-calendar', {
