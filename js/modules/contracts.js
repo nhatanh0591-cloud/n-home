@@ -78,6 +78,14 @@ export function initContracts() {
             loadContracts();
         }
     });
+    
+    // 🔥 Lắng nghe sự kiện xóa hóa đơn để cập nhật hợp đồng
+    document.addEventListener('store:bills:updated', () => {
+        // Không cần reload toàn bộ, chỉ cần kiểm tra nếu đang ở trang hợp đồng
+        if (!contractsSection.classList.contains('hidden')) {
+            console.log('🔄 Bills updated, checking for terminated contract status changes...');
+        }
+    });
     // Tải lại khi tòa nhà/khách hàng thay đổi (để cập nhật tên)
     document.addEventListener('store:buildings:updated', () => {
         if (!contractsSection.classList.contains('hidden')) {
@@ -341,8 +349,11 @@ function renderContractsPage() {
                     <button data-id="${contract.id}" class="edit-contract-btn w-8 h-8 rounded bg-gray-500 hover:bg-gray-600 flex items-center justify-center" title="Sửa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                     </button>
-                    <button data-id="${contract.id}" class="terminate-contract-btn w-8 h-8 rounded bg-orange-500 hover:bg-orange-600 flex items-center justify-center" title="${contract.status === 'terminated' ? 'Bỏ thanh lý' : 'Thanh lý'}">
-                        <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                    <button data-id="${contract.id}" class="terminate-contract-btn w-8 h-8 rounded ${contract.status === 'terminated' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'} flex items-center justify-center" title="${contract.status === 'terminated' ? 'Bỏ thanh lý' : 'Thanh lý'}">
+                        ${contract.status === 'terminated' ? 
+                            '<svg class="w-4 h-4 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>' : 
+                            '<svg class="w-4 h-4 text-white pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
+                        }
                     </button>
                     <button data-id="${contract.id}" class="delete-contract-btn w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
@@ -416,8 +427,11 @@ function renderContractsPage() {
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                         Sửa
                     </button>
-                    <button data-id="${contract.id}" class="terminate-contract-btn bg-orange-500 hover:bg-orange-600 text-white">
-                        <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                    <button data-id="${contract.id}" class="terminate-contract-btn ${contract.status === 'terminated' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'} text-white">
+                        ${contract.status === 'terminated' ? 
+                            '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>' : 
+                            '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
+                        }
                         ${contract.status === 'terminated' ? 'Bỏ thanh lý' : 'Thanh lý'}
                     </button>
                     <button data-id="${contract.id}" class="delete-contract-btn bg-red-500 hover:bg-red-600 text-white">
@@ -592,6 +606,30 @@ async function handleBodyClick(e) {
             const confirmed = await showConfirm('Bạn có chắc chắn muốn bỏ thanh lý hợp đồng này?', 'Xác nhận bỏ thanh lý');
             if (confirmed) {
                 try {
+                    // 🔥 TÌM VÀ XÓA HÓA ĐƠN THANH LÝ TRƯỚC KHI BỎ THANH LÝ
+                    console.log('🔍 Tìm hóa đơn thanh lý cho contract:', contractId);
+                    const bills = getBills();
+                    const terminationBill = bills.find(bill => 
+                        bill.contractId === contractId && bill.isTerminationBill === true
+                    );
+                    
+                    if (terminationBill) {
+                        console.log('🗑️ Xóa hóa đơn thanh lý:', terminationBill.id);
+                        
+                        // Xóa hóa đơn thanh lý từ Firebase
+                        await deleteDoc(doc(db, 'bills', terminationBill.id));
+                        
+                        // Xóa hóa đơn thanh lý từ localStorage
+                        deleteFromLocalStorage('bills', terminationBill.id);
+                        
+                        // Dispatch event để UI bills cập nhật
+                        document.dispatchEvent(new CustomEvent('store:bills:updated'));
+                        
+                        console.log('✅ Đã xóa hóa đơn thanh lý thành công');
+                    } else {
+                        console.log('⚠️ Không tìm thấy hóa đơn thanh lý cho contract:', contractId);
+                    }
+                    
                     // Tính toán trạng thái mới dựa trên ngày hết hạn
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -621,7 +659,7 @@ async function handleBodyClick(e) {
                         updatedAt: new Date()
                     });
                     
-                    showToast('Đã bỏ thanh lý hợp đồng thành công!');
+                    showToast('Đã bỏ thanh lý hợp đồng và xóa hóa đơn thanh lý!');
                 } catch (error) {
                     showToast('Lỗi bỏ thanh lý hợp đồng: ' + error.message, 'error');
                 }
@@ -1438,7 +1476,7 @@ async function createTerminationBill(contract) {
                 toDate: currentDate
             }],
             totalAmount: 0,
-            status: 'unpaid',
+            status: 'unpaid', // Trạng thái thông thường, sẽ được xử lý khi duyệt
             approved: false,
             paidAmount: 0,
             isTerminationBill: true,
@@ -1474,6 +1512,55 @@ async function createTerminationBill(contract) {
 function hasTerminationBill(contractId) {
     const bills = getBills();
     return bills.some(bill => bill.contractId === contractId && bill.isTerminationBill);
+}
+
+/**
+ * 🔥 Xử lý khi xóa hóa đơn thanh lý - cập nhật lại trạng thái hợp đồng
+ */
+export async function handleTerminationBillDeleted(billId, contractId) {
+    try {
+        console.log('🔄 [CONTRACT] Xử lý xóa hóa đơn thanh lý:', billId, 'for contract:', contractId);
+        
+        const contract = getContracts().find(c => c.id === contractId);
+        if (!contract) {
+            console.log('⚠️ [CONTRACT] Không tìm thấy hợp đồng:', contractId);
+            return;
+        }
+        
+        // Tính toán lại trạng thái hợp đồng
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const endDate = new Date(contract.endDate);
+        endDate.setHours(0, 0, 0, 0);
+        
+        let newStatus = 'active';
+        const diffTime = endDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) newStatus = 'expired';
+        else if (diffDays <= 30) newStatus = 'expiring';
+        
+        // Cập nhật Firebase
+        await setDoc(doc(db, 'contracts', contractId), {
+            status: newStatus,
+            terminatedAt: null,
+            terminationBillId: null,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        
+        // Cập nhật localStorage
+        updateInLocalStorage('contracts', contractId, {
+            status: newStatus,
+            terminatedAt: null,
+            terminationBillId: null,
+            updatedAt: new Date()
+        });
+        
+        console.log('✅ [CONTRACT] Đã khôi phục hợp đồng từ trạng thái terminated sang:', newStatus);
+        
+    } catch (error) {
+        console.error('❌ [CONTRACT] Lỗi khôi phục hợp đồng:', error);
+    }
 }
 
 /**

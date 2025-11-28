@@ -348,12 +348,12 @@ function renderBillsTable(bills) {
                     <div class="text-sm text-gray-500">${building ? building.code : 'N/A'} - ${bill.room}</div>
                 </div>
             </td>
-            <td class="py-4 px-4">Tháng ${bill.period}</td>
-            <td class="py-4 px-4">${getPaymentDueDate(bill)}</td>
-            <td class="py-4 px-4">${formatMoney(bill.totalAmount)}</td>
+            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</td>
+            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : getPaymentDueDate(bill)}</td>
+            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : formatMoney(bill.totalAmount)}</td>
             <td class="py-4 px-4">
-                <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? 'bg-gray-100 text-gray-800' : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
-                    ${bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? (bill.approved ? 'bg-gray-100 text-gray-800' : 'bg-orange-100 text-orange-800') : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
+                    ${bill.isTerminationBill ? (bill.approved ? 'Đã thanh lý' : 'Chờ thanh lý') : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
                 </span>
             </td>
         `;
@@ -383,21 +383,21 @@ function renderBillsTable(bills) {
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Kỳ thanh toán:</span>
-                    <span class="mobile-card-value">Tháng ${bill.period}</span>
+                    <span class="mobile-card-value">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Hạn thanh toán:</span>
-                    <span class="mobile-card-value">${getPaymentDueDate(bill)}</span>
+                    <span class="mobile-card-value">${bill.isTerminationBill ? '-' : getPaymentDueDate(bill)}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Tổng tiền:</span>
-                    <span class="mobile-card-value font-bold text-green-600">${formatMoney(bill.totalAmount)}</span>
+                    <span class="mobile-card-value font-bold ${bill.isTerminationBill ? 'text-gray-500' : 'text-green-600'}">${bill.isTerminationBill ? '-' : formatMoney(bill.totalAmount)}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
                     <span class="mobile-card-value">
-                        <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? 'bg-gray-100 text-gray-800' : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
-                            ${bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? (bill.approved ? 'bg-gray-100 text-gray-800' : 'bg-orange-100 text-orange-800') : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
+                            ${bill.isTerminationBill ? (bill.approved ? 'Đã thanh lý' : 'Chờ thanh lý') : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
                         </span>
                     </span>
                 </div>
@@ -994,6 +994,16 @@ async function deleteBill(billId) {
                     terminationBillId: null,
                     updatedAt: serverTimestamp()
                 }, { merge: true });
+                
+                // 🔥 Cập nhật localStorage cho hợp đồng
+                updateInLocalStorage('contracts', bill.contractId, {
+                    status: newStatus,
+                    terminatedAt: null,
+                    terminationBillId: null,
+                    updatedAt: new Date()
+                });
+                
+                console.log('✅ Đã khôi phục hợp đồng từ terminated sang:', newStatus);
             }
         }
         
@@ -1027,16 +1037,30 @@ async function toggleBillApproval(billId) {
         const newApproved = !bill.approved;
         console.log('🔄 Changing approved status to:', newApproved);
         // Update Firebase
-        await setDoc(doc(db, 'bills', billId), {
+        const updateData = {
             approved: newApproved,
             updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
+        
+        // 🔥 Nếu là hóa đơn thanh lý và được duyệt → chuyển status thành 'terminated'
+        if (bill.isTerminationBill && newApproved) {
+            updateData.status = 'terminated';
+        }
+        
+        await setDoc(doc(db, 'bills', billId), updateData, { merge: true });
         
         // Update localStorage
-        updateInLocalStorage('bills', billId, {
+        const localUpdateData = {
             approved: newApproved,
             updatedAt: new Date()
-        });
+        };
+        
+        // 🔥 Nếu là hóa đơn thanh lý và được duyệt → chuyển status thành 'terminated'
+        if (bill.isTerminationBill && newApproved) {
+            localUpdateData.status = 'terminated';
+        }
+        
+        updateInLocalStorage('bills', billId, localUpdateData);
         
         // Dispatch event để UI cập nhật ngay
         window.dispatchEvent(new CustomEvent('store:bills:updated'));
@@ -3308,7 +3332,7 @@ function handleExport() {
             'Kỳ': `Tháng ${bill.period}`,
             'Ngày lập': formatDateDisplay(bill.billDate),
             'Tổng tiền': formatMoney(bill.totalAmount),
-            'Trạng thái': bill.isTerminationBill ? 'Đã thanh lý' : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'),
+            'Trạng thái': bill.isTerminationBill ? (bill.approved ? 'Đã thanh lý' : 'Chờ thanh lý') : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'),
             'Duyệt': bill.approved ? 'Đã duyệt' : 'Chưa duyệt'
         };
     });

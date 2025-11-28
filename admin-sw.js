@@ -1,5 +1,5 @@
 // admin-sw.js
-// Service Worker cho N-Home Admin PWA
+// Service Worker cho N-Home PWA
 
 const CACHE_NAME = 'n-home-admin-v2';
 const urlsToCache = [
@@ -29,11 +29,11 @@ const urlsToCache = [
 
 // Install Service Worker
 self.addEventListener('install', (event) => {
-    console.log('N-Home Admin SW: Installing...');
+    console.log('N-Home SW: Installing...');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('N-Home Admin SW: Caching files');
+                console.log('N-Home SW: Caching files');
                 return cache.addAll(urlsToCache);
             })
     );
@@ -41,13 +41,13 @@ self.addEventListener('install', (event) => {
 
 // Activate Service Worker
 self.addEventListener('activate', (event) => {
-    console.log('N-Home Admin SW: Activating...');
+    console.log('N-Home SW: Activating...');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
                     if (cacheName !== CACHE_NAME) {
-                        console.log('N-Home Admin SW: Deleting old cache:', cacheName);
+                        console.log('N-Home SW: Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
@@ -67,4 +67,4 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-console.log('✅ N-Home Admin Service Worker loaded');
+console.log('✅ N-Home Service Worker loaded');
