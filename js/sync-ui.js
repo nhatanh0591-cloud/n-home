@@ -2,7 +2,7 @@
  * Sync UI Controller - Quản lý giao diện đồng bộ dữ liệu
  */
 
-import { syncSelectedCollections } from './modules/sync-manager.js';
+import { syncSelectedCollections, smartSync } from './modules/sync-manager.js';
 import { showToast, formatDateDisplay, parseDateInput } from './utils.js';
 import { getCurrentUserRole } from './auth.js';
 
@@ -296,8 +296,10 @@ async function handleConfirmSync() {
             .filter(cb => cb.checked)
             .map(cb => cb.value);
             
+        // Nếu không chọn module nào -> dùng Smart Sync
         if (selectedModules.length === 0) {
-            showToast('Vui lòng chọn ít nhất một module để cập nhật', 'error');
+            console.log('⚡ No modules selected, using Smart Sync...');
+            await handleSmartSyncIntegrated();
             return;
         }
         
@@ -362,10 +364,7 @@ function showSyncLoading(isLoading) {
     } else {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = `
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Bắt đầu cập nhật
+            Cập Nhật
         `;
     }
 }
@@ -463,6 +462,39 @@ function showSyncSuccessModal(moduleCount, totalReads, dateRangeText) {
             closeModal();
         }
     }, 8000);
+}
+
+/**
+ * Xử lý Smart Sync tích hợp vào nút chính
+ */
+async function handleSmartSyncIntegrated() {
+    try {
+        console.log('⚡ Starting Smart Sync (Integrated)...');
+        
+        // Show loading state cho nút chính
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = `
+            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Đang cập nhật...
+        `;
+        
+        await smartSync();
+        closeSyncModal();
+        
+    } catch (error) {
+        console.error('❌ Smart Sync Error:', error);
+        showToast('Lỗi smart sync: ' + error.message, 'error');
+    } finally {
+        // Reset nút về trạng thái ban đầu
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `
+            Cập Nhật
+        `;
+        isSyncing = false;
+    }
 }
 
 // Auto-initialize when DOM is ready
