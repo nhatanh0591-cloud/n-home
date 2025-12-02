@@ -8,7 +8,7 @@
     <!-- Updated: 03/12/2025 -->
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest-customer.json" crossorigin="use-credentials">
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
     
     <!-- Theme Color - Trùng với logo #23904f -->
     <meta name="theme-color" content="#23904f">
@@ -79,7 +79,7 @@
         // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/customer-sw.js')
+                navigator.serviceWorker.register('/admin-sw.js')
                     .then((registration) => {
                         console.log('N-Home SW registered successfully:', registration.scope);
                     })
