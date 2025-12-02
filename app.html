@@ -4980,9 +4980,19 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration cho Firebase Messaging
+        // Service Worker Registration - THÊM MAIN SW GIỐNG ADMIN
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // Register main service worker for PWA
+                navigator.serviceWorker.register('/admin-sw.js')
+                    .then((registration) => {
+                        console.log('✅ Main SW registration successful:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('❌ Main SW registration failed:', error);
+                    });
+                    
+                // Register Firebase messaging service worker
                 navigator.serviceWorker.register('/firebase-messaging-sw.js')
                     .then(registration => {
                         console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
