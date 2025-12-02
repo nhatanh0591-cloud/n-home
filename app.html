@@ -5019,15 +5019,22 @@
         const installCancelBtn = document.getElementById('install-cancel-btn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('📱 beforeinstallprompt event fired!');
             e.preventDefault();
             deferredPrompt = e;
             
-            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
             const isLocalhost = window.location.hostname === 'localhost' || 
                                window.location.hostname === '127.0.0.1';
             
-            if (!isLocalhost && installPrompt) {
+            console.log('🌐 Hostname:', window.location.hostname, 'isLocalhost:', isLocalhost);
+            console.log('📱 Install prompt element:', installPrompt);
+            
+            // Hiện luôn để test - bỏ điều kiện localhost
+            if (installPrompt) {
+                console.log('✅ Showing install prompt');
                 installPrompt.style.display = 'flex';
+            } else {
+                console.log('❌ Install prompt element not found');
             }
         });
 
@@ -5052,6 +5059,24 @@
                 }
             });
         }
+
+        // Fallback: Hiện prompt sau 3s nếu browser không fire beforeinstallprompt
+        setTimeout(() => {
+            if (!deferredPrompt && installPrompt) {
+                console.log('⏰ Fallback: Showing install prompt after timeout');
+                console.log('🔍 Current URL:', window.location.href);
+                console.log('📱 User Agent:', navigator.userAgent);
+                
+                // Kiểm tra xem có phải PWA context không
+                if (window.matchMedia('(display-mode: standalone)').matches || 
+                    window.navigator.standalone === true) {
+                    console.log('📱 App already installed, not showing prompt');
+                } else {
+                    console.log('📱 App not installed, showing fallback prompt');
+                    installPrompt.style.display = 'flex';
+                }
+            }
+        }, 3000);
 
         // Hide install prompt when already installed
         window.addEventListener('appinstalled', () => {
