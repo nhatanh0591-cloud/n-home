@@ -4992,20 +4992,16 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration cho Firebase Messaging
+        // Service Worker Registration cho PWA (QUAN TRỌNG cho việc cài đặt app!)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                // Đăng ký customer-sw.js cho PWA
+                navigator.serviceWorker.register('/customer-sw.js')
                     .then(registration => {
-                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
-                        
-                        // Cấu hình Firebase Messaging với service worker
-                        if (messaging) {
-                            messaging.useServiceWorker(registration);
-                        }
+                        console.log('✅ Customer PWA Service Worker registered:', registration.scope);
                     })
                     .catch(error => {
-                        console.log('❌ Firebase Messaging SW registration failed:', error);
+                        console.log('❌ Customer PWA SW registration failed:', error);
                     });
             });
         }
@@ -5035,12 +5031,20 @@
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log(`User response: ${outcome}`);
+                    if (outcome === 'accepted') {
+                        console.log('✅ User accepted the install prompt');
+                    } else {
+                        console.log('❌ User dismissed the install prompt');
+                    }
                     deferredPrompt = null;
+                } else {
+                    // Fallback nếu không có deferredPrompt
+                    console.log('⚠️ No deferredPrompt available');
+                    alert('Vui lòng cài đặt app bằng cách:\n\nChrome/Edge: Menu (⋮) → "Cài đặt ứng dụng"\nSafari: Share → "Thêm vào Màn hình chính"');
                 }
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
                 }
-                // KHÔNG lưu dismissed khi user bấm Cài đặt - chỉ ẩn popup
             });
         }
 
@@ -5072,14 +5076,17 @@
             
             console.log('Install conditions:', { isMobile, isInstalled, deferredPrompt: !!deferredPrompt });
             
-            // Hiển thị nếu là mobile và chưa cài đặt
+            // Hiển thị nếu là mobile, chưa cài đặt, VÀ có deferredPrompt
             if (isMobile && !isInstalled) {
-                // Delay 2 seconds để user load xong trang
+                // Delay 2 seconds để user load xong trang VÀ để deferredPrompt được set
                 setTimeout(() => {
                     console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
-                    if (installPrompt) {
+                    // CHỈ hiện popup nếu có deferredPrompt (browser hỗ trợ)
+                    if (installPrompt && deferredPrompt) {
                         console.log('Showing install prompt...');
                         installPrompt.style.display = 'flex';
+                    } else {
+                        console.log('⚠️ Cannot show install prompt - no deferredPrompt or browser not supported');
                     }
                 }, 2000);
             }
