@@ -132,16 +132,42 @@
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
                 console.log('🔥 Install button clicked, deferredPrompt:', !!deferredPrompt);
+                
+                // LUÔN THỬ NATIVE INSTALL TRƯỚC
                 if (deferredPrompt) {
-                    console.log('✅ Using native PWA install');
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log('PWA install outcome:', outcome);
-                    deferredPrompt = null;
-                } else {
-                    console.log('❌ No deferredPrompt, showing manual instructions');
-                    alert('Để cài đặt ứng dụng:\n\n1. Bấm menu trình duyệt (⋮) ở góc trên\n2. Chọn "Thêm vào màn hình chính" hoặc "Cài đặt ứng dụng"\n\nSau khi cài, app sẽ không có thanh địa chỉ nữa!');
+                    console.log('✅ Using deferredPrompt');
+                    try {
+                        await deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        console.log('PWA install outcome:', outcome);
+                        if (outcome === 'accepted') {
+                            console.log('✅ User accepted install');
+                            document.body.removeChild(installPrompt);
+                            return;
+                        }
+                        deferredPrompt = null;
+                    } catch (error) {
+                        console.log('❌ deferredPrompt error:', error);
+                    }
                 }
+                
+                // DETECT BROWSER VÀ SHOW ĐÚNG HƯỚNG DẪN
+                const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+                const isEdge = /Edg/.test(navigator.userAgent);
+                const isSamsung = /SamsungBrowser/.test(navigator.userAgent);
+                
+                console.log('🔍 Browser detection:', { isChrome, isEdge, isSamsung, userAgent: navigator.userAgent });
+                
+                let instructions = '';
+                if (isChrome || isEdge) {
+                    instructions = '🚀 Cài đặt N-Home:\n\n✅ Bước 1: Bấm menu (⋮) ở góc phải trên cùng\n✅ Bước 2: Tìm và chọn "Cài đặt N-Home" hoặc "Install N-Home"\n✅ Bước 3: Bấm "Install" trong popup xuất hiện\n\n🎉 Ứng dụng sẽ mở không có thanh địa chỉ Vercel!';
+                } else if (isSamsung) {
+                    instructions = '🚀 Cài đặt N-Home:\n\n✅ Bước 1: Bấm menu (☰) \n✅ Bước 2: Chọn "Add page to" → "Home screen"\n\n🎉 Ứng dụng sẽ xuất hiện trên màn hình chính!';
+                } else {
+                    instructions = '🚀 Cài đặt N-Home:\n\n✅ Bước 1: Bấm menu trình duyệt\n✅ Bước 2: Tìm "Thêm vào màn hình chính" hoặc "Add to Home screen"\n\n🎉 Ứng dụng sẽ mở không có thanh địa chỉ!';
+                }
+                
+                alert(instructions);
                 document.body.removeChild(installPrompt);
             });
 
