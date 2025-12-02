@@ -432,14 +432,16 @@
         <div id="install-prompt" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center;">
             <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
                 <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt ứng dụng</h3>
-                <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn</p>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home</h3>
+                <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn và không hiển thị thanh địa chỉ</p>
                 <div style="display: flex; gap: 12px;">
                     <button id="install-button" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
                     <button id="install-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
                 </div>
             </div>
         </div>
+
+
 
         <!-- Login Screen -->
         <div id="login-screen" class="hidden gradient-bg h-screen">
@@ -916,6 +918,82 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const storage = getStorage(app);
+
+        // 📱 PWA SERVICE WORKER & INSTALL PROMPT
+        let deferredPrompt;
+        let installButton = null;
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/customer-sw.js')
+                    .then((registration) => {
+                        console.log('N-Home Customer SW registered successfully:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('N-Home Customer SW registration failed:', error);
+                    });
+            });
+        }
+
+        // PWA Install Prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA Install prompt event fired');
+            e.preventDefault();
+            deferredPrompt = e;
+            showInstallPrompt();
+        });
+
+        // Show custom install prompt
+        function showInstallPrompt() {
+            console.log('Showing install prompt...');
+            
+            // Remove existing prompt if any
+            const existing = document.getElementById('install-prompt');
+            if (existing) {
+                existing.style.display = 'flex';
+                return;
+            }
+        }
+
+        // Check if device is mobile
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   window.innerWidth <= 768 || 
+                   'ontouchstart' in window;
+        }
+
+        // Check if should show install prompt
+        window.addEventListener('load', () => {
+            console.log('Page loaded, checking install conditions...');
+            
+            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
+            const isMobile = isMobileDevice();
+            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
+            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+            
+            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            
+            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
+                // Delay 2 seconds để user load xong trang
+                setTimeout(() => {
+                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
+                    if (deferredPrompt) {
+                        showInstallPrompt();
+                    } else {
+                        // Force show install prompt nếu không có beforeinstallprompt
+                        console.log('No beforeinstallprompt, force showing install prompt');
+                        showInstallPrompt();
+                    }
+                }, 2000);
+            }
+        });
+        
+        // Track if app was installed
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA Customer was installed successfully');
+            localStorage.removeItem('pwa-customer-install-dismissed');
+        });
 
         let currentUser = null;
         let customerData = null;
@@ -4992,16 +5070,20 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration cho PWA (QUAN TRỌNG cho việc cài đặt app!)
+        // Service Worker Registration cho Firebase Messaging
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Đăng ký customer-sw.js cho PWA
-                navigator.serviceWorker.register('/customer-sw.js')
+                navigator.serviceWorker.register('/firebase-messaging-sw.js')
                     .then(registration => {
-                        console.log('✅ Customer PWA Service Worker registered:', registration.scope);
+                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
+                        
+                        // Cấu hình Firebase Messaging với service worker
+                        if (messaging) {
+                            messaging.useServiceWorker(registration);
+                        }
                     })
                     .catch(error => {
-                        console.log('❌ Customer PWA SW registration failed:', error);
+                        console.log('❌ Firebase Messaging SW registration failed:', error);
                     });
             });
         }
@@ -5012,17 +5094,17 @@
         const installButton = document.getElementById('install-button');
         const installCancelBtn = document.getElementById('install-cancel-btn');
 
-        // Check if device is mobile
-        function isMobileDevice() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                   window.innerWidth <= 768 || 
-                   'ontouchstart' in window;
-        }
-
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA Install prompt event fired');
             e.preventDefault();
             deferredPrompt = e;
+            
+            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
+            const isLocalhost = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1';
+            
+            if (!isLocalhost && installPrompt) {
+                installPrompt.style.display = 'flex';
+            }
         });
 
         if (installButton) {
@@ -5031,16 +5113,7 @@
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log(`User response: ${outcome}`);
-                    if (outcome === 'accepted') {
-                        console.log('✅ User accepted the install prompt');
-                    } else {
-                        console.log('❌ User dismissed the install prompt');
-                    }
                     deferredPrompt = null;
-                } else {
-                    // Fallback nếu không có deferredPrompt
-                    console.log('⚠️ No deferredPrompt available');
-                    alert('Vui lòng cài đặt app bằng cách:\n\nChrome/Edge: Menu (⋮) → "Cài đặt ứng dụng"\nSafari: Share → "Thêm vào Màn hình chính"');
                 }
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
@@ -5053,7 +5126,6 @@
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
                 }
-                // KHÔNG lưu dismissed - để lần sau vẫn hiện popup
             });
         }
 
@@ -5064,29 +5136,6 @@
                 installPrompt.style.display = 'none';
             }
             deferredPrompt = null;
-        });
-
-        // Check if should show install prompt on page load
-        window.addEventListener('load', () => {
-            console.log('Page loaded, checking install conditions...');
-            
-            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
-            const isMobile = isMobileDevice();
-            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
-            
-            console.log('Install conditions:', { isMobile, isInstalled, deferredPrompt: !!deferredPrompt });
-            
-            // Hiển thị nếu là mobile và chưa cài đặt (KHÔNG CẦN deferredPrompt)
-            if (isMobile && !isInstalled) {
-                // Delay 2 seconds để user load xong trang
-                setTimeout(() => {
-                    console.log('Timeout reached, showing install prompt');
-                    if (installPrompt) {
-                        console.log('✅ Showing install prompt...');
-                        installPrompt.style.display = 'flex';
-                    }
-                }, 2000);
-            }
         });
 
         // Check if running as PWA
