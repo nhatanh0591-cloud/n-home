@@ -99,11 +99,12 @@
 
         // Show custom install prompt
         function showInstallPrompt() {
-            console.log('Showing install prompt...');
+            console.log('🔥 SHOWING INSTALL PROMPT - FORCE MODE');
             
             // Remove existing prompt if any
             const existing = document.getElementById('pwa-install-prompt');
             if (existing) {
+                console.log('🗑️ Removing existing prompt');
                 existing.remove();
             }
             
@@ -114,8 +115,8 @@
                 <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
                     <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
                         <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
-                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home</h3>
-                        <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn</p>
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">🚀 Cài đặt N-Home</h3>
+                        <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn và ẩn thanh địa chỉ</p>
                         <div style="display: flex; gap: 12px;">
                             <button id="pwa-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
                             <button id="pwa-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
@@ -124,21 +125,29 @@
                 </div>
             `;
             
+            console.log('✅ Appending popup to body');
             document.body.appendChild(installPrompt);
+            console.log('✅ Popup appended, should be visible now');
 
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+                console.log('🔥 Install button clicked, deferredPrompt:', !!deferredPrompt);
                 if (deferredPrompt) {
+                    console.log('✅ Using native PWA install');
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log('PWA install outcome:', outcome);
                     deferredPrompt = null;
+                } else {
+                    console.log('❌ No deferredPrompt, showing manual instructions');
+                    alert('Để cài đặt ứng dụng:\n\n1. Bấm menu trình duyệt (⋮) ở góc trên\n2. Chọn "Thêm vào màn hình chính" hoặc "Cài đặt ứng dụng"\n\nSau khi cài, app sẽ không có thanh địa chỉ nữa!');
                 }
                 document.body.removeChild(installPrompt);
             });
 
             // Cancel button click
             document.getElementById('pwa-cancel-btn').addEventListener('click', () => {
+                console.log('❌ Install cancelled by user');
                 document.body.removeChild(installPrompt);
                 // Lưu trạng thái đã từ chối cho customer app riêng
                 localStorage.setItem('pwa-customer-install-dismissed', Date.now());
@@ -154,28 +163,27 @@
 
         // Check if should show install prompt
         window.addEventListener('load', () => {
-            console.log('Page loaded, checking install conditions...');
+            console.log('🔥 FORCE SHOW - Page loaded, checking install conditions...');
             
             // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
             const isMobile = isMobileDevice();
             const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
             const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
             
-            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            console.log('🔥 Install conditions:', { 
+                isMobile, 
+                dismissed, 
+                isInstalled, 
+                deferredPrompt: !!deferredPrompt,
+                userAgent: navigator.userAgent
+            });
             
-            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
-                // Delay 2 seconds để user load xong trang
-                setTimeout(() => {
-                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
-                    if (deferredPrompt) {
-                        showInstallPrompt();
-                    } else {
-                        // Force show install prompt nếu không có beforeinstallprompt
-                        console.log('No beforeinstallprompt, force showing install prompt');
-                        showInstallPrompt();
-                    }
-                }, 2000);
-            }
+            // FORCE SHOW POPUP - BỎ TẤT CẢ ĐIỀU KIỆN
+            console.log('🔥 FORCE SHOWING POPUP - IGNORING ALL CONDITIONS');
+            setTimeout(() => {
+                console.log('🔥 FORCE TIMEOUT - Showing install prompt now!');
+                showInstallPrompt();
+            }, 1000);
         });
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
