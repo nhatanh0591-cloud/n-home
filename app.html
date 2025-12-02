@@ -5076,17 +5076,14 @@
             
             console.log('Install conditions:', { isMobile, isInstalled, deferredPrompt: !!deferredPrompt });
             
-            // Hiển thị nếu là mobile, chưa cài đặt, VÀ có deferredPrompt
+            // Hiển thị nếu là mobile và chưa cài đặt (KHÔNG CẦN deferredPrompt)
             if (isMobile && !isInstalled) {
-                // Delay 2 seconds để user load xong trang VÀ để deferredPrompt được set
+                // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
-                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
-                    // CHỈ hiện popup nếu có deferredPrompt (browser hỗ trợ)
-                    if (installPrompt && deferredPrompt) {
-                        console.log('Showing install prompt...');
+                    console.log('Timeout reached, showing install prompt');
+                    if (installPrompt) {
+                        console.log('✅ Showing install prompt...');
                         installPrompt.style.display = 'flex';
-                    } else {
-                        console.log('⚠️ Cannot show install prompt - no deferredPrompt or browser not supported');
                     }
                 }, 2000);
             }
