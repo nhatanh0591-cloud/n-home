@@ -5080,6 +5080,42 @@
             }
         }, 3000);
 
+        // 🚀 AUTO SHOW INSTALL PROMPT - Giống index.html
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                   window.innerWidth <= 768 || 
+                   'ontouchstart' in window;
+        }
+
+        // Check and auto-show install prompt
+        window.addEventListener('load', () => {
+            console.log('📱 Checking if should auto-show install prompt...');
+            
+            const isMobile = isMobileDevice();
+            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
+            const isInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            
+            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            
+            // Chỉ hiện popup trên mobile, chưa cài đặt, và chưa dismiss (hoặc đã quá 7 ngày)
+            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
+                // Delay 2 giây để user load xong trang
+                setTimeout(() => {
+                    console.log('⏰ 2s timeout reached, checking deferredPrompt:', !!deferredPrompt);
+                    if (deferredPrompt || true) { // Force show popup luôn
+                        console.log('✅ Auto-showing install prompt');
+                        if (installPrompt) {
+                            installPrompt.style.display = 'flex';
+                        }
+                    }
+                }, 2000);
+            } else {
+                console.log('⏭️ Skipping auto-show:', { 
+                    reason: !isMobile ? 'not mobile' : isInstalled ? 'already installed' : 'recently dismissed' 
+                });
+            }
+        });
+
 
         if (installButton) {
             installButton.addEventListener('click', async () => {
@@ -5100,6 +5136,9 @@
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
                 }
+                // Lưu trạng thái đã dismiss để không hiện lại trong 7 ngày
+                localStorage.setItem('pwa-customer-install-dismissed', Date.now());
+                console.log('❌ User dismissed install prompt');
             });
         }
 
@@ -5109,6 +5148,8 @@
             if (installPrompt) {
                 installPrompt.style.display = 'none';
             }
+            // Xóa trạng thái dismissed khi đã cài đặt
+            localStorage.removeItem('pwa-customer-install-dismissed');
             deferredPrompt = null;
         });
 
