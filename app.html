@@ -129,20 +129,11 @@
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
                 if (deferredPrompt) {
-                    try {
-                        deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
-                        console.log('PWA install outcome:', outcome);
-                        deferredPrompt = null;
-                        document.body.removeChild(installPrompt);
-                        return;
-                    } catch (error) {
-                        console.log('deferredPrompt error:', error);
-                    }
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log('PWA install outcome:', outcome);
+                    deferredPrompt = null;
                 }
-                
-                // FALLBACK - show manual instructions
-                alert('🚀 Cài đặt N-Home:\n\n✅ Bước 1: Bấm menu (⋮) ở góc phải trên cùng\n✅ Bước 2: Tìm và chọn "Cài đặt N-Home" hoặc "Install N-Home"\n✅ Bước 3: Bấm "Install" trong popup xuất hiện\n\n🎉 Ứng dụng sẽ mở không có thanh địa chỉ Vercel!');
                 document.body.removeChild(installPrompt);
             });
 
@@ -161,11 +152,30 @@
                    'ontouchstart' in window;
         }
 
-        // FORCE SHOW popup - không cần điều kiện gì
+        // Check if should show install prompt
         window.addEventListener('load', () => {
-            setTimeout(() => {
-                showInstallPrompt();
-            }, 1000);
+            console.log('Page loaded, checking install conditions...');
+            
+            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
+            const isMobile = isMobileDevice();
+            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
+            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+            
+            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            
+            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
+                // Delay 2 seconds để user load xong trang
+                setTimeout(() => {
+                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
+                    if (deferredPrompt) {
+                        showInstallPrompt();
+                    } else {
+                        // Force show install prompt nếu không có beforeinstallprompt
+                        console.log('No beforeinstallprompt, force showing install prompt');
+                        showInstallPrompt();
+                    }
+                }, 2000);
+            }
         });
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
