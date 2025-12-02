@@ -5005,9 +5005,15 @@
         let deferredPrompt;
 
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA Install prompt event fired');
+            console.log('🚀 PWA Install prompt event fired!');
+            console.log('📱 Event details:', e);
+            console.log('🌐 URL:', window.location.href);
+            console.log('📱 User Agent:', navigator.userAgent);
+            
             e.preventDefault();
             deferredPrompt = e;
+            
+            console.log('✅ deferredPrompt stored, calling showInstallPrompt()');
             showInstallPrompt();
         });
 
@@ -5042,13 +5048,33 @@
 
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+                console.log('Install button clicked, deferredPrompt:', !!deferredPrompt);
+                
                 if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log('PWA install outcome:', outcome);
-                    deferredPrompt = null;
+                    try {
+                        console.log('Calling deferredPrompt.prompt()...');
+                        await deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        console.log('PWA install outcome:', outcome);
+                        
+                        if (outcome === 'accepted') {
+                            console.log('✅ User accepted the install prompt');
+                        } else {
+                            console.log('❌ User dismissed the install prompt');
+                        }
+                        deferredPrompt = null;
+                    } catch (error) {
+                        console.error('Error during install:', error);
+                    }
+                } else {
+                    console.log('❌ No deferredPrompt available - trying manual install instructions');
+                    // Fallback cho iOS hoặc browsers không support beforeinstallprompt
+                    alert('Để cài đặt app:\n\n📱 Android: Mở menu browser → "Thêm vào màn hình chính"\n\n🍎 iOS: Bấm nút Share → "Add to Home Screen"');
                 }
-                document.body.removeChild(installPrompt);
+                
+                if (installPrompt && document.body.contains(installPrompt)) {
+                    document.body.removeChild(installPrompt);
+                }
             });
 
             // Cancel button click
@@ -5079,12 +5105,23 @@
             if (isMobile && !isInstalled) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
-                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
+                    console.log('⏰ Timeout reached after 2s');
+                    console.log('🔍 deferredPrompt status:', !!deferredPrompt);
+                    console.log('📱 Browser support check...');
+                    
+                    // Kiểm tra PWA criteria
+                    const isHTTPS = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+                    const hasServiceWorker = 'serviceWorker' in navigator;
+                    
+                    console.log('🔒 HTTPS:', isHTTPS);
+                    console.log('⚙️ Service Worker support:', hasServiceWorker);
+                    
                     if (deferredPrompt) {
+                        console.log('✅ Has deferredPrompt - showing prompt');
                         showInstallPrompt();
                     } else {
-                        // Force show install prompt nếu không có beforeinstallprompt
-                        console.log('No beforeinstallprompt, force showing install prompt');
+                        console.log('❌ No beforeinstallprompt event - showing fallback prompt');
+                        console.log('💡 This might be iOS or browser that doesn\'t support the event');
                         showInstallPrompt();
                     }
                 }, 2000);
