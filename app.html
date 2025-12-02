@@ -5048,33 +5048,13 @@
 
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
-                console.log('Install button clicked, deferredPrompt:', !!deferredPrompt);
-                
                 if (deferredPrompt) {
-                    try {
-                        console.log('Calling deferredPrompt.prompt()...');
-                        await deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
-                        console.log('PWA install outcome:', outcome);
-                        
-                        if (outcome === 'accepted') {
-                            console.log('✅ User accepted the install prompt');
-                        } else {
-                            console.log('❌ User dismissed the install prompt');
-                        }
-                        deferredPrompt = null;
-                    } catch (error) {
-                        console.error('Error during install:', error);
-                    }
-                } else {
-                    console.log('❌ No deferredPrompt available - trying manual install instructions');
-                    // Fallback cho iOS hoặc browsers không support beforeinstallprompt
-                    alert('Để cài đặt app:\n\n📱 Android: Mở menu browser → "Thêm vào màn hình chính"\n\n🍎 iOS: Bấm nút Share → "Add to Home Screen"');
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log('PWA install outcome:', outcome);
+                    deferredPrompt = null;
                 }
-                
-                if (installPrompt && document.body.contains(installPrompt)) {
-                    document.body.removeChild(installPrompt);
-                }
+                document.body.removeChild(installPrompt);
             });
 
             // Cancel button click
@@ -5120,9 +5100,10 @@
                         console.log('✅ Has deferredPrompt - showing prompt');
                         showInstallPrompt();
                     } else {
-                        console.log('❌ No beforeinstallprompt event - showing fallback prompt');
-                        console.log('💡 This might be iOS or browser that doesn\'t support the event');
-                        showInstallPrompt();
+                        console.log('❌ No beforeinstallprompt event fired');
+                        console.log('💡 Browser might not meet PWA criteria or is iOS');
+                        // Chỉ show prompt nếu có deferredPrompt thật sự
+                        // iOS user sẽ tự biết cách "Add to Home Screen"
                     }
                 }, 2000);
             }
