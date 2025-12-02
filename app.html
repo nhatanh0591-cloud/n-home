@@ -5059,6 +5059,11 @@
             }
         });
 
+        // ⚡ THÊM LISTENER SỚM HƠN - Đặt trước khi page load
+        if (!deferredPrompt) {
+            console.log('⚠️ Setting up early beforeinstallprompt listener...');
+        }
+
         // ⏰ Timeout check - nếu sau 3s chưa có event, log warning
         setTimeout(() => {
             if (!deferredPrompt) {
@@ -5103,16 +5108,15 @@
             
             // Chỉ hiện popup trên mobile, chưa cài đặt, và chưa dismiss (hoặc đã quá 7 ngày)
             if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
-                // Delay 2 giây để user load xong trang
+                // ⚡ TĂNG DELAY LÊN 5 GIÂY để đợi SW ready
                 setTimeout(() => {
-                    console.log('⏰ 2s timeout reached, checking deferredPrompt:', !!deferredPrompt);
-                    if (deferredPrompt || true) { // Force show popup luôn
-                        console.log('✅ Auto-showing install prompt');
-                        if (installPrompt) {
-                            installPrompt.style.display = 'flex';
-                        }
+                    console.log('⏰ 5s timeout reached, checking deferredPrompt:', !!deferredPrompt);
+                    // LUÔN HIỆN POPUP để test, dù có event hay không
+                    console.log('✅ Force showing install prompt for testing');
+                    if (installPrompt) {
+                        installPrompt.style.display = 'flex';
                     }
-                }, 2000);
+                }, 5000); // Tăng từ 2s → 5s
             } else {
                 console.log('⏭️ Skipping auto-show:', { 
                     reason: !isMobile ? 'not mobile' : isInstalled ? 'already installed' : 'recently dismissed' 
