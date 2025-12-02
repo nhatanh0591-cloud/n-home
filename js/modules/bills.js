@@ -3080,12 +3080,39 @@ async function handleImportSubmit() {
                     continue;
                 }
 
-                // Tìm hợp đồng (bỏ điều kiện active)
-                const contract = getContracts().find(c => 
-                    c.buildingId === building.id && c.room === room
-                );
+                // Tìm hợp đồng theo tên khách hàng
+                const allCustomers = getCustomers();
+                let contract = null;
+                
+                if (customerName) {
+                    // Tìm hợp đồng có khách hàng khớp tên
+                    contract = getContracts().find(c => {
+                        if (c.buildingId !== building.id || c.room !== room) return false;
+                        
+                        // Lấy tên khách hàng từ representativeId
+                        const customer = allCustomers.find(cu => cu.id === c.representativeId);
+                        if (!customer) return false;
+                        
+                        return customer.name.toLowerCase().trim() === customerName.toLowerCase().trim();
+                    });
+                }
+                
+                // Fallback: lấy hợp đồng active của phòng
+                if (!contract) {
+                    contract = getContracts().find(c => 
+                        c.buildingId === building.id && c.room === room && c.status === 'active'
+                    );
+                }
+                
+                // Fallback cuối: lấy hợp đồng bất kỳ của phòng
+                if (!contract) {
+                    contract = getContracts().find(c => 
+                        c.buildingId === building.id && c.room === room
+                    );
+                }
+                
                 if (!contract) { 
-                    console.log(`Không tìm thấy hợp đồng cho phòng ${room}`);
+                    console.log(`Không tìm thấy hợp đồng cho phòng ${room} - khách hàng ${customerName}`);
                     errorCount++; 
                     continue; 
                 }
