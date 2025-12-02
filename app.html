@@ -2007,6 +2007,13 @@
                         if (!localExistingNotification) {
                             console.log('✅ Adding notification type:', notificationData.type, 'isFirstLoad:', isFirstNotificationLoad);
                             
+                            // 💾 CHECK CACHE: Kiểm tra xem notification này đã từng được đánh dấu đã đọc chưa
+                            const cachedData = loadUserDataFromCache(customerId);
+                            const cachedNotification = cachedData?.notifications?.find(n => n.data?.firebaseId === change.doc.id);
+                            const wasRead = cachedNotification?.isRead || false;
+                            
+                            console.log('📖 Checking cached read status for notification:', change.doc.id, 'wasRead:', wasRead);
+                            
                             // Tạo notification object
                             const notification = {
                                 id: `${notificationData.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -2014,7 +2021,7 @@
                                 title: notificationData.title,
                                 message: messageToShow,
                                 createdAt: notificationData.createdAt?.toDate ? notificationData.createdAt.toDate() : new Date(),
-                                isRead: false, // LUÔN chưa đọc để user phải bấm đọc
+                                isRead: wasRead, // GIỮ NGUYÊN trạng thái đã đọc từ cache
                                 data: { 
                                     billId: notificationData.billId,
                                     amount: notificationData.amount,
@@ -4992,38 +4999,23 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // 🔧 Service Worker Registration - CHỈ DÙNG 1 SW DUY NHẤT
+        // Service Worker Registration cho Firebase Messaging
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', async () => {
-                try {
-                    // ⚠️ UNREGISTER TẤT CẢ SW CŨ TRƯỚC
-                    const registrations = await navigator.serviceWorker.getRegistrations();
-                    console.log('🔍 Found', registrations.length, 'existing service workers');
-                    for (const registration of registrations) {
-                        console.log('🗑️ Unregistering old SW:', registration.scope);
-                        await registration.unregister();
-                    }
-                    
-                    // Register SW mới (đã merge PWA + FCM)
-                    const registration = await navigator.serviceWorker.register('/sw.js');
-                    console.log('✅ Service Worker registered:', registration.scope);
-                    
-                    // Wait for service worker to be ready
-                    await navigator.serviceWorker.ready;
-                    console.log('✅ Service Worker is ready');
-                    
-                    // Configure Firebase Messaging
-                    if (typeof messaging !== 'undefined' && messaging) {
-                        messaging.useServiceWorker(registration);
-                    }
-                } catch (error) {
-                    console.error('❌ Service Worker registration failed:', error);
-                }
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                    .then(registration => {
+                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
+                        
+                        // Cấu hình Firebase Messaging với service worker
+                        if (messaging) {
+                            messaging.useServiceWorker(registration);
+                        }
+                    })
+                    .catch(error => {
+                        console.log('❌ Firebase Messaging SW registration failed:', error);
+                    });
             });
-        } else {
-            console.warn('⚠️ Service Worker not supported in this browser');
         }
-
 
         // PWA Install Prompt
         let deferredPrompt;
@@ -5031,121 +5023,27 @@
         const installButton = document.getElementById('install-button');
         const installCancelBtn = document.getElementById('install-cancel-btn');
 
-        // 🔍 Debug: Check PWA install criteria
-        console.log('📱 PWA Install Debug Info:');
-        console.log('- Current URL:', window.location.href);
-        console.log('- Protocol:', window.location.protocol);
-        console.log('- Is HTTPS:', window.location.protocol === 'https:');
-        console.log('- Manifest link:', document.querySelector('link[rel="manifest"]')?.href);
-        console.log('- Service Worker support:', 'serviceWorker' in navigator);
-        
-        // Check if already installed
-        if (window.matchMedia('(display-mode: standalone)').matches || 
-            window.navigator.standalone === true) {
-            console.log('✅ App already installed as PWA');
-        } else {
-            console.log('⚠️ App not installed yet, waiting for beforeinstallprompt event...');
-        }
-
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('🎉 beforeinstallprompt event triggered!');
             e.preventDefault();
             deferredPrompt = e;
             
-            // ❌ BỎ CHECK LOCALHOST - hiện popup luôn để test
-            console.log('📱 Showing install prompt...');
-            if (installPrompt) {
+            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
+            const isLocalhost = window.location.hostname === 'localhost' || 
+                               window.location.hostname === '127.0.0.1';
+            
+            if (!isLocalhost && installPrompt) {
                 installPrompt.style.display = 'flex';
             }
         });
 
-        // ⚡ THÊM LISTENER SỚM HƠN - Đặt trước khi page load
-        if (!deferredPrompt) {
-            console.log('⚠️ Setting up early beforeinstallprompt listener...');
-        }
-
-        // ⏰ Timeout check - nếu sau 3s chưa có event, log warning
-        setTimeout(() => {
-            if (!deferredPrompt) {
-                console.warn('⚠️ beforeinstallprompt event NOT triggered after 3s');
-                console.log('Possible reasons:');
-                console.log('1. App already installed');
-                console.log('2. Not served over HTTPS');
-                console.log('3. Service Worker not registered properly');
-                console.log('4. Manifest missing or invalid');
-                console.log('5. Browser does not support install prompt (iOS Safari)');
-                
-                // Check các điều kiện cơ bản
-                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-                    console.error('❌ HTTPS required for PWA install (except localhost)');
-                }
-                
-                // iOS Safari fallback instruction
-                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-                    console.log('📱 iOS detected: Use Safari "Add to Home Screen" from Share menu');
-                }
-            } else {
-                console.log('✅ beforeinstallprompt event was triggered');
-            }
-        }, 3000);
-
-        // 🚀 AUTO SHOW INSTALL PROMPT - Giống index.html
-        function isMobileDevice() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                   window.innerWidth <= 768 || 
-                   'ontouchstart' in window;
-        }
-
-        // Check and auto-show install prompt
-        window.addEventListener('load', () => {
-            console.log('📱 Checking if should auto-show install prompt...');
-            
-            const isMobile = isMobileDevice();
-            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
-            const isInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-            
-            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
-            
-            // Chỉ hiện popup trên mobile, chưa cài đặt, và chưa dismiss (hoặc đã quá 7 ngày)
-            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
-                // ⚡ TĂNG DELAY LÊN 5 GIÂY để đợi SW ready
-                setTimeout(() => {
-                    console.log('⏰ 5s timeout reached, checking deferredPrompt:', !!deferredPrompt);
-                    // LUÔN HIỆN POPUP để test, dù có event hay không
-                    console.log('✅ Force showing install prompt for testing');
-                    if (installPrompt) {
-                        installPrompt.style.display = 'flex';
-                    }
-                }, 5000); // Tăng từ 2s → 5s
-            } else {
-                console.log('⏭️ Skipping auto-show:', { 
-                    reason: !isMobile ? 'not mobile' : isInstalled ? 'already installed' : 'recently dismissed' 
-                });
-            }
-        });
-
-
         if (installButton) {
             installButton.addEventListener('click', async () => {
-                console.log('🎯 Install button clicked, deferredPrompt:', !!deferredPrompt);
-                
                 if (deferredPrompt) {
-                    console.log('✅ Prompting install...');
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`📱 User response: ${outcome}`);
+                    console.log(`User response: ${outcome}`);
                     deferredPrompt = null;
-                } else {
-                    console.error('❌ No deferredPrompt available!');
-                    console.log('📱 This might be iOS or browser does not support beforeinstallprompt');
-                    // Hiện hướng dẫn cho iOS
-                    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-                        alert('Trên iPhone/iPad:\n1. Nhấn nút Share (⬆️)\n2. Chọn "Add to Home Screen"\n3. Nhấn "Add"');
-                    } else {
-                        alert('Trình duyệt không hỗ trợ cài đặt tự động.\nVui lòng thử lại sau hoặc dùng Chrome/Edge.');
-                    }
                 }
-                
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
                 }
@@ -5157,9 +5055,6 @@
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
                 }
-                // Lưu trạng thái đã dismiss để không hiện lại trong 7 ngày
-                localStorage.setItem('pwa-customer-install-dismissed', Date.now());
-                console.log('❌ User dismissed install prompt');
             });
         }
 
@@ -5169,8 +5064,6 @@
             if (installPrompt) {
                 installPrompt.style.display = 'none';
             }
-            // Xóa trạng thái dismissed khi đã cài đặt
-            localStorage.removeItem('pwa-customer-install-dismissed');
             deferredPrompt = null;
         });
 
