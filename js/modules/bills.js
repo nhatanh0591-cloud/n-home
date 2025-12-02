@@ -3080,41 +3080,52 @@ async function handleImportSubmit() {
                     continue;
                 }
 
-                // Tìm hợp đồng theo tên khách hàng
+                // Tìm hợp đồng theo tên khách hàng với debug chi tiết
                 const allCustomers = getCustomers();
                 let contract = null;
                 
-                if (customerName) {
-                    // Tìm hợp đồng có khách hàng khớp tên
-                    contract = getContracts().find(c => {
-                        if (c.buildingId !== building.id || c.room !== room) return false;
-                        
-                        // Lấy tên khách hàng từ representativeId
+                console.log(`🔍 DEBUG Excel - Phòng: ${room}, Tên KH: "${customerName}"`);
+                
+                // Tìm tất cả hợp đồng của phòng này
+                const roomContracts = getContracts().filter(c => 
+                    c.buildingId === building.id && c.room === room
+                );
+                
+                console.log(`🏠 Tìm thấy ${roomContracts.length} hợp đồng cho phòng ${room}:`);
+                roomContracts.forEach((c, index) => {
+                    const customer = allCustomers.find(cu => cu.id === c.representativeId);
+                    const customerNameDB = customer ? customer.name : 'N/A';
+                    console.log(`   ${index + 1}. HĐ ID: ${c.id} - KH: "${customerNameDB}" - Status: ${c.status}`);
+                });
+                
+                if (customerName && roomContracts.length > 0) {
+                    // So sánh tên chính xác
+                    contract = roomContracts.find(c => {
                         const customer = allCustomers.find(cu => cu.id === c.representativeId);
                         if (!customer) return false;
                         
-                        return customer.name.toLowerCase().trim() === customerName.toLowerCase().trim();
+                        const dbName = customer.name.toLowerCase().trim();
+                        const excelName = customerName.toLowerCase().trim();
+                        const isMatch = dbName === excelName;
+                        
+                        console.log(`   📋 So sánh: DB="${dbName}" vs Excel="${excelName}" → ${isMatch ? '✅ MATCH' : '❌ NO MATCH'}`);
+                        return isMatch;
                     });
+                    
+                    if (contract) {
+                        const matchedCustomer = allCustomers.find(cu => cu.id === contract.representativeId);
+                        console.log(`✅ FOUND MATCH: HĐ ID ${contract.id} - KH "${matchedCustomer.name}"`);
+                    } else {
+                        console.log(`❌ NO EXACT MATCH FOUND for "${customerName}"`);
+                    }
                 }
                 
-                // Fallback: lấy hợp đồng active của phòng
+                // KHÔNG dùng fallback - chỉ tạo hóa đơn khi match chính xác tên
                 if (!contract) {
-                    contract = getContracts().find(c => 
-                        c.buildingId === building.id && c.room === room && c.status === 'active'
-                    );
-                }
-                
-                // Fallback cuối: lấy hợp đồng bất kỳ của phòng
-                if (!contract) {
-                    contract = getContracts().find(c => 
-                        c.buildingId === building.id && c.room === room
-                    );
-                }
-                
-                if (!contract) { 
-                    console.log(`Không tìm thấy hợp đồng cho phòng ${room} - khách hàng ${customerName}`);
-                    errorCount++; 
-                    continue; 
+                    console.log(`❌ SKIP: Không tìm thấy hợp đồng match chính xác cho phòng ${room} - khách hàng "${customerName}"`);
+                    console.log(`   → Yêu cầu tên khách hàng trong Excel phải khớp 100% với tên trong hệ thống`);
+                    errorCount++;
+                    continue;
                 }
 
                 // Xử lý ngày tháng từ file
