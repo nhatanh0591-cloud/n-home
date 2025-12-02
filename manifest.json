@@ -2,7 +2,7 @@
   "name": "N-Home",
   "short_name": "N-Home",
   "description": "Hệ thống quản lý cho N-Home",
-  "start_url": "/app",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#23904f",
   "theme_color": "#23904f",
