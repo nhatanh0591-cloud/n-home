@@ -222,9 +222,9 @@ export async function smartSync() {
             totalUpdated += result.updatedItems;
             totalDeleted += result.deletedItems;
             
-            if (result.hasChanges) {
-                document.dispatchEvent(new CustomEvent(`store:${collectionName}:updated`));
-            }
+            // Luôn dispatch event để force refresh UI, đặc biệt cho bills để fix NaN bug
+            document.dispatchEvent(new CustomEvent(`store:${collectionName}:updated`));
+            console.log(`🔄 [SMART-SYNC] Dispatched ${collectionName}:updated event`);
         }
         
         if (totalNew > 0 || totalUpdated > 0 || totalDeleted > 0) {

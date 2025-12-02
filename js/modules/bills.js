@@ -513,8 +513,8 @@ function updateBillStats() {
     // Sử dụng data đã được filter thay vì toàn bộ data
     const bills = billsCache_filtered;
     
-    const totalAmount = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
-    const collectedAmount = bills.filter(bill => bill.status === 'paid').reduce((sum, bill) => sum + bill.totalAmount, 0);
+    const totalAmount = bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0);
+    const collectedAmount = bills.filter(bill => bill.status === 'paid').reduce((sum, bill) => sum + (bill.totalAmount || 0), 0);
     const pendingAmount = totalAmount - collectedAmount;
     
     totalBillAmountEl.textContent = formatMoney(totalAmount) + ' VNĐ';
