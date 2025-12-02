@@ -4992,25 +4992,29 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // 🔧 Service Worker Registration - Support PWA Install + Firebase Messaging
+        // 🔧 Service Worker Registration - CHỈ DÙNG 1 SW DUY NHẤT
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', async () => {
                 try {
-                    // Register PWA service worker first
+                    // ⚠️ UNREGISTER TẤT CẢ SW CŨ TRƯỚC
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    console.log('🔍 Found', registrations.length, 'existing service workers');
+                    for (const registration of registrations) {
+                        console.log('🗑️ Unregistering old SW:', registration.scope);
+                        await registration.unregister();
+                    }
+                    
+                    // Register SW mới (đã merge PWA + FCM)
                     const registration = await navigator.serviceWorker.register('/sw.js');
-                    console.log('✅ PWA Service Worker registered:', registration.scope);
+                    console.log('✅ Service Worker registered:', registration.scope);
                     
                     // Wait for service worker to be ready
                     await navigator.serviceWorker.ready;
                     console.log('✅ Service Worker is ready');
                     
-                    // Register Firebase Messaging service worker
-                    const fcmRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                    console.log('✅ Firebase Messaging SW registered:', fcmRegistration.scope);
-                    
-                    // Configure Firebase Messaging with service worker
+                    // Configure Firebase Messaging
                     if (typeof messaging !== 'undefined' && messaging) {
-                        messaging.useServiceWorker(fcmRegistration);
+                        messaging.useServiceWorker(registration);
                     }
                 } catch (error) {
                     console.error('❌ Service Worker registration failed:', error);
