@@ -102,19 +102,19 @@ const importBillBuildingSelect = document.getElementById('import-bill-building')
 export function initBills() {
     // Lắng nghe sự kiện từ store
     document.addEventListener('store:bills:updated', () => {
-        if (!billsSection.classList.contains('hidden')) {
-            loadBills();
-        }
+        // Luôn reload bills data và cập nhật stats, không phụ thuộc vào UI visibility
+        loadBills();
     });
-    // Tải lại khi dữ liệu liên quan thay đổi
+    // Tải lại khi dữ liệu liên quan thay đổi - luôn cập nhật cho Smart Sync
     document.addEventListener('store:buildings:updated', () => {
-        if (!billsSection.classList.contains('hidden')) { loadBillFilterOptions(); applyBillFilters(); }
+        loadBillFilterOptions(); 
+        applyBillFilters();
     });
     document.addEventListener('store:customers:updated', () => {
-        if (!billsSection.classList.contains('hidden')) { applyBillFilters(); }
+        applyBillFilters();
     });
     document.addEventListener('store:contracts:updated', () => {
-        if (!billsSection.classList.contains('hidden')) { applyBillFilters(); }
+        applyBillFilters();
     });
 
     // Lắng nghe sự kiện click trên toàn trang
