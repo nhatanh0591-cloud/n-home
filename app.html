@@ -4998,7 +4998,7 @@
             });
         }
 
-        // PWA Install Prompt - Copy y chang từ index.html
+        // PWA Install Prompt - Y CHANG INDEX.HTML
         let deferredPrompt;
 
         window.addEventListener('beforeinstallprompt', (e) => {
@@ -5071,7 +5071,6 @@
             
             console.log('Install conditions:', { isMobile, isInstalled, deferredPrompt: !!deferredPrompt });
             
-            // Nếu là mobile và chưa cài thì cứ hiện cho đến khi cài
             if (isMobile && !isInstalled) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
