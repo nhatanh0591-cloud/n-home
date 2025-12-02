@@ -152,30 +152,11 @@
                    'ontouchstart' in window;
         }
 
-        // Check if should show install prompt
+        // FORCE show popup - BỎ HẾT ĐIỀU KIỆN
         window.addEventListener('load', () => {
-            console.log('Page loaded, checking install conditions...');
-            
-            // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
-            const isMobile = isMobileDevice();
-            const dismissed = localStorage.getItem('pwa-customer-install-dismissed');
-            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
-            
-            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
-            
-            if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
-                // Delay 2 seconds để user load xong trang
-                setTimeout(() => {
-                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
-                    if (deferredPrompt) {
-                        showInstallPrompt();
-                    } else {
-                        // Force show install prompt nếu không có beforeinstallprompt
-                        console.log('No beforeinstallprompt, force showing install prompt');
-                        showInstallPrompt();
-                    }
-                }, 2000);
-            }
+            setTimeout(() => {
+                showInstallPrompt();
+            }, 1000);
         });
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
