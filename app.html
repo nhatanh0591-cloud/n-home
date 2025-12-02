@@ -484,6 +484,18 @@
                 </div>
             </div>
 
+            <!-- Contract Duration -->
+            <div class="px-6 mb-3">
+                <h2 class="text-lg font-semibold mb-3 text-gray-700" id="contract-duration-header">Thời hạn hợp đồng</h2>
+                <div class="card" id="contract-duration-info">
+                    <!-- Loading skeleton -->
+                    <div class="animate-pulse">
+                        <div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
+                        <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Bills List -->
             <div class="px-6">
                 <!-- Tiền thuê và các khoản phí -->
@@ -947,6 +959,7 @@
                 // Home screen
                 welcome: "Xin chào",
                 roomInfo: "Thông tin phòng",
+                contractDuration: "Thời hạn hợp đồng",
                 monthlyRent: "Tiền thuê và các khoản phí",
                 tenantInfo: "Người thuê",
                 
@@ -1048,6 +1061,7 @@
                 // Home screen
                 welcome: "Hello",
                 roomInfo: "Room Information",
+                contractDuration: "Contract Duration",
                 monthlyRent: "Rent and Fees",
                 tenantInfo: "Tenant",
                 
@@ -1267,6 +1281,11 @@
             const roomInfoHeader = document.getElementById('room-info-header');
             if (roomInfoHeader) {
                 roomInfoHeader.textContent = t('roomInfo');
+            }
+            
+            const contractDurationHeader = document.getElementById('contract-duration-header');
+            if (contractDurationHeader) {
+                contractDurationHeader.textContent = t('contractDuration');
             }
             
             const rentHeader = document.getElementById('rent-header');
@@ -2172,6 +2191,71 @@
                 buildingInfo.innerHTML = `
                     <div class="text-center text-gray-500 py-4">
                         <p>${currentLanguage === 'en' ? 'No building information' : 'Chưa có thông tin toà nhà'}</p>
+                    </div>
+                `;
+            }
+
+            // Render contract duration info
+            const contractDurationInfo = document.getElementById('contract-duration-info');
+            if (contracts.length > 0) {
+                const contract = contracts[0];
+                
+                // Format dates
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return 'N/A';
+                    try {
+                        const date = new Date(dateStr);
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const year = date.getFullYear();
+                        return `${day}-${month}-${year}`;
+                    } catch (e) {
+                        return dateStr;
+                    }
+                };
+                
+                const startDate = formatDate(contract.startDate);
+                const endDate = formatDate(contract.endDate);
+                
+                // Calculate remaining days
+                const today = new Date();
+                const contractEndDate = new Date(contract.endDate);
+                const diffTime = contractEndDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                let remainingText = '';
+                let remainingClass = 'text-green-600';
+                if (diffDays > 30) {
+                    remainingText = `${diffDays} ngày`;
+                    remainingClass = 'text-green-600';
+                } else if (diffDays > 0) {
+                    remainingText = `${diffDays} ngày`;
+                    remainingClass = 'text-yellow-600';
+                } else {
+                    remainingText = 'Đã hết hạn';
+                    remainingClass = 'text-red-600';
+                }
+                
+                contractDurationInfo.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Start Date:' : 'Bắt đầu:'}</span>
+                            <span class="font-semibold text-gray-800">${startDate}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'End Date:' : 'Kết thúc:'}</span>
+                            <span class="font-semibold text-gray-800">${endDate}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Remaining:' : 'Còn lại:'}</span>
+                            <span class="font-bold ${remainingClass}">${remainingText}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                contractDurationInfo.innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        <p>${currentLanguage === 'en' ? 'No contract information' : 'Chưa có thông tin hợp đồng'}</p>
                     </div>
                 `;
             }
