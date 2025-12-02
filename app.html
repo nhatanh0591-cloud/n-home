@@ -2194,10 +2194,7 @@
                     if (!dateStr) return 'N/A';
                     try {
                         const date = new Date(dateStr);
-                        const day = String(date.getDate()).padStart(2, '0');
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const year = date.getFullYear();
-                        return `${day}-${month}-${year}`;
+                        return date.toLocaleDateString('vi-VN');
                     } catch (e) {
                         return dateStr;
                     }
@@ -5001,19 +4998,13 @@
             });
         }
 
-        // PWA Install Prompt - Using working logic from index.html
+        // PWA Install Prompt - Copy y chang từ index.html
         let deferredPrompt;
 
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('🚀 PWA Install prompt event fired!');
-            console.log('📱 Event details:', e);
-            console.log('🌐 URL:', window.location.href);
-            console.log('📱 User Agent:', navigator.userAgent);
-            
+            console.log('PWA Install prompt event fired');
             e.preventDefault();
             deferredPrompt = e;
-            
-            console.log('✅ deferredPrompt stored, calling showInstallPrompt()');
             showInstallPrompt();
         });
 
@@ -5060,7 +5051,6 @@
             // Cancel button click
             document.getElementById('pwa-cancel-btn').addEventListener('click', () => {
                 document.body.removeChild(installPrompt);
-                // Không lưu gì cả, để nó hiện lại lần sau cho khó chịu
             });
         }
 
@@ -5085,25 +5075,13 @@
             if (isMobile && !isInstalled) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
-                    console.log('⏰ Timeout reached after 2s');
-                    console.log('🔍 deferredPrompt status:', !!deferredPrompt);
-                    console.log('📱 Browser support check...');
-                    
-                    // Kiểm tra PWA criteria
-                    const isHTTPS = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-                    const hasServiceWorker = 'serviceWorker' in navigator;
-                    
-                    console.log('🔒 HTTPS:', isHTTPS);
-                    console.log('⚙️ Service Worker support:', hasServiceWorker);
-                    
+                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
                     if (deferredPrompt) {
-                        console.log('✅ Has deferredPrompt - showing prompt');
                         showInstallPrompt();
                     } else {
-                        console.log('❌ No beforeinstallprompt event fired');
-                        console.log('💡 Browser might not meet PWA criteria or is iOS');
-                        // Chỉ show prompt nếu có deferredPrompt thật sự
-                        // iOS user sẽ tự biết cách "Add to Home Screen"
+                        // Force show install prompt nếu không có beforeinstallprompt
+                        console.log('No beforeinstallprompt, force showing install prompt');
+                        showInstallPrompt();
                     }
                 }, 2000);
             }
@@ -5112,7 +5090,6 @@
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
             console.log('PWA Customer was installed successfully');
-            // App đã cài xong, không cần làm gì thêm
         });
 
         // Check if running as PWA
