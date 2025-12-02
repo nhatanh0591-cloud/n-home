@@ -5119,12 +5119,25 @@
 
         if (installButton) {
             installButton.addEventListener('click', async () => {
+                console.log('🎯 Install button clicked, deferredPrompt:', !!deferredPrompt);
+                
                 if (deferredPrompt) {
+                    console.log('✅ Prompting install...');
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`User response: ${outcome}`);
+                    console.log(`📱 User response: ${outcome}`);
                     deferredPrompt = null;
+                } else {
+                    console.error('❌ No deferredPrompt available!');
+                    console.log('📱 This might be iOS or browser does not support beforeinstallprompt');
+                    // Hiện hướng dẫn cho iOS
+                    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                        alert('Trên iPhone/iPad:\n1. Nhấn nút Share (⬆️)\n2. Chọn "Add to Home Screen"\n3. Nhấn "Add"');
+                    } else {
+                        alert('Trình duyệt không hỗ trợ cài đặt tự động.\nVui lòng thử lại sau hoặc dùng Chrome/Edge.');
+                    }
                 }
+                
                 if (installPrompt) {
                     installPrompt.style.display = 'none';
                 }
