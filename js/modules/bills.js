@@ -1362,6 +1362,137 @@ async function toggleBillStatus(billId, paymentDate = null) {
     }
 }
 
+/**
+ * Thu tiền hóa đơn (support thu từng phần)
+ * @param {string} billId - ID hóa đơn
+ * @param {number} amount - Số tiền thu lần này
+ * @param {string} paymentDate - Ngày thu tiền (dd-mm-yyyy)
+ */
+async function collectBillPayment(billId, amount, paymentDate) {
+    try {
+        const bill = getBills().find(b => b.id === billId);
+        if (!bill) throw new Error('Không tìm thấy hóa đơn');
+        
+        const buildings = getBuildings();
+        const customers = getCustomers();
+        const building = buildings.find(b => b.id === bill.buildingId);
+        const customer = customers.find(c => c.id === bill.customerId);
+        
+        // Tính toán số tiền
+        const currentPaidAmount = bill.paidAmount || 0;
+        const newPaidAmount = currentPaidAmount + amount;
+        const totalAmount = bill.totalAmount;
+        const isFullyPaid = newPaidAmount >= totalAmount;
+        
+        // Chuyển đổi ngày
+        const transactionDate = parseDateInput(paymentDate);
+        
+        // 1. Tạo phiếu thu
+        const items = await createTransactionItemsFromBillWithRealCategories(bill);
+        
+        // Điều chỉnh số tiền trong items theo tỷ lệ nếu thu từng phần
+        if (!isFullyPaid && amount < totalAmount) {
+            const ratio = amount / totalAmount;
+            items.forEach(item => {
+                item.amount = Math.round(item.amount * ratio);
+            });
+        }
+        
+        const transactionCode = `PT${Date.now()}`;
+        const transactionData = {
+            type: 'income',
+            code: transactionCode,
+            buildingId: bill.buildingId,
+            room: bill.room,
+            customerId: bill.customerId,
+            billId: bill.id,
+            accountId: building?.accountId || '',
+            title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}${isFullyPaid ? '' : ` (Phần ${Math.round(newPaidAmount / totalAmount * 100)}%)`}`,
+            payer: customer?.name || 'Khách hàng',
+            date: transactionDate.toISOString().split('T')[0],
+            items: items,
+            approved: true,
+            paymentMethod: 'cash',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        
+        const transactionDocRef = await addDoc(collection(db, 'transactions'), transactionData);
+        
+        // Add to localStorage
+        const { getState, saveToCache } = await import('../store.js');
+        const newTransactionItem = {
+            ...transactionData,
+            id: transactionDocRef.id,
+            createdAt: transactionDate,
+            updatedAt: new Date()
+        };
+        const state = getState();
+        state.transactions.unshift(newTransactionItem);
+        saveToCache();
+        document.dispatchEvent(new CustomEvent('store:transactions:updated'));
+        
+        // 2. Cập nhật hóa đơn
+        const updateData = {
+            paidAmount: newPaidAmount,
+            status: isFullyPaid ? 'paid' : 'unpaid',
+            paidDate: transactionDate.toISOString().split('T')[0],
+            updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(doc(db, 'bills', billId), updateData, { merge: true });
+        
+        // Update localStorage
+        updateInLocalStorage('bills', billId, {
+            ...updateData,
+            updatedAt: new Date()
+        });
+        
+        window.dispatchEvent(new CustomEvent('store:bills:updated'));
+        
+        // 3. Gửi thông báo nếu đã thanh toán đủ
+        if (isFullyPaid && customer && building) {
+            const billYear = new Date(bill.billDate).getFullYear();
+            const { sendPushNotification } = await import('../utils.js');
+            await sendPushNotification(
+                customer.id,
+                '✅ Thanh toán thành công',
+                `Cảm ơn bạn đã thanh toán hóa đơn tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(totalAmount)}đ`,
+                {
+                    type: 'payment_confirmed',
+                    billId: bill.id,
+                    buildingCode: building.code,
+                    room: bill.room,
+                    amount: totalAmount
+                }
+            );
+            
+            // Thông báo cho web admin
+            const adminNotificationData = {
+                type: 'payment_collected',
+                buildingId: bill.buildingId,
+                room: bill.room,
+                customerId: bill.customerId,
+                billId: bill.id,
+                title: 'Thu tiền thành công',
+                message: `Đã thu tiền từ khách hàng ${customer.name} - Phòng ${building.code}-${bill.room} - Tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(totalAmount)}đ`,
+                customerMessage: `Đã thu tiền từ khách hàng ${customer.name}`,
+                amount: totalAmount,
+                isRead: false,
+                createdAt: serverTimestamp()
+            };
+            
+            await addDoc(collection(db, 'adminNotifications'), adminNotificationData);
+        }
+        
+        console.log(`✅ Thu tiền thành công: ${formatMoney(amount)}, tổng đã thu: ${formatMoney(newPaidAmount)}/${formatMoney(totalAmount)}`);
+        
+    } catch (error) {
+        console.error('❌ Lỗi thu tiền:', error);
+        throw error;
+    }
+}
+
 async function bulkApprove(approve) {
     // Lấy từ Set mobile nếu có, không thì từ desktop checkboxes
     let selected;
@@ -3487,12 +3618,48 @@ function openPaymentModal(billId) {
     const bill = getBills().find(b => b.id === billId);
     if (!bill) return;
     
+    const paidAmount = bill.paidAmount || 0;
+    const totalAmount = bill.totalAmount;
+    const remainingAmount = totalAmount - paidAmount;
+    
+    // Hiển thị thông tin hóa đơn
+    document.getElementById('payment-total-amount').textContent = formatMoney(totalAmount);
+    document.getElementById('payment-paid-amount').textContent = formatMoney(paidAmount);
+    document.getElementById('payment-remaining-amount').textContent = formatMoney(remainingAmount);
+    
     // Set ngày mặc định là hôm nay
     const today = formatDateDisplay(new Date());
     document.getElementById('payment-date').value = today;
     
+    // Reset về thu đủ
+    document.getElementById('payment-type-full').checked = true;
+    document.getElementById('partial-amount-container').classList.add('hidden');
+    document.getElementById('partial-payment-amount').value = '';
+    
     // Lưu billId để sử dụng khi confirm
     document.getElementById('payment-modal').dataset.billId = billId;
+    
+    // Setup event listeners cho radio buttons (chỉ 1 lần)
+    if (!window.paymentModalInitialized) {
+        document.getElementById('payment-type-full').addEventListener('change', () => {
+            document.getElementById('partial-amount-container').classList.add('hidden');
+        });
+        document.getElementById('payment-type-partial').addEventListener('change', () => {
+            document.getElementById('partial-amount-container').classList.remove('hidden');
+            document.getElementById('partial-payment-amount').focus();
+        });
+        
+        // Format số tiền khi nhập
+        const amountInput = document.getElementById('partial-payment-amount');
+        amountInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\./g, ''); // Xóa dấu chấm cũ
+            if (value && !isNaN(value)) {
+                e.target.value = parseInt(value).toLocaleString('vi-VN');
+            }
+        });
+        
+        window.paymentModalInitialized = true;
+    }
     
     openModal(document.getElementById('payment-modal'));
 }
@@ -3550,6 +3717,36 @@ async function handleSinglePaymentConfirm() {
         return;
     }
     
+    const bill = getBills().find(b => b.id === billId);
+    if (!bill) return;
+    
+    const paymentType = document.querySelector('input[name="payment-type"]:checked').value;
+    const remainingAmount = (bill.totalAmount || 0) - (bill.paidAmount || 0);
+    
+    let amountToCollect = remainingAmount;
+    
+    if (paymentType === 'partial') {
+        const partialAmountStr = document.getElementById('partial-payment-amount').value.replace(/\./g, ''); // Xóa dấu chấm
+        const partialAmount = parseFloat(partialAmountStr);
+        
+        if (!partialAmount || partialAmount <= 0) {
+            showToast('Vui lòng nhập số tiền thu!', 'error');
+            return;
+        }
+        
+        if (partialAmount < 1000) {
+            showToast('Số tiền tối thiểu là 1,000 VNĐ!', 'error');
+            return;
+        }
+        
+        if (partialAmount > remainingAmount) {
+            showToast(`Số tiền không được vượt quá số còn lại (${formatMoney(remainingAmount)})!`, 'error');
+            return;
+        }
+        
+        amountToCollect = partialAmount;
+    }
+    
     try {
         // Disable button để tránh click nhiều lần
         const confirmBtn = document.getElementById('confirm-payment-btn');
@@ -3557,9 +3754,12 @@ async function handleSinglePaymentConfirm() {
         confirmBtn.innerHTML = 'Đang xử lý...';
         
         const paymentDateFormatted = paymentDate ? formatDateDisplay(paymentDate) : null;
-        await toggleBillStatus(billId, paymentDateFormatted);
+        
+        // Gọi function mới xử lý partial payment
+        await collectBillPayment(billId, amountToCollect, paymentDateFormatted);
+        
         closeModal(modal);
-        showToast('Thu tiền thành công!');
+        showToast(`Thu tiền thành công ${formatMoney(amountToCollect)}!`);
         
         // Nếu modal chi tiết đang mở, reload lại
         const billDetailModal = document.getElementById('bill-detail-modal');

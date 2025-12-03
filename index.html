@@ -2667,10 +2667,51 @@
                 <button id="close-payment-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
             </div>
             
-            <div class="p-6">
+            <div class="p-6 space-y-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-gray-600">Tổng tiền hóa đơn:</span>
+                        <span class="font-bold text-gray-900" id="payment-total-amount">0 VNĐ</span>
+                    </div>
+                    <div class="flex justify-between mb-2">
+                        <span class="text-gray-600">Đã thu:</span>
+                        <span class="font-semibold text-green-600" id="payment-paid-amount">0 VNĐ</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2">
+                        <span class="text-gray-900 font-medium">Còn lại:</span>
+                        <span class="font-bold text-red-600" id="payment-remaining-amount">0 VNĐ</span>
+                    </div>
+                </div>
+                
                 <div>
-                    <label for="payment-date" class="block text-sm font-medium text-gray-700 mb-3">Chọn ngày thu tiền</label>
-                    <input type="text" id="payment-date" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg cursor-pointer" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Loại thu tiền</label>
+                    <div class="flex gap-3">
+                        <label class="flex-1 cursor-pointer">
+                            <input type="radio" name="payment-type" value="full" id="payment-type-full" class="hidden peer" checked>
+                            <div class="border-2 border-gray-300 rounded-lg p-3 text-center peer-checked:border-green-600 peer-checked:bg-green-50 hover:border-green-400 transition">
+                                <div class="font-semibold">Thu đủ</div>
+                                <div class="text-xs text-gray-500">Thanh toán hết</div>
+                            </div>
+                        </label>
+                        <label class="flex-1 cursor-pointer">
+                            <input type="radio" name="payment-type" value="partial" id="payment-type-partial" class="hidden peer">
+                            <div class="border-2 border-gray-300 rounded-lg p-3 text-center peer-checked:border-blue-600 peer-checked:bg-blue-50 hover:border-blue-400 transition">
+                                <div class="font-semibold">Thu từng phần</div>
+                                <div class="text-xs text-gray-500">Số tiền tùy chọn</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="partial-amount-container" class="hidden">
+                    <label for="partial-payment-amount" class="block text-sm font-medium text-gray-700 mb-2">Số tiền thu lần này</label>
+                    <input type="text" id="partial-payment-amount" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="VD: 2.000.000">
+                    <p class="text-xs text-gray-500 mt-1">Tối thiểu 1.000 VNĐ</p>
+                </div>
+                
+                <div>
+                    <label for="payment-date" class="block text-sm font-medium text-gray-700 mb-2">Ngày thu tiền</label>
+                    <input type="text" id="payment-date" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
                 </div>
             </div>
             
