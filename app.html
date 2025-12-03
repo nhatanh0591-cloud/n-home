@@ -2023,10 +2023,10 @@
                     if (change.type === 'added' && isForThisRoom && isForThisCustomer) {
                         // console.log('🔔 New customer notification received:', notificationData.type, notificationData.message);
                         
-                        // Kiểm tra xem notification đã tồn tại chưa
-                        const existingNotification = notifications.find(n => n.id === change.doc.id);
+                        // Kiểm tra xem notification đã tồn tại chưa (check bằng firebaseId)
+                        const existingNotification = notifications.find(n => n.data?.firebaseId === change.doc.id);
                         if (existingNotification) {
-                            // console.log('⏭️ Notification already exists, skipping:', change.doc.id);
+                            console.log('⏭️ Notification already exists, skipping:', change.doc.id);
                             return;
                         }
                         
