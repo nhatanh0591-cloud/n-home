@@ -24,27 +24,10 @@
     
     <!-- Android -->
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="N-Home">
-    
-    <!-- Windows -->
-    <meta name="msapplication-TileColor" content="#23904f">
-    <meta name="msapplication-TileImage" content="/icon-nen-xanh.jpg">
-    <meta name="msapplication-starturl" content="/app">
     
     <!-- Icons -->
     <link rel="icon" type="image/jpeg" sizes="192x192" href="/icon-nen-xanh.jpg">
     <link rel="icon" type="image/jpeg" sizes="512x512" href="/icon-nen-xanh.jpg">
-    <link rel="shortcut icon" href="/icon-nen-xanh.jpg">
-    
-    <!-- Preload critical resources -->
-    <link rel="preload" href="/styles.css" as="style">
-    <link rel="preload" href="/js/firebase.js" as="script">
-    
-    <!-- Security -->
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    
-    <!-- Performance -->
-    <meta name="referrer" content="strict-origin-when-cross-origin">
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -2004,9 +1987,30 @@
                 const notificationData = { id: change.doc.id, ...change.doc.data() };
                 // console.log('📋 Notification data:', notificationData);
                     
-                    // Skip modified events để tránh spam khi mark as read
+                    // 🔄 XỬ LÝ MODIFIED: Cập nhật notification nhưng GIỮ NGUYÊN trạng thái đã đọc local
                     if (change.type === 'modified') {
-                        // console.log('⏭️ Skipping modified notification:', change.doc.id);
+                        const existingNotification = notifications.find(n => n.data?.firebaseId === change.doc.id);
+                        if (existingNotification) {
+                            console.log('🔄 Updating modified notification while preserving read status:', change.doc.id);
+                            const oldReadStatus = existingNotification.isRead;
+                            
+                            // Cập nhật data mới nhưng giữ nguyên isRead
+                            existingNotification.title = notificationData.title;
+                            existingNotification.message = notificationData.customerMessage || notificationData.message;
+                            existingNotification.data = {
+                                ...existingNotification.data,
+                                billId: notificationData.billId,
+                                amount: notificationData.amount,
+                                taskId: notificationData.taskId,
+                                transactionId: notificationData.transactionId
+                            };
+                            
+                            // Lưu lại trạng thái đã đọc
+                            existingNotification.isRead = oldReadStatus;
+                            
+                            saveNotificationsToStorage();
+                            renderNotificationsList();
+                        }
                         return;
                     }
                     
@@ -2166,6 +2170,22 @@
                 if (isFirstNotificationLoad) {
                     console.log('✅ First notification load completed');
                     isFirstNotificationLoad = false;
+                    
+                    // 🔐 SAU KHI LOAD XONG, ÁP DỤNG LẠI READ STATUS ĐỂ ĐẢM BẢO KHÔNG BỊ MẤT
+                    const readStatus = loadReadStatusFromStorage(customerId);
+                    let appliedCount = 0;
+                    notifications.forEach(n => {
+                        const firebaseId = n.data?.firebaseId || n.id;
+                        if (firebaseId && readStatus[firebaseId] && !n.isRead) {
+                            n.isRead = true;
+                            appliedCount++;
+                        }
+                    });
+                    if (appliedCount > 0) {
+                        console.log(`🔐 Applied persistent read status to ${appliedCount} notifications after initial load`);
+                        saveNotificationsToStorage();
+                        renderNotificationsList();
+                    }
                 }
             }, (error) => {
                 console.error('❌ Admin notifications listener error:', error.message || error);
@@ -2190,13 +2210,35 @@
             currentUser = customer;
             customerData = customer; // Set global customerData for language system
             
-            // 🔥 FORCE CLEAR CACHE KHI LOGIN ĐỂ LOAD DỮ LIỆU MỚI
-            console.log('🗑️ Clearing cache on login to force fresh data load');
-            localStorage.removeItem(`userData_${customer.id}`);
+            // 🔥 SMART CACHE CLEAR: Chỉ clear nếu user khác, hoặc cache quá cũ
+            const cachedData = loadUserDataFromCache(customer.id);
+            const shouldClearCache = !cachedData || (Date.now() - cachedData.timestamp > 60 * 60 * 1000); // Clear nếu > 1 tiếng
             
-            // Clear app state
-            bills = [];
-            notifications = [];
+            if (shouldClearCache) {
+                console.log('🗑️ Clearing old/missing cache for fresh data load');
+                localStorage.removeItem(`n_home_user_${customer.id}`);
+            } else {
+                console.log('✅ Using existing cache - will sync with Firebase in background');
+            }
+            
+            // Clear app state nhưng load lại ngay từ cache nếu có
+            bills = cachedData?.bills || [];
+            notifications = cachedData?.notifications || [];
+            
+            // 🔐 Áp dụng read status ngay khi load cache
+            const readStatus = loadReadStatusFromStorage(customer.id);
+            let appliedCount = 0;
+            notifications.forEach(n => {
+                const firebaseId = n.data?.firebaseId || n.id;
+                if (firebaseId && readStatus[firebaseId]) {
+                    n.isRead = true;
+                    appliedCount++;
+                }
+            });
+            if (appliedCount > 0) {
+                console.log(`🔐 Applied ${appliedCount} read statuses from persistent storage on login`);
+            }
+            
             buildings = [];
             contracts = [];
             services = [];
@@ -4615,6 +4657,17 @@
             const listEl = document.getElementById('notifications-list');
             if (!listEl) return;
             
+            // 🔐 SAFEGUARD: Luôn re-apply read status trước khi render để tránh mất trạng thái
+            if (currentUser?.id) {
+                const readStatus = loadReadStatusFromStorage(currentUser.id);
+                notifications.forEach(n => {
+                    const firebaseId = n.data?.firebaseId || n.id;
+                    if (firebaseId && readStatus[firebaseId]) {
+                        n.isRead = true;
+                    }
+                });
+            }
+            
             // 🔥 ĐẢMBẢO SẮP XẾP THEO THÁNG HÓA ĐƠN TRƯỚC KHI RENDER
             notifications.sort((a, b) => {
                 const getBillMonth = (notification) => {
@@ -5114,38 +5167,21 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration - PWA + Firebase Messaging
+        // Service Worker Registration cho Firebase Messaging
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', async () => {
-                try {
-                    // 1. Register main PWA service worker
-                    const registration = await navigator.serviceWorker.register('/customer-sw.js');
-                    console.log('✅ PWA Service Worker registered:', registration.scope);
-                    
-                    // 2. Register Firebase Messaging service worker separately
-                    const messagingSW = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                    console.log('✅ Firebase Messaging Service Worker registered:', messagingSW.scope);
-                    
-                    // 3. Configure Firebase Messaging với messaging service worker
-                    if (typeof messaging !== 'undefined' && messaging) {
-                        messaging.useServiceWorker(messagingSW);
-                        console.log('✅ Firebase Messaging configured with SW');
-                    }
-                    
-                    // 4. Handle service worker updates
-                    registration.addEventListener('updatefound', () => {
-                        const newWorker = registration.installing;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                console.log('🔄 New service worker available, reloading...');
-                                window.location.reload();
-                            }
-                        });
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                    .then(registration => {
+                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
+                        
+                        // Cấu hình Firebase Messaging với service worker
+                        if (messaging) {
+                            messaging.useServiceWorker(registration);
+                        }
+                    })
+                    .catch(error => {
+                        console.log('❌ Firebase Messaging SW registration failed:', error);
                     });
-                    
-                } catch (error) {
-                    console.error('❌ Service Worker registration failed:', error);
-                }
             });
         }
 
