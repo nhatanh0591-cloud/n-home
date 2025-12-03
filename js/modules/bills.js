@@ -295,7 +295,7 @@ function renderBillsTable(bills) {
     if (mobileListEl) mobileListEl.innerHTML = '';
     
     if (bills.length === 0) {
-        billsListEl.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500">Không tìm thấy hóa đơn nào.</td></tr>';
+        billsListEl.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-gray-500">Không tìm thấy hóa đơn nào.</td></tr>';
         if (mobileListEl) {
             mobileListEl.innerHTML = '<div class="p-8 text-center text-gray-500">Không tìm thấy hóa đơn nào.</div>';
         }
@@ -349,8 +349,8 @@ function renderBillsTable(bills) {
                 </div>
             </td>
             <td class="py-4 px-4">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</td>
-            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : getPaymentDueDate(bill)}</td>
             <td class="py-4 px-4">${bill.isTerminationBill ? '-' : formatMoney(bill.totalAmount)}</td>
+            <td class="py-4 px-4">${formatMoney(bill.paidAmount || 0)}</td>
             <td class="py-4 px-4">
                 <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? (bill.approved ? 'bg-gray-100 text-gray-800' : 'bg-orange-100 text-orange-800') : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
                     ${bill.isTerminationBill ? (bill.approved ? 'Đã thanh lý' : 'Chờ thanh lý') : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
@@ -386,12 +386,12 @@ function renderBillsTable(bills) {
                     <span class="mobile-card-value">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</span>
                 </div>
                 <div class="mobile-card-row">
-                    <span class="mobile-card-label">Hạn thanh toán:</span>
-                    <span class="mobile-card-value">${bill.isTerminationBill ? '-' : getPaymentDueDate(bill)}</span>
-                </div>
-                <div class="mobile-card-row">
                     <span class="mobile-card-label">Tổng tiền:</span>
                     <span class="mobile-card-value font-bold ${bill.isTerminationBill ? 'text-gray-500' : 'text-green-600'}">${bill.isTerminationBill ? '-' : formatMoney(bill.totalAmount)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Đã thanh toán:</span>
+                    <span class="mobile-card-value">${formatMoney(bill.paidAmount || 0)}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
