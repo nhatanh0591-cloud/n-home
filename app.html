@@ -1600,6 +1600,31 @@
         }
         
         /**
+         * 🔖 Lưu trạng thái đã đọc riêng biệt (không expire)
+         */
+        function saveReadStatusToStorage(customerId, readStatus) {
+            try {
+                localStorage.setItem(`n_home_read_${customerId}`, JSON.stringify(readStatus));
+                console.log('🔖 Đã lưu trạng thái đọc riêng biệt');
+            } catch (error) {
+                console.error('❌ Lỗi lưu read status:', error);
+            }
+        }
+        
+        /**
+         * 📖 Đọc trạng thái đã đọc riêng biệt
+         */
+        function loadReadStatusFromStorage(customerId) {
+            try {
+                const readStatus = localStorage.getItem(`n_home_read_${customerId}`);
+                return readStatus ? JSON.parse(readStatus) : {};
+            } catch (error) {
+                console.error('❌ Lỗi đọc read status:', error);
+                return {};
+            }
+        }
+        
+        /**
          * 📖 Đọc data user từ máy tính
          */
         function loadUserDataFromCache(customerId) {
@@ -1609,8 +1634,8 @@
                 
                 const cacheData = JSON.parse(cached);
                 
-                // 🔥 CACHE EXPIRY NGẮN HƠN CHO REALTIME DATA
-                const SHORT_CACHE_EXPIRY = 3 * 60 * 1000; // 3 phút cho critical data như bills
+                // 🔥 CACHE EXPIRY DÀI HƠN ĐỂ GIỮ TRẠNG THÁI ĐÃ ĐỌC
+                const SHORT_CACHE_EXPIRY = 30 * 60 * 1000; // 30 phút cho critical data như bills
                 const age = Date.now() - cacheData.timestamp;
                 
                 // Kiểm tra version và hạn sử dụng
@@ -1647,6 +1672,16 @@
                 // Load data từ cache
                 bills = cachedData.bills || [];
                 notifications = cachedData.notifications || [];
+                
+                // 🔐 Áp dụng read status đã lưu riêng (ưu tiên cao nhất)
+                const readStatus = loadReadStatusFromStorage(customerId);
+                notifications.forEach(n => {
+                    const firebaseId = n.data?.firebaseId || n.id;
+                    if (firebaseId && readStatus[firebaseId]) {
+                        n.isRead = true;
+                    }
+                });
+                console.log('🔐 Applied persistent read status to', Object.keys(readStatus).length, 'notifications');
                 
                 // 🔄 MIGRATION: Chuyển old notifications sang unified system (1 lần duy nhất)
                 const userPhone = localStorage.getItem('userPhone');
@@ -2010,9 +2045,14 @@
                             // 💾 CHECK CACHE: Kiểm tra xem notification này đã từng được đánh dấu đã đọc chưa
                             const cachedData = loadUserDataFromCache(customerId);
                             const cachedNotification = cachedData?.notifications?.find(n => n.data?.firebaseId === change.doc.id);
-                            const wasRead = cachedNotification?.isRead || false;
                             
-                            console.log('📖 Checking cached read status for notification:', change.doc.id, 'wasRead:', wasRead);
+                            // 🔖 Kiểm tra read status riêng biệt (ưu tiên cao hơn)
+                            const readStatus = loadReadStatusFromStorage(customerId);
+                            const wasReadFromStatus = readStatus[change.doc.id] || false;
+                            const wasReadFromCache = cachedNotification?.isRead || false;
+                            const wasRead = wasReadFromStatus || wasReadFromCache;
+                            
+                            console.log('📖 Checking read status for notification:', change.doc.id, 'fromStatus:', wasReadFromStatus, 'fromCache:', wasReadFromCache, 'final:', wasRead);
                             
                             // Tạo notification object
                             const notification = {
@@ -4050,7 +4090,18 @@
                 const existingCache = loadUserDataFromCache(currentUser.id) || {};
                 existingCache.notifications = notifications;
                 saveUserDataToCache(currentUser.id, existingCache);
-                console.log('💾 Saved notifications to unified cache system');
+                
+                // 🔖 Lưu riêng trạng thái đã đọc để không bị mất khi cache expire
+                const readStatus = {};
+                notifications.forEach(n => {
+                    if (n.isRead && (n.data?.firebaseId || n.id)) {
+                        const key = n.data?.firebaseId || n.id;
+                        readStatus[key] = true;
+                    }
+                });
+                saveReadStatusToStorage(currentUser.id, readStatus);
+                
+                console.log('💾 Saved notifications to unified cache system + read status');
             }
         }
 
@@ -4097,12 +4148,27 @@
                 const existingCache = loadUserDataFromCache(currentUser.id) || {};
                 existingCache.notifications = [];
                 saveUserDataToCache(currentUser.id, existingCache);
+                
+                // 🔐 Xóa cả read status riêng biệt
+                localStorage.removeItem(`n_home_read_${currentUser.id}`);
             }
             
             notifications = [];
             renderNotificationsList();
             // updateNotificationBadge(); // Đã gọi trong renderNotificationsList()
-            console.log('✅ Đã xóa tất cả thông báo khỏi cả 2 hệ thống storage');
+            console.log('✅ Đã xóa tất cả thông báo khỏi cả 3 hệ thống storage (bao gồm read status)');
+        };
+        
+        // 🔐 Hàm reset read status (để test)
+        window.clearReadStatus = function() {
+            if (currentUser?.id) {
+                localStorage.removeItem(`n_home_read_${currentUser.id}`);
+                // Đặt lại tất cả thông báo thành chưa đọc
+                notifications.forEach(n => n.isRead = false);
+                saveNotificationsToStorage();
+                renderNotificationsList();
+                console.log('🔐 Đã reset tất cả read status');
+            }
         };
         
         // 🔍 DEBUG: Performance stats
@@ -4401,11 +4467,32 @@
             console.log('📋 Notifications:', notifications);
             console.log('🏠 Current user:', currentUser);
             console.log('💰 Bills count:', bills.length);
+            
+            // 🔐 Debug read status riêng biệt
+            if (currentUser?.id) {
+                const readStatus = loadReadStatusFromStorage(currentUser.id);
+                console.log('🔐 Persistent read status:', readStatus);
+                console.log('🔐 Read status count:', Object.keys(readStatus).length);
+            }
             console.log('==========================');
         };
 
         window.markAllAsRead = function() {
             notifications.forEach(n => n.isRead = true);
+            
+            // 🔐 Lưu tất cả vào hệ thống read status riêng biệt
+            if (currentUser?.id) {
+                const readStatus = loadReadStatusFromStorage(currentUser.id);
+                notifications.forEach(n => {
+                    const firebaseId = n.data?.firebaseId || n.id;
+                    if (firebaseId) {
+                        readStatus[firebaseId] = true;
+                    }
+                });
+                saveReadStatusToStorage(currentUser.id, readStatus);
+                console.log('🔐 Marked all notifications as read in persistent storage');
+            }
+            
             saveNotificationsToStorage();
             renderNotificationsList();
         };
@@ -4443,13 +4530,24 @@
                 if (localIndex !== -1) {
                     console.log('✅ Found notification, updating isRead to true');
                     notifications[localIndex].isRead = true;
+                    
+                    // 🔐 Lưu vào hệ thống read status riêng biệt để không bị mất khi cache expire
+                    if (currentUser?.id) {
+                        const readStatus = loadReadStatusFromStorage(currentUser.id);
+                        const firebaseId = notifications[localIndex].data?.firebaseId;
+                        if (firebaseId) {
+                            readStatus[firebaseId] = true;
+                            saveReadStatusToStorage(currentUser.id, readStatus);
+                            console.log('🔐 Saved read status for Firebase ID:', firebaseId);
+                        }
+                    }
                 } else {
                     console.log('❌ Notification not found in local array!');
                 }
                 
                 // Update localStorage using consistent key
                 saveNotificationsToStorage();
-                console.log('💾 Updated localStorage');
+                console.log('💾 Updated localStorage and read status');
                 
                 // Re-render notifications list
                 // console.log('🎨 Re-rendering notifications list...');
