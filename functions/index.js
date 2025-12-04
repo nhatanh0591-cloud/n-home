@@ -394,41 +394,23 @@ async function updateBillAndCreateTransaction(bill, cassoTransaction) {
  * Tạo các items cho phiếu thu từ hóa đơn
  */
 async function createTransactionItemsFromBill(bill) {
-  const items = [];
-
-  // Lấy danh sách categories để map
+  // Lấy danh sách categories để tìm "Tiền hóa đơn"
   const categoriesSnapshot = await db.collection("transactionCategories").get();
-  const categories = {};
+  let billCategoryId = null;
+  
   categoriesSnapshot.forEach((doc) => {
     const cat = doc.data();
-    categories[cat.name] = doc.id;
+    if (cat.name === "Tiền hóa đơn") {
+      billCategoryId = doc.id;
+    }
   });
 
-  // Chuyển đổi services thành items
-  if (bill.services && Array.isArray(bill.services)) {
-    for (const service of bill.services) {
-      let categoryId = null;
-
-      // Map service type sang category
-      if (service.type === "rent") {
-        categoryId = categories["Tiền phòng"] || categories["Tiền thuê"] || null;
-      } else if (service.type === "electric" || service.serviceName?.includes("Điện")) {
-        categoryId = categories["Tiền điện"] || null;
-      } else if (service.type === "water_meter" || service.serviceName?.includes("Nước")) {
-        categoryId = categories["Tiền nước"] || null;
-      } else if (service.serviceName?.includes("Internet") || service.serviceName?.includes("Wifi")) {
-        categoryId = categories["Internet"] || null;
-      } else if (service.serviceName?.includes("Rác")) {
-        categoryId = categories["Phí vệ sinh"] || categories["Rác"] || null;
-      }
-
-      items.push({
-        description: service.serviceName || "Dịch vụ",
-        amount: service.amount || 0,
-        categoryId: categoryId,
-      });
-    }
-  }
+  // Tạo 1 item duy nhất cho toàn bộ hóa đơn
+  const items = [{
+    description: "Tiền hóa đơn",
+    amount: bill.totalAmount || 0,
+    categoryId: billCategoryId,
+  }];
 
   return items;
 }
