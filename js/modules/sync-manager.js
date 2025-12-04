@@ -70,8 +70,10 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
     // Map collection names cho Firebase
     const firebaseCollectionName = collectionName === 'notifications' ? 'adminNotifications' : collectionName;
     
-    // Luôn dùng createdAt để tránh lỗi missing index
-    let q = query(collection(db, firebaseCollectionName), orderBy('createdAt', 'desc'));
+    // Dùng updatedAt cho bills/notifications vì chúng có thể được update sau khi tạo
+    // Dùng createdAt cho transactions/contracts vì chúng ít khi update
+    const dateField = (collectionName === 'bills' || collectionName === 'notifications') ? 'updatedAt' : 'createdAt';
+    let q = query(collection(db, firebaseCollectionName), orderBy(dateField, 'desc'));
     
     // Thêm filter theo date range nếu có
     if (dateFrom || dateTo) {
@@ -87,7 +89,8 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
             // Set to start of day
             fromDate.setHours(0, 0, 0, 0);
             const fromTimestamp = Timestamp.fromDate(fromDate);
-            conditions.push(where('createdAt', '>=', fromTimestamp));
+            console.log(`🔍 [${collectionName}] Filter FROM (${dateField}):`, fromDate.toISOString(), fromTimestamp);
+            conditions.push(where(dateField, '>=', fromTimestamp));
         }
         
         if (dateTo) {
@@ -100,15 +103,21 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
             // Set to end of day
             toDate.setHours(23, 59, 59, 999);
             const toTimestamp = Timestamp.fromDate(toDate);
-            conditions.push(where('createdAt', '<=', toTimestamp));
+            console.log(`🔍 [${collectionName}] Filter TO (${dateField}):`, toDate.toISOString(), toTimestamp);
+            conditions.push(where(dateField, '<=', toTimestamp));
         }
         
         // Rebuild query với conditions
-        q = query(collection(db, firebaseCollectionName), orderBy('createdAt', 'desc'), ...conditions);
+        q = query(collection(db, firebaseCollectionName), orderBy(dateField, 'desc'), ...conditions);
     }
 
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    console.log(`🔍 [${collectionName}] Query returned ${snapshot.size} documents`);
+    if (snapshot.size > 0 && snapshot.size <= 5) {
+        console.log(`🔍 [${collectionName}] Sample data:`, data.slice(0, 2));
+    }
     
     // Map lại key cho state (adminNotifications -> notifications)
     const stateKey = firebaseCollectionName === 'adminNotifications' ? 'notifications' : collectionName;

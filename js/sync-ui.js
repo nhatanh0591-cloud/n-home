@@ -311,8 +311,20 @@ async function handleConfirmSync() {
             const dateFromStr = dateFromInput.value || null;
             const dateToStr = dateToInput.value || null;
             
-            dateFrom = dateFromStr ? parseDateInput(dateFromStr) : null;
-            dateTo = dateToStr ? parseDateInput(dateToStr) : null;
+            console.log('🔍 Date inputs:', { dateFromStr, dateToStr });
+            
+            // Input type="date" trả về YYYY-MM-DD, parse trực tiếp
+            if (dateFromStr) {
+                const [year, month, day] = dateFromStr.split('-').map(Number);
+                dateFrom = new Date(year, month - 1, day);
+                console.log('🔍 Parsed dateFrom:', dateFrom);
+            }
+            
+            if (dateToStr) {
+                const [year, month, day] = dateToStr.split('-').map(Number);
+                dateTo = new Date(year, month - 1, day);
+                console.log('🔍 Parsed dateTo:', dateTo);
+            }
             
             if (dateFrom && dateTo && dateFrom > dateTo) {
                 showToast('Ngày bắt đầu không thể lớn hơn ngày kết thúc', 'error');
