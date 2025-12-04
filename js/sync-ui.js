@@ -2,7 +2,7 @@
  * Sync UI Controller - Quản lý giao diện đồng bộ dữ liệu
  */
 
-import { syncSelectedCollections } from './modules/sync-manager.js';
+import { syncSelectedCollections, smartSync } from './modules/sync-manager.js';
 import { showToast, formatDateDisplay, parseDateInput } from './utils.js';
 import { getCurrentUserRole } from './auth.js';
 
@@ -296,10 +296,11 @@ async function handleConfirmSync() {
             .filter(cb => cb.checked)
             .map(cb => cb.value);
             
-        // Nếu không chọn module nào -> sync tất cả
+        // Nếu không chọn module nào -> dùng Smart Sync
         if (selectedModules.length === 0) {
-            console.log('⚡ No modules selected, syncing all...');
-            selectedModules.push('contracts', 'bills', 'customers', 'buildings', 'services', 'transactions');
+            console.log('⚡ No modules selected, using Smart Sync...');
+            await handleSmartSyncIntegrated();
+            return;
         }
         
         // Get date range
@@ -311,20 +312,8 @@ async function handleConfirmSync() {
             const dateFromStr = dateFromInput.value || null;
             const dateToStr = dateToInput.value || null;
             
-            console.log('🔍 Date inputs:', { dateFromStr, dateToStr });
-            
-            // Input type="date" trả về YYYY-MM-DD, parse trực tiếp
-            if (dateFromStr) {
-                const [year, month, day] = dateFromStr.split('-').map(Number);
-                dateFrom = new Date(year, month - 1, day);
-                console.log('🔍 Parsed dateFrom:', dateFrom);
-            }
-            
-            if (dateToStr) {
-                const [year, month, day] = dateToStr.split('-').map(Number);
-                dateTo = new Date(year, month - 1, day);
-                console.log('🔍 Parsed dateTo:', dateTo);
-            }
+            dateFrom = dateFromStr ? parseDateInput(dateFromStr) : null;
+            dateTo = dateToStr ? parseDateInput(dateToStr) : null;
             
             if (dateFrom && dateTo && dateFrom > dateTo) {
                 showToast('Ngày bắt đầu không thể lớn hơn ngày kết thúc', 'error');
@@ -475,7 +464,38 @@ function showSyncSuccessModal(moduleCount, totalReads, dateRangeText) {
     }, 8000);
 }
 
-
+/**
+ * Xử lý Smart Sync tích hợp vào nút chính
+ */
+async function handleSmartSyncIntegrated() {
+    try {
+        console.log('⚡ Starting Smart Sync (Integrated)...');
+        
+        // Show loading state cho nút chính
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = `
+            <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Đang cập nhật...
+        `;
+        
+        await smartSync();
+        closeSyncModal();
+        
+    } catch (error) {
+        console.error('❌ Smart Sync Error:', error);
+        showToast('Lỗi smart sync: ' + error.message, 'error');
+    } finally {
+        // Reset nút về trạng thái ban đầu
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `
+            Cập Nhật
+        `;
+        isSyncing = false;
+    }
+}
 
 // Auto-initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', initSyncUI);

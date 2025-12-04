@@ -70,10 +70,7 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
     // Map collection names cho Firebase
     const firebaseCollectionName = collectionName === 'notifications' ? 'adminNotifications' : collectionName;
     
-    // Dùng updatedAt cho bills/notifications vì chúng có thể được update sau khi tạo
-    // Dùng createdAt cho transactions/contracts vì chúng ít khi update
-    const dateField = (collectionName === 'bills' || collectionName === 'notifications') ? 'updatedAt' : 'createdAt';
-    let q = query(collection(db, firebaseCollectionName), orderBy(dateField, 'desc'));
+    let q = query(collection(db, firebaseCollectionName), orderBy('createdAt', 'desc'));
     
     // Thêm filter theo date range nếu có
     if (dateFrom || dateTo) {
@@ -89,8 +86,7 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
             // Set to start of day
             fromDate.setHours(0, 0, 0, 0);
             const fromTimestamp = Timestamp.fromDate(fromDate);
-            console.log(`🔍 [${collectionName}] Filter FROM (${dateField}):`, fromDate.toISOString(), fromTimestamp);
-            conditions.push(where(dateField, '>=', fromTimestamp));
+            conditions.push(where('createdAt', '>=', fromTimestamp));
         }
         
         if (dateTo) {
@@ -103,21 +99,15 @@ async function syncSingleCollection(collectionName, dateFrom, dateTo) {
             // Set to end of day
             toDate.setHours(23, 59, 59, 999);
             const toTimestamp = Timestamp.fromDate(toDate);
-            console.log(`🔍 [${collectionName}] Filter TO (${dateField}):`, toDate.toISOString(), toTimestamp);
-            conditions.push(where(dateField, '<=', toTimestamp));
+            conditions.push(where('createdAt', '<=', toTimestamp));
         }
         
         // Rebuild query với conditions
-        q = query(collection(db, firebaseCollectionName), orderBy(dateField, 'desc'), ...conditions);
+        q = query(collection(db, firebaseCollectionName), orderBy('createdAt', 'desc'), ...conditions);
     }
 
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    console.log(`🔍 [${collectionName}] Query returned ${snapshot.size} documents`);
-    if (snapshot.size > 0 && snapshot.size <= 5) {
-        console.log(`🔍 [${collectionName}] Sample data:`, data.slice(0, 2));
-    }
     
     // Map lại key cho state (adminNotifications -> notifications)
     const stateKey = firebaseCollectionName === 'adminNotifications' ? 'notifications' : collectionName;
@@ -214,6 +204,111 @@ function getDateFromTimestamp(timestamp) {
 // Các functions saveToLocalStorage và getFromLocalStorage đã được thay thế bằng store.js
 
 /**
+ * Smart Sync - Chỉ sync dữ liệu mới/thay đổi
+ */
+export async function smartSync() {
+    console.log('🚀 [SMART-SYNC] Starting smart sync...');
+    
+    const collections = ['contracts', 'bills', 'customers', 'buildings', 'services', 'transactions'];
+    const state = getState();
+    let totalNew = 0;
+    let totalUpdated = 0;
+    let totalDeleted = 0;
+    
+    try {
+        for (const collectionName of collections) {
+            const result = await smartSyncCollection(collectionName, state[collectionName] || []);
+            totalNew += result.newItems;
+            totalUpdated += result.updatedItems;
+            totalDeleted += result.deletedItems;
+            
+            // Luôn dispatch event để force refresh UI, đặc biệt cho bills để fix NaN bug
+            document.dispatchEvent(new CustomEvent(`store:${collectionName}:updated`));
+            console.log(`🔄 [SMART-SYNC] Dispatched ${collectionName}:updated event`);
+        }
+        
+        if (totalNew > 0 || totalUpdated > 0 || totalDeleted > 0) {
+            saveToCache();
+            showToast(`Smart Sync hoàn tất: ${totalNew} mới, ${totalUpdated} cập nhật, ${totalDeleted} xóa`, 'success');
+        } else {
+            showToast('Không có dữ liệu mới để cập nhật', 'info');
+        }
+        
+    } catch (error) {
+        console.error('❌ [SMART-SYNC] Error:', error);
+        showToast('Lỗi smart sync: ' + error.message, 'error');
+    }
+}
+
+async function smartSyncCollection(collectionName, localData) {
+    const firebaseRef = collection(db, collectionName);
+    const snapshot = await getDocs(firebaseRef);
+    const firebaseData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    const localDataMap = new Map(localData.map(item => [item.id, item]));
+    const firebaseDataMap = new Map(firebaseData.map(item => [item.id, item]));
+    let newItems = 0;
+    let updatedItems = 0;
+    let deletedItems = 0;
+    let hasChanges = false;
+    
+    // Bắt đầu với dữ liệu Firebase làm chuẩn
+    const mergedData = [...firebaseData];
+    
+    // Kiểm tra items mới và cập nhật từ Firebase
+    firebaseData.forEach(firebaseItem => {
+        const localItem = localDataMap.get(firebaseItem.id);
+        
+        if (!localItem) {
+            // Item mới từ Firebase
+            newItems++;
+            hasChanges = true;
+            console.log(`➕ [SMART-SYNC] New ${collectionName}:`, firebaseItem.id);
+        } else {
+            // Kiểm tra có cần cập nhật không
+            const firebaseUpdated = firebaseItem.updatedAt || firebaseItem.createdAt;
+            const localUpdated = localItem.updatedAt || localItem.createdAt;
+            
+            let needsUpdate = false;
+            
+            if (firebaseUpdated && localUpdated) {
+                // So sánh timestamp
+                const fbTime = firebaseUpdated.toDate ? firebaseUpdated.toDate().getTime() : new Date(firebaseUpdated).getTime();
+                const localTime = localUpdated.toDate ? localUpdated.toDate().getTime() : new Date(localUpdated).getTime();
+                
+                if (fbTime > localTime) {
+                    needsUpdate = true;
+                }
+            } else if (firebaseUpdated && !localUpdated) {
+                needsUpdate = true;
+            }
+            
+            if (needsUpdate) {
+                updatedItems++;
+                hasChanges = true;
+                console.log(`🔄 [SMART-SYNC] Updated ${collectionName}:`, firebaseItem.id);
+            }
+        }
+    });
+    
+    // Kiểm tra items bị xóa (có ở local nhưng không có ở Firebase)
+    localData.forEach(localItem => {
+        if (!firebaseDataMap.has(localItem.id)) {
+            deletedItems++;
+            hasChanges = true;
+            console.log(`🗑️ [SMART-SYNC] Deleted ${collectionName}:`, localItem.id);
+        }
+    });
+    
+    if (hasChanges) {
+        updateState(collectionName, mergedData);
+    }
+    
+    return { newItems, updatedItems, deletedItems, hasChanges };
+}
+
+/**
  * Export cho window để có thể gọi từ console
  */
 window.syncSelectedCollections = syncSelectedCollections;
+window.smartSync = smartSync;
