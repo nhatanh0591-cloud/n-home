@@ -105,7 +105,7 @@ export function initBills() {
         // Luôn reload bills data và cập nhật stats, không phụ thuộc vào UI visibility
         loadBills();
     });
-    // Tải lại khi dữ liệu liên quan thay đổi - luôn cập nhật cho Smart Sync
+    // Tải lại khi dữ liệu liên quan thay đổi
     document.addEventListener('store:buildings:updated', () => {
         loadBillFilterOptions(); 
         applyBillFilters();
