@@ -284,6 +284,9 @@ function applyBillFilters() {
     
     // Cập nhật thống kê theo filter
     updateBillStats();
+    
+    // Cập nhật summary
+    updateBillsSummary(billsCache_filtered);
 }
 
 /**
@@ -3833,6 +3836,58 @@ async function handleBulkPaymentConfirm() {
             Xác nhận thu tiền
         `;
     }
+}
+
+/**
+ * Cập nhật summary thống kê hóa đơn
+ */
+function updateBillsSummary(bills) {
+    // Header stats
+    const headerTotalEl = document.getElementById('header-bills-total');
+    const headerUnpaidEl = document.getElementById('header-bills-unpaid');
+    const headerPartialEl = document.getElementById('header-bills-partial');
+    
+    // Money stats
+    const totalAmountEl = document.getElementById('total-bill-amount');
+    const collectedAmountEl = document.getElementById('collected-amount');
+    const pendingAmountEl = document.getElementById('pending-amount');
+    
+    if (!headerTotalEl) return; // Elements chưa load
+    
+    const total = bills.length;
+    let unpaid = 0;
+    let partial = 0;
+    let paid = 0;
+    let totalAmount = 0;
+    let collectedAmount = 0;
+    
+    bills.forEach(bill => {
+        const billTotal = bill.totalAmount || 0;
+        const billPaid = bill.paidAmount || 0;
+        
+        totalAmount += billTotal;
+        collectedAmount += billPaid; // Cộng số tiền đã thu (bao gồm cả thanh toán một phần)
+        
+        if (billPaid === 0) {
+            unpaid++;
+        } else if (billPaid >= billTotal) {
+            paid++;
+        } else {
+            partial++;
+        }
+    });
+    
+    const pendingAmount = totalAmount - collectedAmount;
+    
+    // Update header stats
+    headerTotalEl.textContent = total;
+    headerUnpaidEl.textContent = unpaid;
+    headerPartialEl.textContent = partial;
+    
+    // Update money stats
+    totalAmountEl.textContent = `${totalAmount.toLocaleString('vi-VN')} VNĐ`;
+    collectedAmountEl.textContent = `${collectedAmount.toLocaleString('vi-VN')} VNĐ`;
+    pendingAmountEl.textContent = `${pendingAmount.toLocaleString('vi-VN')} VNĐ`;
 }
 
 // Export hàm để có thể gọi từ event listener

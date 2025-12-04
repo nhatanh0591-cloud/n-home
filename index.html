@@ -1071,6 +1071,22 @@
                             <p class="text-2xl font-bold text-red-600" id="pending-amount">0 VNĐ</p>
                         </div>
                     </div>
+                    
+                    <!-- Bills Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Tổng hóa đơn</h3>
+                            <p class="text-2xl font-bold text-blue-600" id="header-bills-total">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Chưa thanh toán</h3>
+                            <p class="text-2xl font-bold text-yellow-600" id="header-bills-unpaid">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Thanh toán một phần</h3>
+                            <p class="text-2xl font-bold text-orange-600" id="header-bills-partial">0</p>
+                        </div>
+                    </div>
 
                     <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
                         <div class="p-6 border-b">
@@ -1177,6 +1193,8 @@
                                 </div>
                             </div>
                         </div>
+
+
 
                         <div class="overflow-x-auto">
                             <!-- Desktop Table -->
