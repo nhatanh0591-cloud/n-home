@@ -1390,15 +1390,23 @@ async function collectBillPayment(billId, amount, paymentDate) {
         // Chuyển đổi ngày
         const transactionDate = parseDateInput(paymentDate);
         
-        // 1. Tạo phiếu thu
+        // 1. Tạo phiếu thu với số tiền thu lần này
         const items = await createTransactionItemsFromBillWithRealCategories(bill);
         
-        // Điều chỉnh số tiền trong items theo tỷ lệ nếu thu từng phần
-        if (!isFullyPaid && amount < totalAmount) {
-            const ratio = amount / totalAmount;
-            items.forEach(item => {
-                item.amount = Math.round(item.amount * ratio);
-            });
+        // Điều chỉnh số tiền trong items theo số tiền thu thực tế lần này
+        const ratio = amount / totalAmount;
+        items.forEach(item => {
+            item.amount = Math.round(item.amount * ratio);
+        });
+        
+        // Đảm bảo tổng tiền items = số tiền thu lần này
+        const itemsTotal = items.reduce((sum, item) => sum + item.amount, 0);
+        if (itemsTotal !== amount) {
+            // Điều chỉnh item đầu tiên để đúng tổng tiền
+            const diff = amount - itemsTotal;
+            if (items.length > 0) {
+                items[0].amount += diff;
+            }
         }
         
         const transactionCode = `PT${Date.now()}`;
@@ -1410,7 +1418,7 @@ async function collectBillPayment(billId, amount, paymentDate) {
             customerId: bill.customerId,
             billId: bill.id,
             accountId: building?.accountId || '',
-            title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}${isFullyPaid ? '' : ` (Phần ${Math.round(newPaidAmount / totalAmount * 100)}%)`}`,
+            title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
             payer: customer?.name || 'Khách hàng',
             date: transactionDate.toISOString().split('T')[0],
             items: items,
@@ -3709,7 +3717,17 @@ function openBulkPaymentModal() {
 /**
  * Xử lý xác nhận thu tiền đơn lẻ
  */
+let isProcessingPayment = false;
+
 async function handleSinglePaymentConfirm() {
+    // Tránh double-click
+    if (isProcessingPayment) {
+        console.log('Payment already in progress...');
+        return;
+    }
+    
+    isProcessingPayment = true;
+    
     const modal = document.getElementById('payment-modal');
     const billId = modal.dataset.billId;
     const paymentDateStr = document.getElementById('payment-date').value;
@@ -3775,6 +3793,9 @@ async function handleSinglePaymentConfirm() {
     } catch (error) {
         showToast('Lỗi thu tiền: ' + error.message, 'error');
     } finally {
+        // Reset processing flag
+        isProcessingPayment = false;
+        
         // Restore button
         const confirmBtn = document.getElementById('confirm-payment-btn');
         confirmBtn.disabled = false;
@@ -3852,7 +3873,10 @@ function updateBillsSummary(bills) {
     const collectedAmountEl = document.getElementById('collected-amount');
     const pendingAmountEl = document.getElementById('pending-amount');
     
-    if (!headerTotalEl) return; // Elements chưa load
+    if (!headerTotalEl) {
+        console.log('❌ Header elements not found!');
+        return; 
+    }
     
     const total = bills.length;
     let unpaid = 0;
@@ -3860,6 +3884,8 @@ function updateBillsSummary(bills) {
     let paid = 0;
     let totalAmount = 0;
     let collectedAmount = 0;
+    
+    console.log('🔍 updateBillsSummary called with', bills.length, 'bills');
     
     bills.forEach(bill => {
         const billTotal = bill.totalAmount || 0;
@@ -3879,15 +3905,17 @@ function updateBillsSummary(bills) {
     
     const pendingAmount = totalAmount - collectedAmount;
     
+    console.log('💰 Summary:', { total, unpaid, partial, paid, totalAmount, collectedAmount, pendingAmount });
+    
     // Update header stats
-    headerTotalEl.textContent = total;
-    headerUnpaidEl.textContent = unpaid;
-    headerPartialEl.textContent = partial;
+    if (headerTotalEl) headerTotalEl.textContent = total;
+    if (headerUnpaidEl) headerUnpaidEl.textContent = unpaid;
+    if (headerPartialEl) headerPartialEl.textContent = partial;
     
     // Update money stats
-    totalAmountEl.textContent = `${totalAmount.toLocaleString('vi-VN')} VNĐ`;
-    collectedAmountEl.textContent = `${collectedAmount.toLocaleString('vi-VN')} VNĐ`;
-    pendingAmountEl.textContent = `${pendingAmount.toLocaleString('vi-VN')} VNĐ`;
+    if (totalAmountEl) totalAmountEl.textContent = `${totalAmount.toLocaleString('vi-VN')} VNĐ`;
+    if (collectedAmountEl) collectedAmountEl.textContent = `${collectedAmount.toLocaleString('vi-VN')} VNĐ`;
+    if (pendingAmountEl) pendingAmountEl.textContent = `${pendingAmount.toLocaleString('vi-VN')} VNĐ`;
 }
 
 // Export hàm để có thể gọi từ event listener

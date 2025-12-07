@@ -60,6 +60,14 @@ export function initNotifications() {
         document.querySelectorAll('.notification-checkbox').forEach(cb => {
             cb.checked = e.target.checked;
         });
+        updateMarkAllReadButton();
+    });
+
+    // Lắng nghe individual checkboxes
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('notification-checkbox')) {
+            updateMarkAllReadButton();
+        }
     });
 
     // Lắng nghe mobile checkboxes
@@ -548,6 +556,14 @@ async function applyNotificationFilters() {
             const timeB = safeToDate(b.createdAt);
             return timeB - timeA; // Mới nhất lên đầu
         });
+        
+        // Kiểm tra có filter active không
+        const hasActiveFilter = buildingId !== 'all' || room !== 'all' || customerId !== 'all' || 
+                              type !== 'all' || month !== 'all' || year !== 'all' || 
+                              status !== 'all' || search !== '';
+        
+        // Update nút mark all read
+        updateMarkAllReadButton();
 
         renderNotificationsTable();
         updateNotificationBadge();
@@ -762,11 +778,68 @@ window.markAsRead = async function(notificationId) {
 /**
  * Đánh dấu tất cả đã đọc
  */
+/**
+ * Update trạng thái nút Mark All Read
+ */
+function updateMarkAllReadButton() {
+    const markAllReadBtn = document.getElementById('mark-all-read-btn');
+    if (!markAllReadBtn) return;
+    
+    // Check if có active filter
+    const hasActiveFilter = buildingFilterEl?.value !== 'all' || 
+                           roomFilterEl?.value !== 'all' || 
+                           customerFilterEl?.value !== 'all' || 
+                           typeFilterEl?.value !== 'all' || 
+                           monthFilterEl?.value !== 'all' || 
+                           yearFilterEl?.value !== 'all' || 
+                           statusFilterEl?.value !== 'all' ||
+                           searchEl?.value?.trim();
+    
+    // Đếm số checkbox được tích
+    const checkedBoxes = document.querySelectorAll('.notification-checkbox:checked');
+    const selectedCount = checkedBoxes.length;
+    
+    if (!hasActiveFilter && selectedCount < 2) {
+        // Disable nút khi không có filter và chọn < 2 items
+        markAllReadBtn.disabled = true;
+        markAllReadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        markAllReadBtn.title = 'Vui lòng áp dụng bộ lọc hoặc chọn từ 2 thông báo trở lên';
+    } else {
+        // Enable nút khi có filter hoặc chọn >= 2 items
+        markAllReadBtn.disabled = false;
+        markAllReadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        
+        if (selectedCount >= 2) {
+            markAllReadBtn.title = `Đánh dấu ${selectedCount} thông báo đã chọn là đã đọc`;
+        } else {
+            markAllReadBtn.title = 'Đánh dấu thông báo đã lọc là đã đọc';
+        }
+    }
+}
+
 async function markAllAsRead() {
     try {
-        const unreadNotifications = notificationsCache.filter(n => !n.isRead);
+        // Kiểm tra xem có notifications được chọn không
+        const selectedCheckboxes = document.querySelectorAll('.notification-checkbox:checked');
+        let targetNotifications = [];
         
-        for (const notification of unreadNotifications) {
+        if (selectedCheckboxes.length >= 2) {
+            // Nếu có chọn >= 2 notifications, chỉ mark read những cái đã chọn
+            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.id);
+            targetNotifications = notificationsCache_filtered.filter(n => 
+                selectedIds.includes(n.id) && !n.isRead
+            );
+        } else {
+            // Nếu không chọn, mark read tất cả notifications đã được filter
+            targetNotifications = notificationsCache_filtered.filter(n => !n.isRead);
+        }
+        
+        if (targetNotifications.length === 0) {
+            showToast('Không có thông báo chưa đọc để đánh dấu!', 'info');
+            return;
+        }
+        
+        for (const notification of targetNotifications) {
             // Update Firebase
             await updateDoc(doc(db, 'adminNotifications', notification.id), {
                 isRead: true,
@@ -784,7 +857,10 @@ async function markAllAsRead() {
         window.dispatchEvent(new CustomEvent('store:notifications:updated'));
         
         resetBulkSelection();
-        showToast(`Đã đánh dấu ${unreadNotifications.length} thông báo là đã đọc!`);
+        showToast(`Đã đánh dấu ${targetNotifications.length} thông báo là đã đọc!`);
+        
+        // Refresh filter để cập nhật danh sách
+        applyNotificationFilters();
     } catch (error) {
         showToast('Lỗi: ' + error.message, 'error');
     }
