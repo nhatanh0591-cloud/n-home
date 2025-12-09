@@ -665,35 +665,8 @@ async function handleBodyClick(e) {
                 }
             }
         } else {
-            // Thanh lý
-            const confirmed = await showConfirm('Bạn có chắc chắn muốn thanh lý hợp đồng này? Hệ thống sẽ tự động tạo hóa đơn thanh lý.', 'Xác nhận thanh lý');
-            if (confirmed) {
-                try {
-                    // Tạo hóa đơn thanh lý trước
-                    showToast('Đang tạo hóa đơn thanh lý...', 'info');
-                    const terminationBillId = await createTerminationBill(contract);
-                    
-                    // Update Firebase
-                    await setDoc(doc(db, 'contracts', contractId), {
-                        status: 'terminated',
-                        terminatedAt: serverTimestamp(),
-                        terminationBillId: terminationBillId,
-                        updatedAt: serverTimestamp()
-                    }, { merge: true });
-                    
-                    // Update localStorage
-                    updateInLocalStorage('contracts', contractId, {
-                        status: 'terminated',
-                        terminatedAt: new Date(),
-                        terminationBillId: terminationBillId,
-                        updatedAt: new Date()
-                    });
-                    
-                    showToast('Đã thanh lý hợp đồng và tạo hóa đơn thanh lý thành công!');
-                } catch (error) {
-                    showToast('Lỗi thanh lý hợp đồng: ' + error.message, 'error');
-                }
-            }
+            // Thanh lý - mở modal chọn ngày
+            openTerminationModal(contract);
         }
         return;
     }
@@ -701,6 +674,18 @@ async function handleBodyClick(e) {
     // Nút đóng modal - kiểm tra cả target và closest
     if (target.id === 'close-contract-modal' || target.closest('#close-contract-modal') || target.id === 'cancel-contract-btn' || target.closest('#cancel-contract-btn')) {
         closeModal(contractModal);
+        return;
+    }
+    
+    // Modal thanh lý - đóng modal
+    if (target.id === 'close-termination-modal' || target.closest('#close-termination-modal') || target.id === 'cancel-termination-btn' || target.closest('#cancel-termination-btn')) {
+        closeModal(document.getElementById('termination-modal'));
+        return;
+    }
+    
+    // Modal thanh lý - xác nhận
+    if (target.id === 'confirm-termination-btn' || target.closest('#confirm-termination-btn')) {
+        await handleTerminationConfirm();
         return;
     }
     
@@ -1442,7 +1427,7 @@ async function handleImportSubmit() {
 /**
  * Tạo hóa đơn thanh lý hợp đồng
  */
-async function createTerminationBill(contract) {
+async function createTerminationBill(contract, terminationDate = null) {
     try {
         const building = getBuildings().find(b => b.id === contract.buildingId);
         const customer = getCustomers().find(c => c.id === contract.representativeId);
@@ -1452,10 +1437,12 @@ async function createTerminationBill(contract) {
         }
 
         const billId = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-        const now = new Date();
-        const currentMonth = now.getMonth() + 1;
-        const currentYear = now.getFullYear();
-        const currentDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        
+        // Sử dụng ngày được chọn hoặc ngày hiện tại
+        const billDate = terminationDate || new Date();
+        const currentMonth = billDate.getMonth() + 1;
+        const currentYear = billDate.getFullYear();
+        const currentDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(billDate.getDate()).padStart(2, '0')}`;
         
         const billData = {
             id: billId,
@@ -1512,6 +1499,76 @@ async function createTerminationBill(contract) {
 function hasTerminationBill(contractId) {
     const bills = getBills();
     return bills.some(bill => bill.contractId === contractId && bill.isTerminationBill);
+}
+
+/**
+ * Mở modal chọn ngày thanh lý
+ */
+function openTerminationModal(contract) {
+    const building = getBuildings().find(b => b.id === contract.buildingId);
+    const contractInfo = `${building?.code || ''} - ${contract.room}`;
+    
+    // Hiển thị thông tin hợp đồng
+    document.getElementById('termination-contract-info').textContent = contractInfo;
+    
+    // Set ngày mặc định là hôm nay
+    const today = formatDateDisplay(new Date());
+    document.getElementById('termination-date').value = today;
+    
+    // Lưu contract để sử dụng khi confirm
+    document.getElementById('termination-modal').dataset.contractId = contract.id;
+    
+    openModal(document.getElementById('termination-modal'));
+}
+
+/**
+ * Xử lý xác nhận thanh lý hợp đồng
+ */
+async function handleTerminationConfirm() {
+    const modal = document.getElementById('termination-modal');
+    const contractId = modal.dataset.contractId;
+    const terminationDateStr = document.getElementById('termination-date').value;
+    const terminationDate = parseDateInput(terminationDateStr);
+    
+    if (!terminationDate) {
+        showToast('Vui lòng chọn ngày thanh lý!', 'error');
+        return;
+    }
+    
+    const contract = getContracts().find(c => c.id === contractId);
+    if (!contract) {
+        showToast('Không tìm thấy hợp đồng!', 'error');
+        return;
+    }
+    
+    try {
+        // Đóng modal
+        closeModal(modal);
+        
+        // Tạo hóa đơn thanh lý với ngày đã chọn
+        showToast('Đang tạo hóa đơn thanh lý...', 'info');
+        const terminationBillId = await createTerminationBill(contract, terminationDate);
+        
+        // Update Firebase
+        await setDoc(doc(db, 'contracts', contractId), {
+            status: 'terminated',
+            terminatedAt: serverTimestamp(),
+            terminationBillId: terminationBillId,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        
+        // Update localStorage
+        updateInLocalStorage('contracts', contractId, {
+            status: 'terminated',
+            terminatedAt: new Date(),
+            terminationBillId: terminationBillId,
+            updatedAt: new Date()
+        });
+        
+        showToast('Đã thanh lý hợp đồng và tạo hóa đơn thanh lý thành công!');
+    } catch (error) {
+        showToast('Lỗi thanh lý hợp đồng: ' + error.message, 'error');
+    }
 }
 
 /**
