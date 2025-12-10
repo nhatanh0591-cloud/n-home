@@ -1077,7 +1077,7 @@
                     </div>
                     
                     <!-- Bills Summary Stats -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                         <div class="bg-white p-5 rounded-lg shadow">
                             <h3 class="text-sm font-medium text-gray-500">Tổng hóa đơn</h3>
                             <p class="text-2xl font-bold text-blue-600" id="header-bills-total">0</p>
@@ -1089,6 +1089,10 @@
                         <div class="bg-white p-5 rounded-lg shadow">
                             <h3 class="text-sm font-medium text-gray-500">Thanh toán một phần</h3>
                             <p class="text-2xl font-bold text-orange-600" id="header-bills-partial">0</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">Thanh lý</h3>
+                            <p class="text-2xl font-bold text-purple-600" id="header-bills-termination">0</p>
                         </div>
                     </div>
 
@@ -1182,6 +1186,7 @@
                                             <option value="">Trạng thái thanh toán</option>
                                             <option value="unpaid">Chưa thanh toán</option>
                                             <option value="paid">Đã thanh toán</option>
+                                            <option value="termination">Thanh lý</option>
                                         </select>
                                     </div>
                                     <div>

@@ -196,7 +196,11 @@ function applyBillFilters() {
         bills = bills.filter(bill => bill.period == monthFilter);
     }
     if (statusFilter) {
-        bills = bills.filter(bill => bill.status === statusFilter);
+        if (statusFilter === 'termination') {
+            bills = bills.filter(bill => bill.isTerminationBill === true);
+        } else {
+            bills = bills.filter(bill => !bill.isTerminationBill && bill.status === statusFilter);
+        }
     }
     if (approvalFilter) {
         if (approvalFilter === 'approved') {
@@ -3867,6 +3871,7 @@ function updateBillsSummary(bills) {
     const headerTotalEl = document.getElementById('header-bills-total');
     const headerUnpaidEl = document.getElementById('header-bills-unpaid');
     const headerPartialEl = document.getElementById('header-bills-partial');
+    const headerTerminationEl = document.getElementById('header-bills-termination');
     
     // Money stats
     const totalAmountEl = document.getElementById('total-bill-amount');
@@ -3882,6 +3887,7 @@ function updateBillsSummary(bills) {
     let unpaid = 0;
     let partial = 0;
     let paid = 0;
+    let termination = 0;
     let totalAmount = 0;
     let collectedAmount = 0;
     
@@ -3890,6 +3896,12 @@ function updateBillsSummary(bills) {
     bills.forEach(bill => {
         const billTotal = bill.totalAmount || 0;
         const billPaid = bill.paidAmount || 0;
+        
+        // Hóa đơn thanh lý tính riêng
+        if (bill.isTerminationBill) {
+            termination++;
+            return; // Không tính vào tổng tiền
+        }
         
         totalAmount += billTotal;
         collectedAmount += billPaid; // Cộng số tiền đã thu (bao gồm cả thanh toán một phần)
@@ -3905,12 +3917,13 @@ function updateBillsSummary(bills) {
     
     const pendingAmount = totalAmount - collectedAmount;
     
-    console.log('💰 Summary:', { total, unpaid, partial, paid, totalAmount, collectedAmount, pendingAmount });
+    console.log('💰 Summary:', { total, unpaid, partial, paid, termination, totalAmount, collectedAmount, pendingAmount });
     
     // Update header stats
     if (headerTotalEl) headerTotalEl.textContent = total;
     if (headerUnpaidEl) headerUnpaidEl.textContent = unpaid;
     if (headerPartialEl) headerPartialEl.textContent = partial;
+    if (headerTerminationEl) headerTerminationEl.textContent = termination;
     
     // Update money stats
     if (totalAmountEl) totalAmountEl.textContent = `${totalAmount.toLocaleString('vi-VN')} VNĐ`;
