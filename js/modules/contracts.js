@@ -23,6 +23,7 @@ const contractsSection = document.getElementById('contracts-section');
 const contractsListEl = document.getElementById('contracts-list');
 
 // Stats
+const vacantRoomsEl = document.getElementById('vacant-rooms');
 const totalContractsEl = document.getElementById('total-contracts');
 const activeContractsEl = document.getElementById('active-contracts');
 const expiringContractsEl = document.getElementById('expiring-contracts');
@@ -469,9 +470,44 @@ function updateContractPagination() {
  * Cập nhật thống kê
  */
 function updateContractStats(contracts) {
+    // Tính số phòng trống
+    const buildings = getBuildings();
+    console.log('🏢 DEBUG Buildings:', buildings.map(b => ({
+        code: b.code,
+        isActive: b.isActive,
+        totalRooms: b.totalRooms,
+        rooms: b.rooms?.length
+    })));
+    
+    const totalRooms = buildings
+        .filter(b => b.isActive !== false) // Chỉ tính các tòa nhà đang hoạt động
+        .reduce((total, building) => {
+            // Dùng rooms.length nếu totalRooms không có
+            const roomCount = building.totalRooms || (building.rooms ? building.rooms.length : 0);
+            console.log(`🏢 Building ${building.code}: ${roomCount} rooms`);
+            return total + roomCount;
+        }, 0);
+    
+    console.log('🏢 Total rooms:', totalRooms);
+    console.log('📋 Contracts status:', contracts.map(c => c.status));
+    
+    // Đếm tất cả phòng đang thuê (active + expiring đều là đang thuê)
+    const activeContracts = contracts.filter(c => c.status === 'active').length;
+    const expiringContracts = contracts.filter(c => c.status === 'expiring').length;
+    const occupiedContracts = activeContracts + expiringContracts;
+    
+    console.log('📋 Active contracts:', activeContracts);
+    console.log('📋 Expiring contracts:', expiringContracts);  
+    console.log('📋 Total occupied contracts:', occupiedContracts);
+    
+    const vacantRooms = Math.max(0, totalRooms - occupiedContracts);
+    console.log('🏠 Vacant rooms:', vacantRooms);
+    
+    // Cập nhật giao diện
+    vacantRoomsEl.textContent = vacantRooms;
     totalContractsEl.textContent = contracts.length;
-    activeContractsEl.textContent = contracts.filter(c => c.status === 'active').length;
-    expiringContractsEl.textContent = contracts.filter(c => c.status === 'expiring').length;
+    activeContractsEl.textContent = activeContracts;
+    expiringContractsEl.textContent = expiringContracts;
     expiredContractsEl.textContent = contracts.filter(c => c.status === 'expired').length;
 }
 

@@ -127,8 +127,10 @@ function updateBuildingStats(buildings) {
     const activeBuildings = buildings.filter(building => building.isActive !== false).length;
     const inactiveBuildings = totalBuildings - activeBuildings;
     
-    // Tính tổng số phòng
-    const totalRooms = buildings.reduce((sum, building) => sum + building.rooms.length, 0);
+    // Tính tổng số phòng CHỈ CỦA CÁC TÒA NHÀ ĐANG HOẠT ĐỘNG
+    const totalRooms = buildings
+        .filter(building => building.isActive !== false)
+        .reduce((sum, building) => sum + building.rooms.length, 0);
 
     totalBuildingsEl.textContent = totalBuildings;
     totalRoomsEl.textContent = totalRooms;
