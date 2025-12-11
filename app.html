@@ -5195,39 +5195,20 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/customer-sw.js')
                     .then((registration) => {
-                        console.log('N-Home Customer SW registered successfully:', registration.scope);
+                        console.log('N-Home SW registered successfully:', registration.scope);
                     })
                     .catch((error) => {
-                        console.log('N-Home Customer SW registration failed:', error);
+                        console.log('N-Home SW registration failed:', error);
                     });
             });
         }
 
         // PWA Install Prompt
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('🎯 PWA Install prompt event fired!');
+            console.log('PWA Install prompt event fired');
             e.preventDefault();
             deferredPrompt = e;
             showInstallPrompt();
-        });
-
-        // Check PWA install criteria
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                console.log('🔍 Checking PWA criteria:');
-                console.log('- Service worker:', 'serviceWorker' in navigator ? '✅' : '❌');
-                console.log('- HTTPS:', location.protocol === 'https:' ? '✅' : '❌');
-                console.log('- Manifest:', document.querySelector('link[rel="manifest"]') ? '✅' : '❌');
-                console.log('- beforeinstallprompt event fired:', !!deferredPrompt ? '✅' : '❌');
-                
-                if (!deferredPrompt) {
-                    console.log('❌ beforeinstallprompt not fired. Possible reasons:');
-                    console.log('- Already installed');
-                    console.log('- Not enough user engagement'); 
-                    console.log('- Browser not supported');
-                    console.log('- PWA criteria not met');
-                }
-            }, 3000);
         });
 
         // Show custom install prompt
@@ -5261,33 +5242,13 @@
 
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
-                console.log('🔧 Install button clicked, deferredPrompt:', !!deferredPrompt);
-                
                 if (deferredPrompt) {
-                    console.log('✅ deferredPrompt found, prompting...');
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log('PWA install outcome:', outcome);
                     deferredPrompt = null;
-                    
-                    // Only remove popup after successful prompt
-                    document.body.removeChild(installPrompt);
-                } else {
-                    console.log('❌ No deferredPrompt available!');
-                    
-                    // Try alternative install methods
-                    if ('BeforeInstallPromptEvent' in window) {
-                        console.log('🔄 Trying manual install...');
-                        // For browsers that support manual install
-                        window.open('/app.html', '_blank');
-                    } else {
-                        console.log('🔧 Showing manual install instructions');
-                        alert('Để cài đặt ứng dụng:\n\n📱 Trên điện thoại:\n1. Mở menu trình duyệt (⋮)\n2. Chọn "Thêm vào màn hình chính"\n3. Nhấn "Thêm"\n\n💻 Trên máy tính:\n1. Nhấn Ctrl+Shift+A (Chrome)\n2. Hoặc tìm biểu tượng + trên thanh địa chỉ');
-                    }
-                    
-                    // Keep popup open for user to try again
-                    return;
                 }
+                document.body.removeChild(installPrompt);
             });
 
             // Cancel button click
@@ -5320,9 +5281,13 @@
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
                     console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
-                    // Force show install prompt dù có hay không có beforeinstallprompt
-                    console.log('🚀 Force showing install prompt for testing');
-                    showInstallPrompt();
+                    if (deferredPrompt) {
+                        showInstallPrompt();
+                    } else {
+                        // Force show install prompt nếu không có beforeinstallprompt
+                        console.log('No beforeinstallprompt, force showing install prompt');
+                        showInstallPrompt();
+                    }
                 }, 2000);
             }
         });
