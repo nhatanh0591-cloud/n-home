@@ -47,6 +47,119 @@
         }
         // Always keep console.error for critical debugging
         
+        // 📱 PWA Install Prompt
+        let deferredPrompt;
+        let installButton;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('📱 PWA install prompt available');
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Hiện nút cài đặt nếu chưa cài
+            showInstallButton();
+        });
+        
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('✅ PWA đã được cài đặt');
+            hideInstallButton();
+            deferredPrompt = null;
+        });
+        
+        function showInstallButton() {
+            // Hiện nút cài đặt trong giao diện
+            const installBtn = document.getElementById('install-app-btn');
+            if (installBtn && !isPWAInstalled()) {
+                installBtn.classList.remove('hidden');
+            }
+            
+            // Tạo banner cài đặt ở top
+            if (!installButton && !isPWAInstalled()) {
+                installButton = document.createElement('div');
+                installButton.id = 'pwa-install-banner';
+                installButton.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, #23904f, #1e6b3a); color: white; padding: 12px 20px; z-index: 9999; box-shadow: 0 2px 10px rgba(0,0,0,0.3); transform: translateY(-100%); transition: transform 0.3s ease;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 400px; margin: 0 auto;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <img src="/icon-nen-xanh.jpg" style="width: 40px; height: 40px; border-radius: 8px;" alt="N-Home">
+                                <div>
+                                    <div style="font-weight: bold; font-size: 14px;">Cài đặt N-Home</div>
+                                    <div style="font-size: 12px; opacity: 0.9;">Thêm vào màn hình chính</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="installPWA()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">Cài đặt</button>
+                                <button onclick="hideInstallButton()" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer; opacity: 0.8;">×</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(installButton);
+                
+                // Hiện banner sau 1 giây
+                setTimeout(() => {
+                    installButton.querySelector('div').style.transform = 'translateY(0)';
+                }, 1000);
+            }
+        }
+        
+        function hideInstallButton() {
+            // Ẩn nút cài đặt trong giao diện
+            const installBtn = document.getElementById('install-app-btn');
+            if (installBtn) {
+                installBtn.classList.add('hidden');
+            }
+            
+            // Ẩn banner
+            if (installButton) {
+                installButton.querySelector('div').style.transform = 'translateY(-100%)';
+                setTimeout(() => {
+                    if (installButton && installButton.parentNode) {
+                        installButton.parentNode.removeChild(installButton);
+                        installButton = null;
+                    }
+                }, 300);
+            }
+        }
+        
+        function isPWAInstalled() {
+            // Kiểm tra xem PWA đã được cài đặt chưa
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true ||
+                   document.referrer.includes('android-app://');
+        }
+        
+        window.installPWA = async function() {
+            if (deferredPrompt) {
+                console.log('📱 Hiện PWA install dialog');
+                deferredPrompt.prompt();
+                
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log('📱 User choice:', outcome);
+                
+                if (outcome === 'accepted') {
+                    console.log('✅ User chấp nhận cài đặt PWA');
+                } else {
+                    console.log('❌ User từ chối cài đặt PWA');
+                }
+                
+                deferredPrompt = null;
+                hideInstallButton();
+            } else {
+                // Fallback cho trường hợp không hỗ trợ install prompt
+                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                    alert('📱 Trên iPhone/iPad: Bấm nút Chia sẻ ở thanh địa chỉ, sau đó chọn "Thêm vào Màn hình chính"');
+                } else {
+                    alert('📱 Trên Android: Bấm menu 3 chấm ở trình duyệt, chọn "Thêm vào màn hình chính" hoặc "Cài đặt ứng dụng"');
+                }
+            }
+        };
+        
+        // Ẩn banner nếu đã cài đặt
+        if (isPWAInstalled()) {
+            console.log('✅ PWA đã được cài đặt - không hiện install banner');
+        }
+        
         // 🧹 Cleanup on page unload to prevent memory leaks
         window.addEventListener('beforeunload', () => {
             activeListeners.forEach(unsubscribe => {
@@ -74,6 +187,37 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+    
+    <!-- PWA Service Worker -->
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('✅ SW registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('❌ SW registration failed:', error);
+                    });
+            });
+        }
+    </script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                    .then(function(registration) {
+                        console.log('✅ Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('❌ Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
     
     <style>
         body {
@@ -471,11 +615,51 @@
         <div id="home-screen" class="hidden">
             <div class="content-wrapper">
             <!-- Header -->
+            <div class="gradient-bg px-6 py-4 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h1 class="text-xl font-bold text-white" id="home-title">N-Home</h1>
+                    <div class="flex items-center gap-3">
+                        <!-- PWA Install Button -->
+                        <button id="pwa-install-btn" class="hidden w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors" title="Cài đặt ứng dụng">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                            </svg>
+                        </button>
+                        
+                        <!-- Language Toggle -->
+                        <div class="flex bg-white/20 rounded-full p-1" id="language-toggle">
+                            <input type="radio" id="lang-vi" name="language" value="vi" class="sr-only" checked>
+                            <label for="lang-vi" class="px-3 py-1 rounded-full text-sm cursor-pointer transition-all text-white hover:bg-white/20" id="lang-vi-label">
+                                <span class="language-code">VI</span>
+                            </label>
+                            <input type="radio" id="lang-en" name="language" value="en" class="sr-only">
+                            <label for="lang-en" class="px-3 py-1 rounded-full text-sm cursor-pointer transition-all text-white hover:bg-white/20" id="lang-en-label">
+                                <span class="language-code">EN</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Settings Button -->
+                        <button onclick="showSettings()" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-            
             <!-- Building Info -->
             <div class="px-6 mb-3">
-                <h2 class="text-lg font-semibold mb-3 text-gray-700" id="room-info-header">Thông tin tòa nhà</h2>
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-semibold text-gray-700" id="room-info-header">Thông tin tòa nhà</h2>
+                    <button id="install-app-btn" onclick="installPWA()" class="hidden bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                        </svg>
+                        Cài đặt
+                    </button>
+                </div>
                 <div class="card" id="building-info">
                     <!-- Loading skeleton -->
                     <div class="animate-pulse">
@@ -916,6 +1100,79 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const storage = getStorage(app);
+
+        // ==================== PWA INSTALL FUNCTIONALITY ===================
+        
+        let deferredPrompt = null;
+        
+        // Listen for beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('💡 PWA install prompt intercepted');
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install button
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) {
+                installBtn.classList.remove('hidden');
+            }
+        });
+        
+        // Handle install button click
+        document.addEventListener('DOMContentLoaded', () => {
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    if (!deferredPrompt) {
+                        console.log('❌ No install prompt available');
+                        return;
+                    }
+                    
+                    console.log('🚀 Showing PWA install prompt');
+                    deferredPrompt.prompt();
+                    
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`🎯 User choice: ${outcome}`);
+                    
+                    if (outcome === 'accepted') {
+                        console.log('🎉 PWA install accepted');
+                        showToast('✅ Đang cài đặt ứng dụng...', 'success');
+                    } else {
+                        console.log('❌ PWA install dismissed');
+                    }
+                    
+                    // Hide install button
+                    installBtn.classList.add('hidden');
+                    deferredPrompt = null;
+                });
+            }
+        });
+        
+        // Listen for app install event
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('🎉 PWA was installed successfully');
+            showToast('✅ Ứng dụng đã được cài đặt!', 'success');
+            
+            // Hide install button if still visible
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) {
+                installBtn.classList.add('hidden');
+            }
+        });
+        
+        // Check if already installed (standalone mode)
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+            console.log('📱 App running in standalone mode (installed)');
+            // Hide install button if app is already installed
+            document.addEventListener('DOMContentLoaded', () => {
+                const installBtn = document.getElementById('pwa-install-btn');
+                if (installBtn) {
+                    installBtn.classList.add('hidden');
+                }
+            });
+        }
+        
+        // ==================== MAIN FUNCTIONALITY ===================
 
         let currentUser = null;
         let customerData = null;
@@ -1992,7 +2249,11 @@
                         const existingNotification = notifications.find(n => n.data?.firebaseId === change.doc.id);
                         if (existingNotification) {
                             console.log('🔄 Updating modified notification while preserving read status:', change.doc.id);
-                            const oldReadStatus = existingNotification.isRead;
+                            
+                            // 🔐 Lấy trạng thái đã đọc từ read status storage (ưu tiên cao nhất)
+                            const readStatus = loadReadStatusFromStorage(customerId);
+                            const wasReadFromStorage = readStatus[change.doc.id] || false;
+                            const currentReadStatus = wasReadFromStorage || existingNotification.isRead;
                             
                             // Cập nhật data mới nhưng giữ nguyên isRead
                             existingNotification.title = notificationData.title;
@@ -2005,8 +2266,10 @@
                                 transactionId: notificationData.transactionId
                             };
                             
-                            // Lưu lại trạng thái đã đọc
-                            existingNotification.isRead = oldReadStatus;
+                            // Lưu lại trạng thái đã đọc (ưu tiên read status storage)
+                            existingNotification.isRead = currentReadStatus;
+                            
+                            console.log(`🔐 Preserved read status for ${change.doc.id}: ${currentReadStatus} (from storage: ${wasReadFromStorage})`);
                             
                             saveNotificationsToStorage();
                             renderNotificationsList();
@@ -4575,13 +4838,6 @@
             console.log('🔄 Marking notification as read:', notificationId);
             
             try {
-                // Skip Firestore update - chỉ update local state để tránh lỗi permission
-                // Vì adminNotifications được tạo bởi admin, user không có quyền update
-                // const notificationRef = doc(db, 'adminNotifications', notificationId);
-                // await updateDoc(notificationRef, { isRead: true });
-                
-                console.log('Skipping Firestore update - updating local state only');
-                
                 // Update local data
                 const localIndex = notifications.findIndex(n => n.id === notificationId);
                 console.log('🔍 Finding notification in local array:', localIndex, 'total notifications:', notifications.length);
@@ -4590,15 +4846,24 @@
                     console.log('✅ Found notification, updating isRead to true');
                     notifications[localIndex].isRead = true;
                     
-                    // 🔐 Lưu vào hệ thống read status riêng biệt để không bị mất khi cache expire
+                    // 🔐 Lưu vào hệ thống read status riêng biệt (cả local ID và Firebase ID)
                     if (currentUser?.id) {
                         const readStatus = loadReadStatusFromStorage(currentUser.id);
+                        
+                        // Lưu theo cả 2 ID để đảm bảo không bị mất
                         const firebaseId = notifications[localIndex].data?.firebaseId;
+                        const localId = notifications[localIndex].id;
+                        
                         if (firebaseId) {
                             readStatus[firebaseId] = true;
-                            saveReadStatusToStorage(currentUser.id, readStatus);
                             console.log('🔐 Saved read status for Firebase ID:', firebaseId);
                         }
+                        if (localId) {
+                            readStatus[localId] = true;
+                            console.log('🔐 Saved read status for Local ID:', localId);
+                        }
+                        
+                        saveReadStatusToStorage(currentUser.id, readStatus);
                     }
                 } else {
                     console.log('❌ Notification not found in local array!');
@@ -4609,7 +4874,6 @@
                 console.log('💾 Updated localStorage and read status');
                 
                 // Re-render notifications list
-                // console.log('🎨 Re-rendering notifications list...');
                 renderNotificationsList();
                 console.log('✅ Done marking as read');
                 
@@ -4660,12 +4924,22 @@
             // 🔐 SAFEGUARD: Luôn re-apply read status trước khi render để tránh mất trạng thái
             if (currentUser?.id) {
                 const readStatus = loadReadStatusFromStorage(currentUser.id);
+                let appliedCount = 0;
                 notifications.forEach(n => {
-                    const firebaseId = n.data?.firebaseId || n.id;
-                    if (firebaseId && readStatus[firebaseId]) {
-                        n.isRead = true;
+                    // Kiểm tra cả Firebase ID và local ID
+                    const firebaseId = n.data?.firebaseId;
+                    const localId = n.id;
+                    
+                    if ((firebaseId && readStatus[firebaseId]) || (localId && readStatus[localId])) {
+                        if (!n.isRead) {
+                            n.isRead = true;
+                            appliedCount++;
+                        }
                     }
                 });
+                if (appliedCount > 0) {
+                    console.log(`🔐 Re-applied read status to ${appliedCount} notifications before render`);
+                }
             }
             
             // 🔥 ĐẢMBẢO SẮP XẾP THEO THÁNG HÓA ĐƠN TRƯỚC KHI RENDER

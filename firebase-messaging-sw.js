@@ -77,4 +77,117 @@ self.addEventListener('notificationclick', (event) => {
     // Nếu action === 'close', không làm gì (thông báo đã đóng)
 });
 
-console.log('✅ Firebase Messaging Service Worker setup hoàn tất');
+// 💾 PWA CACHING cho offline support
+const CACHE_NAME = 'n-home-v1';
+const STATIC_CACHE_URLS = [
+    '/app.html',
+    '/index.html', 
+    '/icon-nen-xanh.jpg',
+    '/manifest-customer.json',
+    'https://cdn.tailwindcss.com',
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js'
+];
+
+// Install event - cache các file tĩnh
+self.addEventListener('install', (event) => {
+    console.log('📦 Service Worker installing...');
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => {
+                console.log('💾 Caching static files');
+                return cache.addAll(STATIC_CACHE_URLS);
+            })
+            .then(() => {
+                console.log('✅ Static files cached successfully');
+                return self.skipWaiting();
+            })
+            .catch((error) => {
+                console.error('❌ Cache installation failed:', error);
+            })
+    );
+});
+
+// Activate event - xóa cache cũ
+self.addEventListener('activate', (event) => {
+    console.log('⚙️ Service Worker activating...');
+    event.waitUntil(
+        caches.keys()
+            .then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        if (cacheName !== CACHE_NAME) {
+                            console.log('🗑️ Deleting old cache:', cacheName);
+                            return caches.delete(cacheName);
+                        }
+                    })
+                );
+            })
+            .then(() => {
+                console.log('✅ Service Worker activated');
+                return self.clients.claim();
+            })
+    );
+});
+
+// Fetch event - xử lý request với cache-first strategy
+self.addEventListener('fetch', (event) => {
+    // Chỉ cache các request GET
+    if (event.request.method !== 'GET') return;
+    
+    // Skip cache cho Firebase và external APIs
+    const url = new URL(event.request.url);
+    if (url.hostname.includes('firebase') || 
+        url.hostname.includes('googleapis') ||
+        url.hostname.includes('gstatic') ||
+        event.request.url.includes('chrome-extension')) {
+        return;
+    }
+    
+    event.respondWith(
+        caches.match(event.request)
+            .then((cachedResponse) => {
+                // Nếu có trong cache, trả về ngay
+                if (cachedResponse) {
+                    // Vẫn fetch ở background để cập nhật cache
+                    fetch(event.request)
+                        .then((response) => {
+                            if (response && response.status === 200) {
+                                const responseClone = response.clone();
+                                caches.open(CACHE_NAME)
+                                    .then((cache) => {
+                                        cache.put(event.request, responseClone);
+                                    });
+                            }
+                        })
+                        .catch(() => {});
+                    
+                    return cachedResponse;
+                }
+                
+                // Nếu không có trong cache, fetch và cache
+                return fetch(event.request)
+                    .then((response) => {
+                        if (!response || response.status !== 200 || response.type !== 'basic') {
+                            return response;
+                        }
+                        
+                        const responseClone = response.clone();
+                        caches.open(CACHE_NAME)
+                            .then((cache) => {
+                                cache.put(event.request, responseClone);
+                            });
+                        
+                        return response;
+                    })
+                    .catch(() => {
+                        // Nếu offline và là navigation request, trả về app.html
+                        if (event.request.mode === 'navigate') {
+                            return caches.match('/app.html');
+                        }
+                    });
+            })
+    );
+});
+
+console.log('✅ Firebase Messaging Service Worker + PWA Caching setup hoàn tất');
