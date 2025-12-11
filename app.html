@@ -39,8 +39,15 @@
                      new URLSearchParams(window.location.search).has('debug');
         
         if (!isDev) {
-            // Production: Disable console spam
-            console.log = function() {};
+            // Production: Disable console spam EXCEPT for install prompt debugging
+            const originalLog = console.log;
+            console.log = function() {
+                const message = Array.from(arguments).join(' ');
+                // Always show install/PWA related logs
+                if (message.includes('install') || message.includes('PWA') || message.includes('Install conditions')) {
+                    originalLog.apply(console, arguments);
+                }
+            };
             console.warn = function() {};
             console.info = function() {};
             console.debug = function() {};
@@ -5251,19 +5258,21 @@
             const isMobile = isMobileDevice();
             const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
             
-            console.log('Install conditions:', { isMobile, isInstalled, deferredPrompt: !!deferredPrompt });
+            console.log('Install conditions:', { 
+                isMobile, 
+                isInstalled, 
+                userAgent: navigator.userAgent,
+                windowWidth: window.innerWidth,
+                hasTouch: 'ontouchstart' in window,
+                deferredPrompt: !!deferredPrompt 
+            });
             
             if (isMobile && !isInstalled) {
                 // Delay 2 seconds để user load xong trang
                 setTimeout(() => {
-                    console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
-                    if (deferredPrompt) {
-                        showInstallPrompt();
-                    } else {
-                        // Force show install prompt nếu không có beforeinstallprompt
-                        console.log('No beforeinstallprompt, force showing install prompt');
-                        showInstallPrompt();
-                    }
+                    console.log('Timeout reached, forcing install prompt');
+                    // Force show popup ngay lập tức trên mobile
+                    showInstallPrompt();
                 }, 2000);
             }
         });
