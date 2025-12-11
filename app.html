@@ -5242,13 +5242,22 @@
 
             // Install button click
             document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+                console.log('🔧 Install button clicked, deferredPrompt:', !!deferredPrompt);
+                
                 if (deferredPrompt) {
+                    console.log('✅ deferredPrompt found, prompting...');
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log('PWA install outcome:', outcome);
                     deferredPrompt = null;
+                    
+                    // Only remove popup after successful prompt
+                    document.body.removeChild(installPrompt);
+                } else {
+                    console.log('❌ No deferredPrompt available!');
+                    alert('PWA install not available. Try:\n1. Use Chrome browser\n2. Visit site multiple times\n3. Add to Home Screen manually');
+                    // Don't remove popup to let user try again
                 }
-                document.body.removeChild(installPrompt);
             });
 
             // Cancel button click
