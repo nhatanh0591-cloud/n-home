@@ -1,19 +1,18 @@
 // customer-sw.js
 // Service Worker cho Customer N-Home PWA
 
-// Tăng version lên v5 để reset toàn bộ cache cũ bị lỗi
-const CACHE_NAME = 'n-home-customer-v5'; 
-
+const CACHE_NAME = 'n-home-customer-v1';
 const urlsToCache = [
-    '/app',               // QUAN TRỌNG: Cache đường dẫn sạch, không có .html
+    '/app.html',
+    '/app',
     '/manifest-customer.json',
-    '/icon-nen-xanh.jpg'
+    '/icon-nen-xanh.jpg',
+    '/'
 ];
 
 // Install Service Worker
 self.addEventListener('install', (event) => {
     console.log('Customer SW: Installing...');
-    self.skipWaiting(); // Kích hoạt ngay lập tức
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
@@ -43,26 +42,24 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Fetch handler
+// Fetch handler - QUAN TRỌNG CHO PWA INSTALL
 self.addEventListener('fetch', (event) => {
-    // Chỉ xử lý GET requests và file http/https
-    if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) return;
-
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
+                // Return cached version if found
                 if (response) {
-                    return response; // Có cache thì trả về ngay
+                    return response;
                 }
                 
-                // Tải từ mạng
-                return fetch(event.request).catch(() => {
-                    // NẾU MẤT MẠNG (OFFLINE)
-                    if (event.request.mode === 'navigate') {
-                        // Trả về file /app đã lưu trong cache
-                        return caches.match('/app');
-                    }
-                });
+                // Fetch from network
+                return fetch(event.request);
+            })
+            .catch(() => {
+                // Fallback for offline
+                if (event.request.destination === 'document') {
+                    return caches.match('/app.html');
+                }
             })
     );
 });
