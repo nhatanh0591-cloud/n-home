@@ -1,13 +1,13 @@
 // customer-sw.js
 // Service Worker cho Customer N-Home PWA
 
-const CACHE_NAME = 'n-home-customer-v1';
+const CACHE_NAME = 'n-home-customer-v4'; // Tăng version để reset cache
 const urlsToCache = [
-    '/app.html',
-    '/app',
+    '/',
+    '/app.html',        // QUAN TRỌNG: File thật
     '/manifest-customer.json',
-    '/icon-nen-xanh.jpg',
-    '/'
+    '/icon-nen-xanh.jpg'
+    // XÓA '/app' đi
 ];
 
 // Install Service Worker
@@ -44,22 +44,24 @@ self.addEventListener('activate', (event) => {
 
 // Fetch handler - QUAN TRỌNG CHO PWA INSTALL
 self.addEventListener('fetch', (event) => {
+    // Chỉ xử lý GET requests
+    if (event.request.method !== 'GET') return;
+
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
-                // Return cached version if found
                 if (response) {
-                    return response;
+                    return response; // Có cache thì trả về ngay
                 }
                 
-                // Fetch from network
-                return fetch(event.request);
-            })
-            .catch(() => {
-                // Fallback for offline
-                if (event.request.destination === 'document') {
-                    return caches.match('/app.html');
-                }
+                // Tải từ mạng
+                return fetch(event.request).catch(() => {
+                    // NẾU MẤT MẠNG (OFFLINE)
+                    if (event.request.mode === 'navigate') {
+                        // Trả về app.html cho mọi navigation request
+                        return caches.match('/app.html');
+                    }
+                });
             })
     );
 });

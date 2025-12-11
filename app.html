@@ -5195,10 +5195,12 @@
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/customer-sw.js')
                     .then((registration) => {
-                        console.log('N-Home SW registered successfully:', registration.scope);
+                        console.log('SW registered');
+                        // Force update để áp dụng code mới ngay
+                        registration.update();
                     })
                     .catch((error) => {
-                        console.log('N-Home SW registration failed:', error);
+                        console.log('SW registration failed:', error);
                     });
             });
         }
