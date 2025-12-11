@@ -5187,20 +5187,15 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration cho Firebase Messaging
+        // CHỈ ĐĂNG KÝ 1 FILE DUY NHẤT LÀ CUSTOMER-SW.JS (Đã bao gồm cả Firebase)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                navigator.serviceWorker.register('/customer-sw.js')
                     .then(registration => {
-                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
-                        
-                        // Cấu hình Firebase Messaging với service worker
-                        if (messaging) {
-                            messaging.useServiceWorker(registration);
-                        }
+                        console.log('✅ Service Worker Registered:', registration.scope);
                     })
                     .catch(error => {
-                        console.log('❌ Firebase Messaging SW registration failed:', error);
+                        console.log('❌ SW Registration failed:', error);
                     });
             });
         }
@@ -5215,11 +5210,8 @@
             e.preventDefault();
             deferredPrompt = e;
             
-            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
-            const isLocalhost = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
-            
-            if (!isLocalhost && installPrompt) {
+            // Show install prompt trên mobile devices
+            if (installPrompt) {
                 installPrompt.style.display = 'flex';
             }
         });

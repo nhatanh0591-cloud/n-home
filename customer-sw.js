@@ -1,67 +1,95 @@
 // customer-sw.js
-// Service Worker cho Customer N-Home PWA
+// SUPER WORKER: Xử lý cả PWA Cache và Firebase Notification
 
-const CACHE_NAME = 'n-home-customer-v1';
-const urlsToCache = [
-    '/app.html',
-    '/app',
-    '/manifest-customer.json',
-    '/icon-nen-xanh.jpg',
-    '/'
-];
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// Install Service Worker
-self.addEventListener('install', (event) => {
-    console.log('Customer SW: Installing...');
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Customer SW: Caching files');
-                return cache.addAll(urlsToCache);
-            })
-    );
+// --- PHẦN 1: FIREBASE CONFIG ---
+const firebaseConfig = {
+    apiKey: "AIzaSyA2m1K7pijNC1yirw_t36Rc3HnzCsD8pCs",
+    authDomain: "nha-tro-53ca7.firebaseapp.com",
+    projectId: "nha-tro-53ca7",
+    storageBucket: "nha-tro-53ca7.firebasestorage.app",
+    messagingSenderId: "415886594203",
+    appId: "1:415886594203:web:f3cda09037973176c9763e",
+    measurementId: "G-Y5GSRYP4XC"
+};
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+// Xử lý thông báo nền
+messaging.onBackgroundMessage((payload) => {
+    console.log('🔔 Background Message:', payload);
+    const notificationTitle = payload.notification?.title || 'Thông báo mới';
+    const notificationOptions = {
+        body: payload.notification?.body || 'Bạn có tin nhắn mới',
+        icon: '/icon-nen-xanh.jpg',
+        badge: '/icon-nen-xanh.jpg',
+        tag: 'n-home-notification',
+        data: payload.data || {}
+    };
+    return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Activate Service Worker
-self.addEventListener('activate', (event) => {
-    console.log('Customer SW: Activating...');
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Customer SW: Deleting old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        }).then(() => {
-            console.log('Customer SW: Activated');
-            return self.clients.claim();
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const client of clientList) {
+                if (client.url.includes('/app') && 'focus' in client) return client.focus();
+            }
+            if (clients.openWindow) return clients.openWindow('/app');
         })
     );
 });
 
-// Fetch handler - QUAN TRỌNG CHO PWA INSTALL
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Return cached version if found
-                if (response) {
-                    return response;
-                }
-                
-                // Fetch from network
-                return fetch(event.request);
-            })
-            .catch(() => {
-                // Fallback for offline
-                if (event.request.destination === 'document') {
-                    return caches.match('/app.html');
-                }
-            })
+// --- PHẦN 2: PWA CACHING (QUAN TRỌNG ĐỂ CÀI APP) ---
+const CACHE_NAME = 'n-home-customer-super-v1';
+const URLS_TO_CACHE = [
+    '/app.html',           // File thật
+    '/manifest-customer.json',
+    '/icon-nen-xanh.jpg'
+];
+
+self.addEventListener('install', (event) => {
+    self.skipWaiting();
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE))
     );
 });
 
-console.log('✅ Customer Service Worker loaded');
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) => Promise.all(
+            keys.map((key) => {
+                if (key !== CACHE_NAME) return caches.delete(key);
+            })
+        )).then(() => self.clients.claim())
+    );
+});
+
+// Xử lý Fetch: Đánh tráo /app thành /app.html
+self.addEventListener('fetch', (event) => {
+    if (event.request.method !== 'GET') return;
+
+    const url = new URL(event.request.url);
+
+    // KỸ THUẬT FIX VERCEL: Nếu hỏi '/app' -> Trả về cache '/app.html'
+    if (url.pathname === '/app') {
+        event.respondWith(
+            caches.match('/app.html').then(response => {
+                return response || fetch('/app.html');
+            }).catch(() => caches.match('/app.html'))
+        );
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then((response) => {
+            return response || fetch(event.request);
+        })
+    );
+});
+
+console.log('✅ Super Service Worker Loaded');
