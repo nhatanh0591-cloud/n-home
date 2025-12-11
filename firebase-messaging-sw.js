@@ -78,3 +78,93 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 console.log('✅ Firebase Messaging Service Worker setup hoàn tất');
+
+// --- CACHE STRATEGY ĐỂ KÍCH HOẠT PWA INSTALL ---
+const CACHE_NAME = 'n-home-customer-v1';
+const urlsToCache = [
+  '/app.html',
+  '/styles.css',
+  '/icon-nen-xanh.jpg',
+  '/manifest-customer.json'
+  // Note: Tailwind CDN bị CORS, sẽ cache riêng trong fetch event
+];
+
+// Cache resources khi install
+self.addEventListener('install', (event) => {
+    console.log('🔧 Service Worker installing...');
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => {
+                console.log('🗂️ Caching app shell');
+                return cache.addAll(urlsToCache);
+            })
+            .then(() => {
+                console.log('✅ Cache completed, forcing activation');
+                return self.skipWaiting(); // Force activate immediately
+            })
+            .catch((error) => {
+                console.error('❌ Cache failed:', error);
+            })
+    );
+});
+
+// Clean old caches khi activate
+self.addEventListener('activate', (event) => {
+    console.log('🚀 Service Worker activating...');
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('🗑️ Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        }).then(() => {
+            console.log('✅ Service Worker activated, claiming clients');
+            return self.clients.claim(); // Take control immediately
+        })
+    );
+});
+
+// QUAN TRỌNG: Fetch event với cache-first strategy
+self.addEventListener('fetch', (event) => {
+    // Only cache GET requests
+    if (event.request.method !== 'GET') {
+        return;
+    }
+    
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                // Return cached version if found
+                if (response) {
+                    return response;
+                }
+                
+                // Fetch from network and cache (including external resources)
+                return fetch(event.request)
+                    .then((networkResponse) => {
+                        // Clone response for caching
+                        if (networkResponse.ok) {
+                            const responseToCache = networkResponse.clone();
+                            caches.open(CACHE_NAME).then((cache) => {
+                                cache.put(event.request, responseToCache);
+                            });
+                        }
+                        return networkResponse;
+                    });
+            })
+            .catch(() => {
+                // Fallback cho offline
+                if (event.request.destination === 'document') {
+                    return caches.match('/app.html');
+                }
+                return new Response('Offline mode', {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/plain' }
+                });
+            })
+    );
+});

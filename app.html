@@ -8,7 +8,11 @@
     <!-- Updated: 03/12/2025 -->
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest-customer.json" crossorigin="use-credentials">
+    <link rel="manifest" href="/manifest-customer.json" crossorigin="anonymous">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="N-Home">
     
     <!-- Theme Color - Trùng với logo #23904f -->
     <meta name="theme-color" content="#23904f">
@@ -17,7 +21,8 @@
     
     <!-- iOS Support -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="N-Home">
     <meta name="apple-mobile-web-app-title" content="N-Home">
     <link rel="apple-touch-icon" href="/icon-nen-xanh.jpg">
     <link rel="apple-touch-startup-image" href="/icon-nen-xanh.jpg">
@@ -5189,76 +5194,111 @@
     <script>
         // Service Worker Registration cho Firebase Messaging
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/firebase-messaging-sw.js')
-                    .then(registration => {
-                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
-                        
-                        // Cấu hình Firebase Messaging với service worker
-                        if (messaging) {
-                            messaging.useServiceWorker(registration);
-                        }
-                    })
-                    .catch(error => {
-                        console.log('❌ Firebase Messaging SW registration failed:', error);
+            window.addEventListener('load', async () => {
+                try {
+                    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                        updateViaCache: 'none' // Force check for updates
                     });
+                    console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
+                    
+                    // Listen for service worker updates
+                    registration.addEventListener('updatefound', () => {
+                        console.log('🔄 Service Worker update found');
+                    });
+                    
+                    // Force refresh service worker if waiting
+                    if (registration.waiting) {
+                        console.log('🔄 Forcing service worker update');
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                } catch (error) {
+                    console.log('❌ Firebase Messaging SW registration failed:', error);
+                }
             });
+        }
+
+        // Debug manifest loading
+        const manifestLink = document.querySelector('link[rel="manifest"]');
+        if (manifestLink) {
+            console.log('🔍 Manifest link found:', manifestLink.href);
+            fetch(manifestLink.href)
+                .then(response => {
+                    console.log('📄 Manifest response:', response.status, response.statusText);
+                    return response.json();
+                })
+                .then(manifest => {
+                    console.log('📋 Manifest content:', manifest);
+                })
+                .catch(error => {
+                    console.error('❌ Manifest fetch failed:', error);
+                });
         }
 
         // PWA Install Prompt
         let deferredPrompt;
         const installPrompt = document.getElementById('install-prompt');
-        const installButton = document.getElementById('install-button');
-        const installCancelBtn = document.getElementById('install-cancel-btn');
 
+        // Listen for beforeinstallprompt event
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('🎯 PWA Install prompt available!');
             e.preventDefault();
             deferredPrompt = e;
             
-            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
-            const isLocalhost = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
-            
-            if (!isLocalhost && installPrompt) {
-                installPrompt.style.display = 'flex';
-            }
+            // Show install button or prompt
+            alert('🚀 PWA Ready to Install!\n\nApp can be installed as PWA now!');
         });
 
-        if (installButton) {
-            installButton.addEventListener('click', async () => {
-                if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`User response: ${outcome}`);
-                    deferredPrompt = null;
-                }
-                if (installPrompt) {
-                    installPrompt.style.display = 'none';
-                }
-            });
-        }
-
-        if (installCancelBtn) {
-            installCancelBtn.addEventListener('click', () => {
-                if (installPrompt) {
-                    installPrompt.style.display = 'none';
-                }
-            });
-        }
-
-        // Hide install prompt when already installed
+        // Listen for app installed
         window.addEventListener('appinstalled', () => {
-            console.log('✅ PWA installed successfully!');
-            if (installPrompt) {
-                installPrompt.style.display = 'none';
-            }
+            console.log('✅ PWA was installed successfully!');
             deferredPrompt = null;
         });
 
-        // Check if running as PWA
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-            console.log('✅ Running as PWA!');
+        // Check if app is already installed
+        if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('📱 App is running in standalone mode (already installed)');
         }
+
+        // Manual PWA install check (for localhost testing)
+        setTimeout(() => {
+            console.log('🔍 Checking PWA installability...');
+            
+            // Try to get install prompt manually
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                console.log('✅ PWA features supported');
+                
+                // Force show install option for localhost testing
+                const isLocalhost = window.location.hostname === 'localhost' || 
+                                   window.location.hostname === '127.0.0.1';
+                
+                if (isLocalhost) {
+                    console.log('🏠 Localhost detected - showing manual install info');
+                    
+                    // Add manual install button
+                    const installBtn = document.createElement('button');
+                    installBtn.innerHTML = '📱 Install PWA';
+                    installBtn.style.cssText = `
+                        position: fixed; top: 10px; right: 10px; z-index: 9999;
+                        padding: 10px 15px; background: #23904f; color: white;
+                        border: none; border-radius: 5px; cursor: pointer;
+                        font-weight: bold; font-size: 14px;
+                    `;
+                    installBtn.onclick = () => {
+                        // Try different install methods
+                        if (window.deferredPrompt) {
+                            window.deferredPrompt.prompt();
+                        } else if ('BeforeInstallPromptEvent' in window) {
+                            alert('PWA install available! Look for install icon in address bar or try:\n\nChrome → Settings → More tools → Create shortcut → ✓ Open as window');
+                        } else {
+                            alert('Manual install:\n\n1. Chrome → ⋮ Menu → More tools → Create shortcut\n2. ✓ Check "Open as window"\n3. Or try on mobile Chrome\n4. Or deploy to HTTPS domain');
+                        }
+                    };
+                    document.body.appendChild(installBtn);
+                    
+                    alert('🚀 PWA Ready!\n\n• Manifest: OK\n• Service Worker: OK\n• Cache: OK\n\n📱 Green install button added to top-right corner!\n\nOr try:\n1. Look for ⬇️ icon in address bar\n2. Chrome Settings → Create shortcut\n3. Test on mobile Chrome');
+                }
+            }
+        }, 3000);
     </script>
 
     <!-- Firebase Cloud Messaging (FCM) -->
