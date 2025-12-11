@@ -5190,18 +5190,33 @@
         let deferredPrompt;
         let installButton = null;
 
-        // Service Worker Registration
+        // Service Worker Registration - RESET HOÀN TOÀN
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/customer-sw.js')
-                    .then((registration) => {
-                        console.log('SW registered');
-                        // Force update để áp dụng code mới ngay
-                        registration.update();
-                    })
-                    .catch((error) => {
-                        console.log('SW registration failed:', error);
-                    });
+            window.addEventListener('load', async () => {
+                try {
+                    // Unregister TẤT CẢ service workers cũ
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        console.log('✅ Unregistered old SW:', registration.scope);
+                    }
+                    
+                    // Xóa cache cũ
+                    const cacheNames = await caches.keys();
+                    for (let cacheName of cacheNames) {
+                        if (cacheName.includes('n-home')) {
+                            await caches.delete(cacheName);
+                            console.log('✅ Deleted old cache:', cacheName);
+                        }
+                    }
+                    
+                    // Đăng ký service worker mới CLEAN
+                    const registration = await navigator.serviceWorker.register('/customer-sw.js?v=' + Date.now());
+                    console.log('✅ NEW SW registered:', registration.scope);
+                    
+                } catch (error) {
+                    console.log('❌ SW error:', error);
+                }
             });
         }
 
