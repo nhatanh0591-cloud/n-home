@@ -6,54 +6,13 @@
   "display": "standalone",
   "background_color": "#23904f",
   "theme_color": "#23904f",
-  "orientation": "portrait-primary",
-  "scope": "/",
+  "orientation": "portrait",
+  "scope": "/app.html",
   "id": "n-home-customer",
-  "categories": ["lifestyle", "utilities", "productivity"],
+  "categories": ["lifestyle", "utilities"],
   "lang": "vi",
   "dir": "ltr",
   "prefer_related_applications": false,
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
-  "launch_handler": {
-    "client_mode": "auto"
-  },
-  "shortcuts": [
-    {
-      "name": "Xem hóa đơn",
-      "short_name": "Hóa đơn",
-      "description": "Xem danh sách hóa đơn cần thanh toán",
-      "url": "/app.html#bills",
-      "icons": [
-        {
-          "src": "/icon-nen-xanh.jpg",
-          "sizes": "96x96",
-          "type": "image/jpeg"
-        }
-      ]
-    },
-    {
-      "name": "Thông báo",
-      "short_name": "Thông báo", 
-      "description": "Xem thông báo mới",
-      "url": "/app.html#notifications",
-      "icons": [
-        {
-          "src": "/icon-nen-xanh.jpg",
-          "sizes": "96x96",
-          "type": "image/jpeg"
-        }
-      ]
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/icon-nen-xanh.jpg",
-      "sizes": "540x720",
-      "type": "image/jpeg", 
-      "form_factor": "narrow",
-      "label": "N-Home - Quản lý hóa đơn"
-    }
-  ],
   "icons": [
     {
       "src": "/icon-nen-xanh.jpg",

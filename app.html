@@ -47,119 +47,6 @@
         }
         // Always keep console.error for critical debugging
         
-        // 📱 PWA Install Prompt
-        let deferredPrompt;
-        let installButton;
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('📱 PWA install prompt available');
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Hiện nút cài đặt nếu chưa cài
-            showInstallButton();
-        });
-        
-        window.addEventListener('appinstalled', (evt) => {
-            console.log('✅ PWA đã được cài đặt');
-            hideInstallButton();
-            deferredPrompt = null;
-        });
-        
-        function showInstallButton() {
-            // Hiện nút cài đặt trong giao diện
-            const installBtn = document.getElementById('install-app-btn');
-            if (installBtn && !isPWAInstalled()) {
-                installBtn.classList.remove('hidden');
-            }
-            
-            // Tạo banner cài đặt ở top
-            if (!installButton && !isPWAInstalled()) {
-                installButton = document.createElement('div');
-                installButton.id = 'pwa-install-banner';
-                installButton.innerHTML = `
-                    <div style="position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, #23904f, #1e6b3a); color: white; padding: 12px 20px; z-index: 9999; box-shadow: 0 2px 10px rgba(0,0,0,0.3); transform: translateY(-100%); transition: transform 0.3s ease;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 400px; margin: 0 auto;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <img src="/icon-nen-xanh.jpg" style="width: 40px; height: 40px; border-radius: 8px;" alt="N-Home">
-                                <div>
-                                    <div style="font-weight: bold; font-size: 14px;">Cài đặt N-Home</div>
-                                    <div style="font-size: 12px; opacity: 0.9;">Thêm vào màn hình chính</div>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 8px;">
-                                <button onclick="installPWA()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">Cài đặt</button>
-                                <button onclick="hideInstallButton()" style="background: none; border: none; color: white; font-size: 18px; cursor: pointer; opacity: 0.8;">×</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(installButton);
-                
-                // Hiện banner sau 1 giây
-                setTimeout(() => {
-                    installButton.querySelector('div').style.transform = 'translateY(0)';
-                }, 1000);
-            }
-        }
-        
-        function hideInstallButton() {
-            // Ẩn nút cài đặt trong giao diện
-            const installBtn = document.getElementById('install-app-btn');
-            if (installBtn) {
-                installBtn.classList.add('hidden');
-            }
-            
-            // Ẩn banner
-            if (installButton) {
-                installButton.querySelector('div').style.transform = 'translateY(-100%)';
-                setTimeout(() => {
-                    if (installButton && installButton.parentNode) {
-                        installButton.parentNode.removeChild(installButton);
-                        installButton = null;
-                    }
-                }, 300);
-            }
-        }
-        
-        function isPWAInstalled() {
-            // Kiểm tra xem PWA đã được cài đặt chưa
-            return window.matchMedia('(display-mode: standalone)').matches ||
-                   window.navigator.standalone === true ||
-                   document.referrer.includes('android-app://');
-        }
-        
-        window.installPWA = async function() {
-            if (deferredPrompt) {
-                console.log('📱 Hiện PWA install dialog');
-                deferredPrompt.prompt();
-                
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log('📱 User choice:', outcome);
-                
-                if (outcome === 'accepted') {
-                    console.log('✅ User chấp nhận cài đặt PWA');
-                } else {
-                    console.log('❌ User từ chối cài đặt PWA');
-                }
-                
-                deferredPrompt = null;
-                hideInstallButton();
-            } else {
-                // Fallback cho trường hợp không hỗ trợ install prompt
-                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-                    alert('📱 Trên iPhone/iPad: Bấm nút Chia sẻ ở thanh địa chỉ, sau đó chọn "Thêm vào Màn hình chính"');
-                } else {
-                    alert('📱 Trên Android: Bấm menu 3 chấm ở trình duyệt, chọn "Thêm vào màn hình chính" hoặc "Cài đặt ứng dụng"');
-                }
-            }
-        };
-        
-        // Ẩn banner nếu đã cài đặt
-        if (isPWAInstalled()) {
-            console.log('✅ PWA đã được cài đặt - không hiện install banner');
-        }
-        
         // 🧹 Cleanup on page unload to prevent memory leaks
         window.addEventListener('beforeunload', () => {
             activeListeners.forEach(unsubscribe => {
@@ -187,37 +74,6 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-    
-    <!-- PWA Service Worker -->
-    <script>
-        // Register Service Worker for PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(registration => {
-                        console.log('✅ SW registered:', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('❌ SW registration failed:', error);
-                    });
-            });
-        }
-    </script>
-    
-    <!-- Service Worker Registration -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/firebase-messaging-sw.js')
-                    .then(function(registration) {
-                        console.log('✅ Service Worker registered successfully:', registration.scope);
-                    })
-                    .catch(function(error) {
-                        console.log('❌ Service Worker registration failed:', error);
-                    });
-            });
-        }
-    </script>
     
     <style>
         body {
@@ -277,27 +133,6 @@
         /* Hide VN/EN labels but keep radio buttons */
         .language-code {
             display: none !important;
-        }
-        
-        /* PWA Install Popup Animations */
-        .animate-fadeIn {
-            animation: fadeIn 0.3s ease-in-out;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        
-        .animate-bounce {
-            animation: bounce 0.6s ease-in-out;
-        }
-        
-        @keyframes bounce {
-            0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
-            40%, 43% { transform: translate3d(0,-8px,0); }
-            70% { transform: translate3d(0,-4px,0); }
-            90% { transform: translate3d(0,-2px,0); }
         }
         ::-webkit-scrollbar {
             width: 0;
@@ -613,14 +448,6 @@
                     <img src="/icon-nen-xanh.jpg" alt="N-Home Logo" class="w-16 h-16 rounded-full mx-auto mb-4">
                     <h1 class="text-2xl font-bold mb-2">N-Home</h1>
                     <p class="text-white text-opacity-80">Kiểm Soát Chi Phí và Thông Tin Thuê Nhà</p>
-                    
-                    <!-- PWA Install Button -->
-                    <button id="pwa-install-login-btn" class="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto transition-colors" style="display: none;">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                        </svg>
-                        Cài đặt ứng dụng
-                    </button>
                 </div>
 
                 <div class="card">
@@ -640,77 +467,15 @@
             </div>
         </div>
 
-        <!-- PWA Install Popup -->
-        <div id="pwa-install-popup" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" style="display: none;">
-            <div class="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl animate-bounce">
-                <div class="text-center">
-                    <div class="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-                        <img src="/icon-nen-xanh.jpg" class="w-12 h-12 rounded-full" alt="N-Home">
-                    </div>
-                    <h3 class="text-lg font-bold text-gray-800 mb-2">Cài đặt N-Home</h3>
-                    <p class="text-gray-600 mb-6 text-sm">Cài đặt ứng dụng để truy cập nhanh chóng và nhận thông báo</p>
-                    
-                    <div class="flex gap-3">
-                        <button id="pwa-install-now" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors">
-                            Cài đặt
-                        </button>
-                        <button id="pwa-install-later" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-lg font-semibold transition-colors">
-                            Để sau
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Home Screen -->
         <div id="home-screen" class="hidden">
             <div class="content-wrapper">
             <!-- Header -->
-            <div class="gradient-bg px-6 py-4 mb-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h1 class="text-xl font-bold text-white" id="home-title">N-Home</h1>
-                    <div class="flex items-center gap-3">
-                        <!-- PWA Install Button -->
-                        <button id="pwa-install-btn" class="hidden w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors" title="Cài đặt ứng dụng">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
-                            </svg>
-                        </button>
-                        
-                        <!-- Language Toggle -->
-                        <div class="flex bg-white/20 rounded-full p-1" id="language-toggle">
-                            <input type="radio" id="lang-vi" name="language" value="vi" class="sr-only" checked>
-                            <label for="lang-vi" class="px-3 py-1 rounded-full text-sm cursor-pointer transition-all text-white hover:bg-white/20" id="lang-vi-label">
-                                <span class="language-code">VI</span>
-                            </label>
-                            <input type="radio" id="lang-en" name="language" value="en" class="sr-only">
-                            <label for="lang-en" class="px-3 py-1 rounded-full text-sm cursor-pointer transition-all text-white hover:bg-white/20" id="lang-en-label">
-                                <span class="language-code">EN</span>
-                            </label>
-                        </div>
-                        
-                        <!-- Settings Button -->
-                        <button onclick="showSettings()" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
-                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
 
+            
             <!-- Building Info -->
             <div class="px-6 mb-3">
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="text-lg font-semibold text-gray-700" id="room-info-header">Thông tin tòa nhà</h2>
-                    <button id="install-app-btn" onclick="installPWA()" class="hidden bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                        </svg>
-                        Cài đặt
-                    </button>
-                </div>
+                <h2 class="text-lg font-semibold mb-3 text-gray-700" id="room-info-header">Thông tin tòa nhà</h2>
                 <div class="card" id="building-info">
                     <!-- Loading skeleton -->
                     <div class="animate-pulse">
@@ -1151,155 +916,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const storage = getStorage(app);
-
-        // ==================== PWA INSTALL FUNCTIONALITY ===================
-        
-        let deferredPrompt = null;
-        
-        // Listen for beforeinstallprompt event
-        window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('💡 PWA install prompt intercepted');
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Show popup after a delay
-            setTimeout(() => {
-                showPWAInstallPopup();
-            }, 3000); // Show popup after 3 seconds
-        });
-        
-        function showPWAInstallPopup() {
-            // Check if user has already dismissed or installed
-            const dismissed = localStorage.getItem('pwa_install_dismissed');
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-            
-            if (!dismissed && !isStandalone && deferredPrompt) {
-                const popup = document.getElementById('pwa-install-popup');
-                if (popup) {
-                    popup.style.display = 'flex';
-                    popup.classList.add('animate-fadeIn');
-                }
-            }
-        }
-        
-        // Handle install button click
-        document.addEventListener('DOMContentLoaded', () => {
-            const installBtn = document.getElementById('pwa-install-btn');
-            const installLoginBtn = document.getElementById('pwa-install-login-btn');
-            
-            // Function to handle install
-            const handleInstall = async () => {
-                if (!deferredPrompt) {
-                    console.log('❌ No install prompt available');
-                    // Fallback: Show manual install instructions
-                    alert('📱 Để cài đặt:\n\n• Android: Bấm menu 3 chấm > "Thêm vào màn hình chính"\n• iPhone: Bấm nút Share > "Thêm vào Màn hình Chính"\n• Chrome: Bấm icon cài đặt ở thanh địa chỉ');
-                    return;
-                }
-                
-                console.log('🚀 Showing PWA install prompt');
-                deferredPrompt.prompt();
-                
-                const { outcome } = await deferredPrompt.userChoice;
-                console.log(`🎯 User choice: ${outcome}`);
-                
-                if (outcome === 'accepted') {
-                    console.log('🎉 PWA install accepted');
-                    alert('✅ Đang cài đặt ứng dụng...');
-                } else {
-                    console.log('❌ PWA install dismissed');
-                }
-                
-                // Hide install buttons
-                if (installBtn) installBtn.classList.add('hidden');
-                if (installLoginBtn) installLoginBtn.style.display = 'none';
-                deferredPrompt = null;
-            };
-            
-            if (installBtn) {
-                installBtn.addEventListener('click', handleInstall);
-            }
-            if (installLoginBtn) {
-                installLoginBtn.addEventListener('click', handleInstall);
-            }
-            
-            // PWA Popup handlers
-            const installNowBtn = document.getElementById('pwa-install-now');
-            const installLaterBtn = document.getElementById('pwa-install-later');
-            const installPopup = document.getElementById('pwa-install-popup');
-            
-            if (installNowBtn) {
-                installNowBtn.addEventListener('click', async () => {
-                    if (deferredPrompt) {
-                        console.log('🚀 Installing PWA from popup');
-                        deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
-                        
-                        if (outcome === 'accepted') {
-                            console.log('🎉 PWA install accepted from popup');
-                        }
-                        
-                        deferredPrompt = null;
-                    } else {
-                        // Fallback: Show manual instructions
-                        alert('📱 Để cài đặt:\n\n• Android: Menu 3 chấm > "Thêm vào màn hình chính"\n• iPhone: Nút Share > "Thêm vào Màn hình Chính"\n• Chrome: Icon cài đặt ở thanh địa chỉ');
-                    }
-                    
-                    // Hide popup
-                    if (installPopup) {
-                        installPopup.style.display = 'none';
-                    }
-                });
-            }
-            
-            if (installLaterBtn) {
-                installLaterBtn.addEventListener('click', () => {
-                    // Remember user dismissed
-                    localStorage.setItem('pwa_install_dismissed', 'true');
-                    
-                    // Hide popup
-                    if (installPopup) {
-                        installPopup.style.display = 'none';
-                    }
-                });
-            }
-            
-            // Auto show popup if conditions met (fallback)
-            setTimeout(() => {
-                const dismissed = localStorage.getItem('pwa_install_dismissed');
-                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-                
-                if (!dismissed && !isStandalone && !deferredPrompt) {
-                    // Show popup even without deferredPrompt for manual install
-                    showPWAInstallPopup();
-                }
-            }, 5000);
-        });
-        
-        // Listen for app install event
-        window.addEventListener('appinstalled', (evt) => {
-            console.log('🎉 PWA was installed successfully');
-            showToast('✅ Ứng dụng đã được cài đặt!', 'success');
-            
-            // Hide install button if still visible
-            const installBtn = document.getElementById('pwa-install-btn');
-            if (installBtn) {
-                installBtn.classList.add('hidden');
-            }
-        });
-        
-        // Check if already installed (standalone mode)
-        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-            console.log('📱 App running in standalone mode (installed)');
-            // Hide install button if app is already installed
-            document.addEventListener('DOMContentLoaded', () => {
-                const installBtn = document.getElementById('pwa-install-btn');
-                if (installBtn) {
-                    installBtn.classList.add('hidden');
-                }
-            });
-        }
-        
-        // ==================== MAIN FUNCTIONALITY ===================
 
         let currentUser = null;
         let customerData = null;
@@ -5568,9 +5184,19 @@
 
     <!-- PWA Install & Service Worker -->
     <script>
-        // Service Worker Registration cho Firebase Messaging
+        // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // 1. Đăng ký Customer PWA Service Worker (cho offline caching)
+                navigator.serviceWorker.register('/customer-sw.js')
+                    .then((registration) => {
+                        console.log('✅ N-Home Customer SW registered:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('❌ N-Home Customer SW registration failed:', error);
+                    });
+
+                // 2. Đăng ký Firebase Messaging Service Worker (cho push notifications)
                 navigator.serviceWorker.register('/firebase-messaging-sw.js')
                     .then(registration => {
                         console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
@@ -5593,14 +5219,12 @@
         const installCancelBtn = document.getElementById('install-cancel-btn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA Install prompt event fired');
             e.preventDefault();
             deferredPrompt = e;
             
-            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
-            const isLocalhost = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
-            
-            if (!isLocalhost && installPrompt) {
+            // Show install prompt automatically
+            if (installPrompt) {
                 installPrompt.style.display = 'flex';
             }
         });
@@ -5610,7 +5234,7 @@
                 if (deferredPrompt) {
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`User response: ${outcome}`);
+                    console.log('PWA install outcome:', outcome);
                     deferredPrompt = null;
                 }
                 if (installPrompt) {
