@@ -53,12 +53,34 @@
         }
 
         // PWA Install Prompt
+        const installFabAdmin = document.getElementById('install-fab-admin');
+        
+        // Detect iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+        // Show FAB for iOS if not installed
+        if (isIOS && !isStandalone && installFabAdmin) {
+            installFabAdmin.style.display = 'flex';
+        }
+
         window.addEventListener('beforeinstallprompt', (e) => {
-            console.log('PWA Install prompt event fired');
+            console.log('✅ PWA Install prompt event fired');
             e.preventDefault();
             deferredPrompt = e;
-            showInstallPrompt();
+            
+            // Show floating button
+            if (installFabAdmin) {
+                installFabAdmin.style.display = 'flex';
+            }
         });
+
+        // Floating button click to show popup
+        if (installFabAdmin) {
+            installFabAdmin.addEventListener('click', () => {
+                showInstallPrompt();
+            });
+        }
 
         // Show custom install prompt
         function showInstallPrompt() {
@@ -77,11 +99,14 @@
                 <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
                     <div style="background: white; border-radius: 12px; padding: 24px; margin: 20px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
                         <div style="width: 60px; height: 60px; margin: 0 auto 16px; background-image: url('/icon-nen-xanh.jpg'); background-size: cover; border-radius: 12px;"></div>
-                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home</h3>
-                        <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn</p>
+                        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #1f2937;">Cài đặt N-Home Admin</h3>
+                        <p id="install-msg" style="margin: 0 0 8px 0; color: #6b7280; font-size: 14px;">Cài đặt ứng dụng để truy cập nhanh hơn</p>
+                        <p id="ios-instructions" style="margin: 0 0 20px 0; color: #9ca3af; font-size: 12px; display: ${isIOS ? 'block' : 'none'};">
+                            Trên iPhone: Nhấn nút Share <span style="font-size: 16px;">⎋</span> → "Add to Home Screen"
+                        </p>
                         <div style="display: flex; gap: 12px;">
-                            <button id="pwa-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Cài đặt</button>
-                            <button id="pwa-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Bỏ qua</button>
+                            <button id="pwa-install-btn" style="flex: 1; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; ${isIOS ? 'display: none;' : ''}">Cài đặt</button>
+                            <button id="pwa-cancel-btn" style="flex: 1; background: #f3f4f6; color: #6b7280; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Đóng</button>
                         </div>
                     </div>
                 </div>
@@ -90,23 +115,38 @@
             document.body.appendChild(installPrompt);
 
             // Install button click
-            document.getElementById('pwa-install-btn').addEventListener('click', async () => {
-                if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log('PWA install outcome:', outcome);
-                    deferredPrompt = null;
-                }
-                document.body.removeChild(installPrompt);
-            });
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) {
+                installBtn.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        console.log('PWA install outcome:', outcome);
+                        deferredPrompt = null;
+                        
+                        // Hide FAB after install
+                        if (installFabAdmin) {
+                            installFabAdmin.style.display = 'none';
+                        }
+                    }
+                    document.body.removeChild(installPrompt);
+                });
+            }
 
             // Cancel button click
             document.getElementById('pwa-cancel-btn').addEventListener('click', () => {
                 document.body.removeChild(installPrompt);
-                // Lưu trạng thái đã từ chối cho admin app riêng
-                localStorage.setItem('pwa-admin-install-dismissed', Date.now());
             });
         }
+        
+        // Hide FAB when already installed
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ PWA installed successfully!');
+            if (installFabAdmin) {
+                installFabAdmin.style.display = 'none';
+            }
+            deferredPrompt = null;
+        });
 
         // Check if device is mobile
         function isMobileDevice() {
@@ -148,6 +188,11 @@
     </script>
 </head>
 <body class="bg-slate-100">
+
+    <!-- Floating Install Button (Always visible if PWA installable) -->
+    <button id="install-fab-admin" style="position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; background: #16a34a; color: white; border: none; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 9999; font-size: 24px;">
+        📱
+    </button>
 
     <div class="flex h-screen">
         <!-- Mobile Overlay -->
