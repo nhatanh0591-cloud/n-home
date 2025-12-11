@@ -1,5 +1,50 @@
 // firebase-messaging-sw.js
-// Firebase Cloud Messaging Service Worker
+// Firebase Cloud Messaging Service Worker + PWA Support
+
+// ========== PWA CACHE SETUP ==========
+const CACHE_NAME = 'n-home-customer-v1';
+const urlsToCache = [
+    '/app.html',
+    '/manifest-customer.json',
+    '/icon-nen-xanh.jpg',
+    '/'
+];
+
+// ========== PWA INSTALL HANDLER ==========
+self.addEventListener('install', (event) => {
+    console.log('🔧 Service Worker installing...');
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => {
+                console.log('🗂️ Caching app shell');
+                return cache.addAll(urlsToCache);
+            })
+            .then(() => {
+                console.log('✅ Cache completed, forcing activation');
+                return self.skipWaiting();
+            })
+    );
+});
+
+// ========== PWA ACTIVATE HANDLER ==========
+self.addEventListener('activate', (event) => {
+    console.log('🚀 Service Worker activating...');
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('🗑️ Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        }).then(() => {
+            console.log('✅ Service Worker activated, claiming clients');
+            return self.clients.claim();
+        })
+    );
+});
 
 // Import Firebase scripts for service worker
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
@@ -83,6 +128,23 @@ console.log('✅ Firebase Messaging Service Worker setup hoàn tất');
 // Đây là lý do PWA có thể cài được! Chrome yêu cầu fetch handler
 
 self.addEventListener('fetch', (event) => {
+    // Skip chrome-extension and invalid schemes  
+    if (event.request.url.startsWith('chrome-extension:') ||
+        event.request.url.startsWith('chrome:') ||
+        event.request.url.startsWith('moz-extension:')) {
+        return;
+    }
+    
+    // Skip non-GET requests
+    if (event.request.method !== 'GET') {
+        return;
+    }
+    
+    // Skip toolsngon.com API calls (they're failing anyway)
+    if (event.request.url.includes('toolsngon.com')) {
+        return;
+    }
+    
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
@@ -92,7 +154,23 @@ self.addEventListener('fetch', (event) => {
                 }
                 
                 // Fetch from network
-                return fetch(event.request);
+                return fetch(event.request)
+                    .then((networkResponse) => {
+                        // Only cache successful responses
+                        if (networkResponse.ok && 
+                            !event.request.url.startsWith('chrome-extension:')) {
+                            
+                            const responseToCache = networkResponse.clone();
+                            caches.open(CACHE_NAME).then((cache) => {
+                                try {
+                                    cache.put(event.request, responseToCache);
+                                } catch (error) {
+                                    // Silent fail for invalid URLs
+                                }
+                            });
+                        }
+                        return networkResponse;
+                    });
             })
             .catch(() => {
                 // Fallback cho offline
