@@ -7,7 +7,7 @@
   "background_color": "#23904f",
   "theme_color": "#23904f",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "/app.html",
   "id": "n-home-customer",
   "categories": ["lifestyle", "utilities"],
   "lang": "vi",
