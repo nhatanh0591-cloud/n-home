@@ -278,6 +278,27 @@
         .language-code {
             display: none !important;
         }
+        
+        /* PWA Install Popup Animations */
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .animate-bounce {
+            animation: bounce 0.6s ease-in-out;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
+            40%, 43% { transform: translate3d(0,-8px,0); }
+            70% { transform: translate3d(0,-4px,0); }
+            90% { transform: translate3d(0,-2px,0); }
+        }
         ::-webkit-scrollbar {
             width: 0;
             display: none;
@@ -592,6 +613,14 @@
                     <img src="/icon-nen-xanh.jpg" alt="N-Home Logo" class="w-16 h-16 rounded-full mx-auto mb-4">
                     <h1 class="text-2xl font-bold mb-2">N-Home</h1>
                     <p class="text-white text-opacity-80">Kiểm Soát Chi Phí và Thông Tin Thuê Nhà</p>
+                    
+                    <!-- PWA Install Button -->
+                    <button id="pwa-install-login-btn" class="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto transition-colors" style="display: none;">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                        </svg>
+                        Cài đặt ứng dụng
+                    </button>
                 </div>
 
                 <div class="card">
@@ -607,6 +636,28 @@
                     <button id="login-btn" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-semibold">
                         Đăng Nhập
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PWA Install Popup -->
+        <div id="pwa-install-popup" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl animate-bounce">
+                <div class="text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                        <img src="/icon-nen-xanh.jpg" class="w-12 h-12 rounded-full" alt="N-Home">
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800 mb-2">Cài đặt N-Home</h3>
+                    <p class="text-gray-600 mb-6 text-sm">Cài đặt ứng dụng để truy cập nhanh chóng và nhận thông báo</p>
+                    
+                    <div class="flex gap-3">
+                        <button id="pwa-install-now" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors">
+                            Cài đặt
+                        </button>
+                        <button id="pwa-install-later" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-lg font-semibold transition-colors">
+                            Để sau
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1111,41 +1162,117 @@
             e.preventDefault();
             deferredPrompt = e;
             
-            // Show install button
-            const installBtn = document.getElementById('pwa-install-btn');
-            if (installBtn) {
-                installBtn.classList.remove('hidden');
-            }
+            // Show popup after a delay
+            setTimeout(() => {
+                showPWAInstallPopup();
+            }, 3000); // Show popup after 3 seconds
         });
+        
+        function showPWAInstallPopup() {
+            // Check if user has already dismissed or installed
+            const dismissed = localStorage.getItem('pwa_install_dismissed');
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            
+            if (!dismissed && !isStandalone && deferredPrompt) {
+                const popup = document.getElementById('pwa-install-popup');
+                if (popup) {
+                    popup.style.display = 'flex';
+                    popup.classList.add('animate-fadeIn');
+                }
+            }
+        }
         
         // Handle install button click
         document.addEventListener('DOMContentLoaded', () => {
             const installBtn = document.getElementById('pwa-install-btn');
+            const installLoginBtn = document.getElementById('pwa-install-login-btn');
+            
+            // Function to handle install
+            const handleInstall = async () => {
+                if (!deferredPrompt) {
+                    console.log('❌ No install prompt available');
+                    // Fallback: Show manual install instructions
+                    alert('📱 Để cài đặt:\n\n• Android: Bấm menu 3 chấm > "Thêm vào màn hình chính"\n• iPhone: Bấm nút Share > "Thêm vào Màn hình Chính"\n• Chrome: Bấm icon cài đặt ở thanh địa chỉ');
+                    return;
+                }
+                
+                console.log('🚀 Showing PWA install prompt');
+                deferredPrompt.prompt();
+                
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`🎯 User choice: ${outcome}`);
+                
+                if (outcome === 'accepted') {
+                    console.log('🎉 PWA install accepted');
+                    alert('✅ Đang cài đặt ứng dụng...');
+                } else {
+                    console.log('❌ PWA install dismissed');
+                }
+                
+                // Hide install buttons
+                if (installBtn) installBtn.classList.add('hidden');
+                if (installLoginBtn) installLoginBtn.style.display = 'none';
+                deferredPrompt = null;
+            };
+            
             if (installBtn) {
-                installBtn.addEventListener('click', async () => {
-                    if (!deferredPrompt) {
-                        console.log('❌ No install prompt available');
-                        return;
-                    }
-                    
-                    console.log('🚀 Showing PWA install prompt');
-                    deferredPrompt.prompt();
-                    
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`🎯 User choice: ${outcome}`);
-                    
-                    if (outcome === 'accepted') {
-                        console.log('🎉 PWA install accepted');
-                        showToast('✅ Đang cài đặt ứng dụng...', 'success');
+                installBtn.addEventListener('click', handleInstall);
+            }
+            if (installLoginBtn) {
+                installLoginBtn.addEventListener('click', handleInstall);
+            }
+            
+            // PWA Popup handlers
+            const installNowBtn = document.getElementById('pwa-install-now');
+            const installLaterBtn = document.getElementById('pwa-install-later');
+            const installPopup = document.getElementById('pwa-install-popup');
+            
+            if (installNowBtn) {
+                installNowBtn.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        console.log('🚀 Installing PWA from popup');
+                        deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        
+                        if (outcome === 'accepted') {
+                            console.log('🎉 PWA install accepted from popup');
+                        }
+                        
+                        deferredPrompt = null;
                     } else {
-                        console.log('❌ PWA install dismissed');
+                        // Fallback: Show manual instructions
+                        alert('📱 Để cài đặt:\n\n• Android: Menu 3 chấm > "Thêm vào màn hình chính"\n• iPhone: Nút Share > "Thêm vào Màn hình Chính"\n• Chrome: Icon cài đặt ở thanh địa chỉ');
                     }
                     
-                    // Hide install button
-                    installBtn.classList.add('hidden');
-                    deferredPrompt = null;
+                    // Hide popup
+                    if (installPopup) {
+                        installPopup.style.display = 'none';
+                    }
                 });
             }
+            
+            if (installLaterBtn) {
+                installLaterBtn.addEventListener('click', () => {
+                    // Remember user dismissed
+                    localStorage.setItem('pwa_install_dismissed', 'true');
+                    
+                    // Hide popup
+                    if (installPopup) {
+                        installPopup.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Auto show popup if conditions met (fallback)
+            setTimeout(() => {
+                const dismissed = localStorage.getItem('pwa_install_dismissed');
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+                
+                if (!dismissed && !isStandalone && !deferredPrompt) {
+                    // Show popup even without deferredPrompt for manual install
+                    showPWAInstallPopup();
+                }
+            }, 5000);
         });
         
         // Listen for app install event
