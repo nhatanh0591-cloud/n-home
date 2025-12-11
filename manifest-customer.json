@@ -9,7 +9,7 @@
   "orientation": "portrait",
   "scope": "/",
   "id": "n-home-customer",
-  "categories": ["lifestyle", "utilities"],
+  "categories": ["business", "productivity"],
   "lang": "vi",
   "dir": "ltr",
   "prefer_related_applications": false,
