@@ -31,6 +31,31 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- PWA Service Worker Registration -->
+    <script>
+        let deferredPrompt;
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/customer-sw.js')
+                    .then((registration) => {
+                        console.log('N-Home Customer SW registered successfully:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('N-Home Customer SW registration failed:', error);
+                    });
+            });
+        }
+
+        // PWA Install Prompt Handler
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('beforeinstallprompt event fired');
+        });
+    </script>
+    
     <!-- 🔇 DISABLE ALL CONSOLE LOGS FOR PRODUCTION -->
     <script>
         // Developer mode: Add ?debug=1 to URL to enable logs
@@ -5184,55 +5209,9 @@
 
     </div> <!-- End app-container -->
 
-    <!-- PWA Install & Service Worker -->
+    <!-- PWA Install Prompt UI Handler -->
     <script>
-        // Service Worker Registration cho PWA và Firebase Messaging
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                // Register PWA Service Worker
-                navigator.serviceWorker.register('/customer-sw.js')
-                    .then(registration => {
-                        console.log('✅ PWA Service Worker registered:', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('❌ PWA SW registration failed:', error);
-                    });
-
-                // Register Firebase Messaging Service Worker
-                navigator.serviceWorker.register('/firebase-messaging-sw.js')
-                    .then(registration => {
-                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
-                        
-                        // Cấu hình Firebase Messaging với service worker
-                        if (messaging) {
-                            messaging.useServiceWorker(registration);
-                        }
-                    })
-                    .catch(error => {
-                        console.log('❌ Firebase Messaging SW registration failed:', error);
-                    });
-            });
-        }
-
-        // PWA Install Prompt
-        let deferredPrompt;
-        const installPrompt = document.getElementById('install-prompt');
-        const installButton = document.getElementById('install-button');
-        const installCancelBtn = document.getElementById('install-cancel-btn');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Chỉ show install prompt khi KHÔNG phải localhost (để test production)
-            const isLocalhost = window.location.hostname === 'localhost' || 
-                               window.location.hostname === '127.0.0.1';
-            
-            if (!isLocalhost && installPrompt) {
-                installPrompt.style.display = 'flex';
-            }
-        });
-
+        // PWA Install Prompt UI
         if (installButton) {
             installButton.addEventListener('click', async () => {
                 if (deferredPrompt) {
@@ -5240,9 +5219,9 @@
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log(`User response: ${outcome}`);
                     deferredPrompt = null;
-                }
-                if (installPrompt) {
-                    installPrompt.style.display = 'none';
+                    if (installPrompt) {
+                        installPrompt.style.display = 'none';
+                    }
                 }
             });
         }
