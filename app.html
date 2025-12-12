@@ -8,7 +8,7 @@
     <!-- Updated: 03/12/2025 -->
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest-customer.json" crossorigin="use-credentials">
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
     
     <!-- Theme Color - Trùng với logo #23904f -->
     <meta name="theme-color" content="#23904f">
@@ -19,71 +19,25 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="N-Home">
+    <meta name="apple-touch-fullscreen" content="yes">
     <link rel="apple-touch-icon" href="/icon-nen-xanh.jpg">
     <link rel="apple-touch-startup-image" href="/icon-nen-xanh.jpg">
     
     <!-- Android -->
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="N-Home">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="msapplication-TileColor" content="#23904f">
+    <meta name="msapplication-TileImage" content="/icon-nen-xanh.jpg">
+    <meta name="msapplication-navbutton-color" content="#23904f">
+    <meta name="msapplication-starturl" content="/app.html">
     
     <!-- Icons -->
     <link rel="icon" type="image/jpeg" sizes="192x192" href="/icon-nen-xanh.jpg">
     <link rel="icon" type="image/jpeg" sizes="512x512" href="/icon-nen-xanh.jpg">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- PWA Service Worker Registration -->
-    <script>
-        let deferredPrompt;
-        let canInstall = false;
-
-        // Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/customer-sw.js')
-                    .then((registration) => {
-                        console.log('✅ N-Home Customer SW registered:', registration.scope);
-                    })
-                    .catch((error) => {
-                        console.error('❌ N-Home Customer SW failed:', error);
-                    });
-            });
-        }
-
-        // PWA Install Prompt Handler
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            canInstall = true;
-            console.log('✅ beforeinstallprompt event fired - App is installable!');
-            
-            // Show install prompt automatically after 3 seconds
-            setTimeout(() => {
-                const installPrompt = document.getElementById('install-prompt');
-                if (installPrompt) {
-                    installPrompt.style.display = 'flex';
-                }
-            }, 3000);
-        });
-
-        // Function to manually trigger install
-        window.showInstallPrompt = function() {
-            const installPrompt = document.getElementById('install-prompt');
-            
-            // Check if already installed
-            if (window.matchMedia('(display-mode: standalone)').matches) {
-                alert('✅ App đã được cài đặt rồi!');
-                return;
-            }
-            
-            // If we have deferredPrompt, show popup
-            if (deferredPrompt && installPrompt) {
-                installPrompt.style.display = 'flex';
-            } else {
-                // No deferredPrompt - try alternative methods
-                alert('⚠️ Trình duyệt chưa cho phép cài đặt.\n\n📱 Cách cài thủ công:\n1. Bấm menu Chrome (3 chấm)\n2. Chọn "Add to Home screen" hoặc "Install app"\n3. Xác nhận cài đặt');
-            }
-        };
-    </script>
     
     <!-- 🔇 DISABLE ALL CONSOLE LOGS FOR PRODUCTION -->
     <script>
@@ -914,16 +868,6 @@
                                 </span>
                             </label>
                         </div>
-                    </div>
-
-                    <!-- Install App Section -->
-                    <div class="bg-white rounded-xl p-2 shadow-sm mb-2">
-                        <button onclick="showInstallPrompt()" class="w-full flex items-center justify-center py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                            </svg>
-                            <span class="text-sm font-semibold">📱 Cài đặt ứng dụng</span>
-                        </button>
                     </div>
 
                     <!-- Logout Section -->
@@ -5248,45 +5192,82 @@
 
     </div> <!-- End app-container -->
 
-    <!-- PWA Install Prompt UI Handler -->
+    <!-- PWA Install & Service Worker -->
     <script>
-        // Wait for DOM to be ready
-        document.addEventListener('DOMContentLoaded', () => {
-            const installPrompt = document.getElementById('install-prompt');
-            const installButton = document.getElementById('install-button');
-            const installCancelBtn = document.getElementById('install-cancel-btn');
-
-            if (installButton) {
-                installButton.addEventListener('click', async () => {
-                    if (window.deferredPrompt) {
-                        window.deferredPrompt.prompt();
-                        const { outcome } = await window.deferredPrompt.userChoice;
-                        console.log(`User response: ${outcome}`);
-                        window.deferredPrompt = null;
-                        if (installPrompt) {
-                            installPrompt.style.display = 'none';
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                // Đăng ký Customer Service Worker cho PWA install
+                navigator.serviceWorker.register('/customer-sw.js')
+                    .then(registration => {
+                        console.log('✅ Customer Service Worker registered:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('❌ Customer SW registration failed:', error);
+                    });
+                
+                // Đăng ký Firebase Messaging Service Worker
+                navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                    .then(registration => {
+                        console.log('✅ Firebase Messaging Service Worker registered:', registration.scope);
+                        
+                        // Cấu hình Firebase Messaging với service worker
+                        if (messaging) {
+                            messaging.useServiceWorker(registration);
                         }
-                    }
-                });
-            }
+                    })
+                    .catch(error => {
+                        console.log('❌ Firebase Messaging SW registration failed:', error);
+                    });
+            });
+        }
 
-            if (installCancelBtn) {
-                installCancelBtn.addEventListener('click', () => {
-                    if (installPrompt) {
-                        installPrompt.style.display = 'none';
-                    }
-                });
+        // PWA Install Prompt
+        let deferredPrompt;
+        const installPrompt = document.getElementById('install-prompt');
+        const installButton = document.getElementById('install-button');
+        const installCancelBtn = document.getElementById('install-cancel-btn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install prompt khi có thể cài đặt (bao gồm cả localhost để test)
+            if (installPrompt) {
+                installPrompt.style.display = 'flex';
+                console.log('💡 PWA có thể cài đặt! Hiển thị install prompt');
             }
         });
+
+        if (installButton) {
+            installButton.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`User response: ${outcome}`);
+                    deferredPrompt = null;
+                }
+                if (installPrompt) {
+                    installPrompt.style.display = 'none';
+                }
+            });
+        }
+
+        if (installCancelBtn) {
+            installCancelBtn.addEventListener('click', () => {
+                if (installPrompt) {
+                    installPrompt.style.display = 'none';
+                }
+            });
+        }
 
         // Hide install prompt when already installed
         window.addEventListener('appinstalled', () => {
             console.log('✅ PWA installed successfully!');
-            const installPrompt = document.getElementById('install-prompt');
             if (installPrompt) {
                 installPrompt.style.display = 'none';
             }
-            window.deferredPrompt = null;
+            deferredPrompt = null;
         });
 
         // Check if running as PWA

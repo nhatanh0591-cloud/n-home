@@ -1,11 +1,23 @@
 // customer-sw.js
-// Service Worker cho Customer N-Home PWA
+// Service Worker cho N-Home PWA (chung cho cả admin và customer)
 
-const CACHE_NAME = 'n-home-customer-v2';
+const CACHE_NAME = 'n-home-unified-v1.2';
 const urlsToCache = [
+    '/',
+    '/index.html',
     '/app.html',
-    '/manifest-customer.json',
-    '/icon-nen-xanh.jpg'
+    '/app',
+    '/manifest.json',
+    '/icon-nen-xanh.jpg',
+    '/js/auth.js',
+    '/js/main.js',
+    '/js/firebase.js',
+    '/js/utils.js',
+    '/js/store.js',
+    '/js/modules/customers.js',
+    '/js/modules/bills.js',
+    '/js/modules/transactions.js',
+    '/styles.css'
 ];
 
 // Install Service Worker
@@ -15,13 +27,13 @@ self.addEventListener('install', (event) => {
         caches.open(CACHE_NAME)
             .then((cache) => {
                 console.log('Customer SW: Caching files');
-                return cache.addAll(urlsToCache).catch(err => {
-                    console.error('Cache addAll failed:', err);
-                    // Continue installation even if cache fails
-                });
+                return cache.addAll(urlsToCache);
+            })
+            .then(() => {
+                // Skip waiting để activate ngay lập tức
+                self.skipWaiting();
             })
     );
-    self.skipWaiting();
 });
 
 // Activate Service Worker
@@ -46,24 +58,38 @@ self.addEventListener('activate', (event) => {
 
 // Fetch handler - QUAN TRỌNG CHO PWA INSTALL
 self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Return cached version if found
-                if (response) {
-                    return response;
-                }
-                
-                // Fetch from network
-                return fetch(event.request);
-            })
-            .catch(() => {
-                // Fallback for offline
-                if (event.request.destination === 'document') {
-                    return caches.match('/app.html');
-                }
-            })
-    );
+    // Chỉ xử lý requests từ same origin
+    if (event.request.url.startsWith(self.location.origin)) {
+        event.respondWith(
+            caches.match(event.request)
+                .then((response) => {
+                    // Return cached version if found
+                    if (response) {
+                        return response;
+                    }
+                    
+                    // Fetch from network
+                    return fetch(event.request)
+                        .then((response) => {
+                            // Cache valid responses
+                            if (response && response.status === 200 && response.type === 'basic') {
+                                const responseToCache = response.clone();
+                                caches.open(CACHE_NAME)
+                                    .then((cache) => {
+                                        cache.put(event.request, responseToCache);
+                                    });
+                            }
+                            return response;
+                        });
+                })
+                .catch(() => {
+                    // Fallback for offline
+                    if (event.request.destination === 'document') {
+                        return caches.match('/app.html');
+                    }
+                })
+        );
+    }
 });
 
 console.log('✅ Customer Service Worker loaded');
