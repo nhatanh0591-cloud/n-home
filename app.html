@@ -5241,36 +5241,43 @@
 
     <!-- PWA Install Prompt UI Handler -->
     <script>
-        // PWA Install Prompt UI
-        if (installButton) {
-            installButton.addEventListener('click', async () => {
-                if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`User response: ${outcome}`);
-                    deferredPrompt = null;
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const installPrompt = document.getElementById('install-prompt');
+            const installButton = document.getElementById('install-button');
+            const installCancelBtn = document.getElementById('install-cancel-btn');
+
+            if (installButton) {
+                installButton.addEventListener('click', async () => {
+                    if (window.deferredPrompt) {
+                        window.deferredPrompt.prompt();
+                        const { outcome } = await window.deferredPrompt.userChoice;
+                        console.log(`User response: ${outcome}`);
+                        window.deferredPrompt = null;
+                        if (installPrompt) {
+                            installPrompt.style.display = 'none';
+                        }
+                    }
+                });
+            }
+
+            if (installCancelBtn) {
+                installCancelBtn.addEventListener('click', () => {
                     if (installPrompt) {
                         installPrompt.style.display = 'none';
                     }
-                }
-            });
-        }
-
-        if (installCancelBtn) {
-            installCancelBtn.addEventListener('click', () => {
-                if (installPrompt) {
-                    installPrompt.style.display = 'none';
-                }
-            });
-        }
+                });
+            }
+        });
 
         // Hide install prompt when already installed
         window.addEventListener('appinstalled', () => {
             console.log('✅ PWA installed successfully!');
+            const installPrompt = document.getElementById('install-prompt');
             if (installPrompt) {
                 installPrompt.style.display = 'none';
             }
-            deferredPrompt = null;
+            window.deferredPrompt = null;
         });
 
         // Check if running as PWA
