@@ -34,16 +34,17 @@
     <!-- PWA Service Worker Registration -->
     <script>
         let deferredPrompt;
+        let canInstall = false;
 
         // Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/customer-sw.js')
                     .then((registration) => {
-                        console.log('N-Home Customer SW registered successfully:', registration.scope);
+                        console.log('✅ N-Home Customer SW registered:', registration.scope);
                     })
                     .catch((error) => {
-                        console.log('N-Home Customer SW registration failed:', error);
+                        console.error('❌ N-Home Customer SW failed:', error);
                     });
             });
         }
@@ -52,8 +53,27 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            console.log('beforeinstallprompt event fired');
+            canInstall = true;
+            console.log('✅ beforeinstallprompt event fired - App is installable!');
+            
+            // Show install prompt automatically after 3 seconds
+            setTimeout(() => {
+                const installPrompt = document.getElementById('install-prompt');
+                if (installPrompt) {
+                    installPrompt.style.display = 'flex';
+                }
+            }, 3000);
         });
+
+        // Function to manually trigger install
+        window.showInstallPrompt = function() {
+            const installPrompt = document.getElementById('install-prompt');
+            if (deferredPrompt && installPrompt) {
+                installPrompt.style.display = 'flex';
+            } else {
+                alert('App chưa sẵn sàng để cài đặt. Vui lòng đợi vài giây hoặc reload trang.');
+            }
+        };
     </script>
     
     <!-- 🔇 DISABLE ALL CONSOLE LOGS FOR PRODUCTION -->
@@ -885,6 +905,16 @@
                                 </span>
                             </label>
                         </div>
+                    </div>
+
+                    <!-- Install App Section -->
+                    <div class="bg-white rounded-xl p-2 shadow-sm mb-2">
+                        <button onclick="showInstallPrompt()" class="w-full flex items-center justify-center py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            <span class="text-sm font-semibold">📱 Cài đặt ứng dụng</span>
+                        </button>
                     </div>
 
                     <!-- Logout Section -->
