@@ -42,7 +42,7 @@ const PERMISSIONS = {
         transactionCategories: false, // Không xem hạng mục
         customers: { view: true, add: true, edit: false, delete: false }, // XEM và THÊM khách hàng (không sửa/xóa)
         contracts: { view: true, add: true, edit: false, delete: false }, // XEM và THÊM hợp đồng (không sửa/xóa)
-        bills: { view: true, add: false, edit: false, delete: false, approve: false }, // CHỈ XEM hóa đơn
+        bills: { view: true, add: true, edit: false, delete: false, approve: false }, // XEM và THÊM hóa đơn (không sửa/xóa/duyệt)
         transactions: false, // Không xem phiếu thu chi
         tasks: { view: true, add: false, edit: false, delete: false }, // CHỈ XEM sự cố
         notifications: false, // Không xem thông báo
@@ -606,11 +606,12 @@ export function hideActionButtons(module) {
             
             const isAddTaskBtn = btn.id === 'add-task-btn' || btn.textContent?.includes('Thêm sự cố');
             
-            // LOẠI TRỪ NÚT THÊM HỢP ĐỒNG VÀ NÚT THÊM KHÁCH HÀNG TRONG CONTRACT MODAL (cho viewer/quanly)
+            // LOẠI TRỪ NÚT THÊM HỢP ĐỒNG, KHÁCH HÀNG VÀ HÓA ĐƠN (cho viewer/quanly)
             const isAddContractBtn = btn.id === 'add-contract-btn';
             const isAddCustomerInContractBtn = btn.id === 'add-customer-from-contract';
+            const isAddBillBtn = btn.id === 'add-bill-btn';
             
-            if (!isLogo && !isAddTaskBtn && !isAddContractBtn && !isAddCustomerInContractBtn && 
+            if (!isLogo && !isAddTaskBtn && !isAddContractBtn && !isAddCustomerInContractBtn && !isAddBillBtn && 
                 (btn.textContent.includes('+') || btn.title?.includes('Thêm') || btn.title?.includes('thêm'))) {
                 btn.style.display = 'none';
                 console.log("🚫 Đã ẩn nút:", btn.textContent || btn.title);
@@ -618,11 +619,11 @@ export function hideActionButtons(module) {
         });
         
         // Ẩn tất cả nút sửa (màu xám)  
-        const editButtons = document.querySelectorAll('.bg-gray-500, .bg-gray-600, [title="Sửa"], [title*="sửa"], .edit-customer-btn, .edit-contract-btn');
+        const editButtons = document.querySelectorAll('.bg-gray-500, .bg-gray-600, [title="Sửa"], [title*="sửa"], .edit-customer-btn, .edit-contract-btn, .edit-bill-btn');
         editButtons.forEach(btn => btn.style.display = 'none');
         
         // Ẩn tất cả nút xóa (màu đỏ) - NHƯNG KHÔNG ẩn nút đăng xuất và KHÔNG ẩn status badge
-        const deleteButtons = document.querySelectorAll('.bg-red-500, .bg-red-600, [title="Xóa"], [title*="xóa"], .delete-customer-btn, .delete-contract-btn');
+        const deleteButtons = document.querySelectorAll('.bg-red-500, .bg-red-600, [title="Xóa"], [title*="xóa"], .delete-customer-btn, .delete-contract-btn, .delete-bill-btn');
         deleteButtons.forEach(btn => {
             // Kiểm tra xem có phải nút đăng xuất không (có icon logout)
             const isLogoutButton = btn.innerHTML.includes('M3 3a1 1 0') || // SVG logout path

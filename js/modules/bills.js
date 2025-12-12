@@ -357,7 +357,7 @@ function renderBillsTable(bills) {
             </td>
             <td class="py-4 px-4">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</td>
             <td class="py-4 px-4">${bill.isTerminationBill ? '-' : formatMoney(bill.totalAmount)}</td>
-            <td class="py-4 px-4">${formatMoney(bill.paidAmount || 0)}</td>
+            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : formatMoney(bill.paidAmount || 0)}</td>
             <td class="py-4 px-4">
                 <span class="px-2 py-1 rounded-full text-xs font-medium ${bill.isTerminationBill ? (bill.approved ? 'bg-gray-100 text-gray-800' : 'bg-orange-100 text-orange-800') : (bill.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')}">
                     ${bill.isTerminationBill ? (bill.approved ? 'Đã thanh lý' : 'Chờ thanh lý') : (bill.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán')}
@@ -398,7 +398,7 @@ function renderBillsTable(bills) {
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Đã thanh toán:</span>
-                    <span class="mobile-card-value">${formatMoney(bill.paidAmount || 0)}</span>
+                    <span class="mobile-card-value">${bill.isTerminationBill ? '-' : formatMoney(bill.paidAmount || 0)}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
@@ -2336,7 +2336,7 @@ function loadBillServices(contract, building) {
                         <td class="py-2 px-3 font-medium">${buildingService.name}</td>
                         <td class="py-2 px-3">${formatMoney(buildingService.price)}/${buildingService.unit}</td>
                         <td class="py-2 px-3">
-                            <input type="number" value="${initialReading}" class="w-20 text-xs p-1 border rounded electric-old-reading" readonly placeholder="Số cũ">
+                            <input type="number" value="${initialReading}" class="w-20 text-xs p-1 border rounded electric-old-reading" placeholder="Số cũ">
                         </td>
                         <td class="py-2 px-3">
                             <input type="number" class="w-20 text-xs p-1 border rounded electric-new-reading" data-service-id="${buildingService.id}" data-price="${buildingService.price}" placeholder="Số mới">
@@ -2684,6 +2684,12 @@ async function showBillDetail(billId) {
     const bill = getBills().find(b => b.id === billId);
     if (!bill) {
         console.error('Bill not found:', billId);
+        return;
+    }
+    
+    // 🚫 Không hiển thị chi tiết cho hóa đơn thanh lý (chờ hoặc đã thanh lý)
+    if (bill.isTerminationBill) {
+        showToast('Không thể xem chi tiết hóa đơn thanh lý', 'warning');
         return;
     }
     
