@@ -382,19 +382,42 @@ function renderReport(quarters, selectedYear, selectedBuilding) {
         });
     }
     
-    // Tính lợi nhuận trung bình chỉ trên những tháng có chi phí
+    // Tính lợi nhuận trung bình chỉ trên những tháng có chi phí (KHÔNG TÍNH THÁNG HIỆN TẠI)
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 1-12
+    
+    console.log('📊 Calculating average profit:', {
+        selectedYear: selectedYear,
+        currentYear: currentYear,
+        currentMonth: currentMonth,
+        isCurrentYear: parseInt(selectedYear) === currentYear
+    });
+    
     let monthsWithExpense = 0;
     let totalProfitWithExpense = 0;
     
     for (let q = 1; q <= 4; q++) {
         quarters[q].months.forEach(m => {
             const monthData = quarters[q].monthlyData[m];
-            if (monthData.expense > 0) {
+            
+            // ⚠️ QUAN TRỌNG: Chỉ tính các tháng ĐÃ KẾT THÚC
+            // Nếu đang xem năm hiện tại → không tính tháng hiện tại
+            // Nếu xem năm cũ → tính tất cả
+            const isCurrentYear = parseInt(selectedYear) === currentYear;
+            const isCurrentMonth = (isCurrentYear && m === currentMonth);
+            
+            if (monthData.expense > 0 && !isCurrentMonth) {
                 monthsWithExpense++;
                 totalProfitWithExpense += monthData.profit;
+                console.log(`✅ Tháng ${m}: Chi phí ${monthData.expense}, Lợi nhuận ${monthData.profit}`);
+            } else if (isCurrentMonth) {
+                console.log(`⏭️ Bỏ qua tháng hiện tại ${m}: Chi phí ${monthData.expense}`);
             }
         });
     }
+    
+    console.log(`📊 Tổng: ${monthsWithExpense} tháng, Lợi nhuận TB: ${totalProfitWithExpense / monthsWithExpense}`);
     
     const averageProfitWithExpense = monthsWithExpense > 0 ? totalProfitWithExpense / monthsWithExpense : 0;
     
@@ -467,21 +490,29 @@ function displayAverageProfitBox(monthsWithExpense, averageProfitWithExpense) {
 }
 
 /**
- * Tính khoảng thời gian từ tháng đầu đến tháng cuối có chi phí
+ * Tính khoảng thời gian từ tháng đầu đến tháng cuối có chi phí (KHÔNG TÍNH THÁNG HIỆN TẠI)
  */
 function calculateDateRangeWithExpense(year) {
     // Lấy dữ liệu quarters từ context hiện tại
     const quarters = window.currentQuartersData;
     if (!quarters) return `01/01/${year} - 31/12/${year}`;
     
+    // ⚠️ QUAN TRỌNG: Loại bỏ tháng hiện tại nếu đang xem năm hiện tại
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 1-12
+    const isCurrentYear = parseInt(year) === currentYear;
+    
     let firstMonthWithExpense = null;
     let lastMonthWithExpense = null;
     
-    // Tìm tháng đầu và cuối có chi phí
+    // Tìm tháng đầu và cuối có chi phí (KHÔNG TÍNH THÁNG HIỆN TẠI)
     for (let q = 1; q <= 4; q++) {
         quarters[q].months.forEach(m => {
             const monthData = quarters[q].monthlyData[m];
-            if (monthData.expense > 0) {
+            const isCurrentMonth = (isCurrentYear && m === currentMonth);
+            
+            if (monthData.expense > 0 && !isCurrentMonth) {
                 if (firstMonthWithExpense === null) {
                     firstMonthWithExpense = m;
                 }
@@ -977,14 +1008,21 @@ function renderQuarterlyReportMobileCards(reportData, selectedYear, selectedBuil
         `;
     }
     
-    // Tính lợi nhuận trung bình chỉ trên những tháng có chi phí cho mobile
+    // Tính lợi nhuận trung bình chỉ trên những tháng có chi phí cho mobile (KHÔNG TÍNH THÁNG HIỆN TẠI)
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 1-12
+    const isCurrentYear = parseInt(selectedYear) === currentYear;
+    
     let monthsWithExpense = 0;
     let totalProfitWithExpense = 0;
     
     for (let q = 1; q <= 4; q++) {
         reportData[q].months.forEach(m => {
             const monthData = reportData[q].monthlyData[m];
-            if (monthData.expense > 0) {
+            const isCurrentMonth = (isCurrentYear && m === currentMonth);
+            
+            if (monthData.expense > 0 && !isCurrentMonth) {
                 monthsWithExpense++;
                 totalProfitWithExpense += monthData.profit;
             }

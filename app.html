@@ -4211,18 +4211,24 @@
         function saveNotificationsToStorage() {
             // Sử dụng unified cache system thay vì dual storage
             if (currentUser?.id) {
+                // 🔐 CRITICAL: Apply read status VÀO notifications array TRƯỚC KHI save
+                const readStatus = loadReadStatusFromStorage(currentUser.id);
+                notifications.forEach(n => {
+                    const firebaseId = n.data?.firebaseId || n.id;
+                    // Nếu đã đọc (local HOẶC storage) → GIỮ NGUYÊN đã đọc
+                    if (n.isRead || (firebaseId && readStatus[firebaseId])) {
+                        n.isRead = true;
+                        if (firebaseId) {
+                            readStatus[firebaseId] = true;
+                        }
+                    }
+                });
+                
                 const existingCache = loadUserDataFromCache(currentUser.id) || {};
                 existingCache.notifications = notifications;
                 saveUserDataToCache(currentUser.id, existingCache);
                 
-                // 🔖 Lưu riêng trạng thái đã đọc để không bị mất khi cache expire
-                const readStatus = {};
-                notifications.forEach(n => {
-                    if (n.isRead && (n.data?.firebaseId || n.id)) {
-                        const key = n.data?.firebaseId || n.id;
-                        readStatus[key] = true;
-                    }
-                });
+                // 🔖 Lưu riêng trạng thái đã đọc để không bị mất khi cache expire (dùng lại readStatus đã update)
                 saveReadStatusToStorage(currentUser.id, readStatus);
                 
                 console.log('💾 Saved notifications to unified cache system + read status');
