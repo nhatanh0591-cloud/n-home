@@ -1,13 +1,12 @@
 // customer-sw.js
 // Service Worker cho Customer N-Home PWA
 
-const CACHE_NAME = 'n-home-customer-v1';
+const CACHE_NAME = 'n-home-customer-v2';
 const urlsToCache = [
     '/app.html',
-    '/app',
     '/manifest-customer.json',
-    '/icon-nen-xanh.jpg',
-    '/'
+    '/icon-192.png',
+    '/icon-512.png'
 ];
 
 // Install Service Worker
@@ -17,9 +16,13 @@ self.addEventListener('install', (event) => {
         caches.open(CACHE_NAME)
             .then((cache) => {
                 console.log('Customer SW: Caching files');
-                return cache.addAll(urlsToCache);
+                return cache.addAll(urlsToCache).catch(err => {
+                    console.error('Cache addAll failed:', err);
+                    // Continue installation even if cache fails
+                });
             })
     );
+    self.skipWaiting();
 });
 
 // Activate Service Worker
