@@ -1,22 +1,18 @@
 {
-  "name": "N-Home - Quản lý nhà trọ",
+  "name": "N-Home",
   "short_name": "N-Home",
-  "description": "Hệ thống quản lý nhà trọ N-Home",
+  "description": "Hệ thống quản lý cho N-Home",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#23904f",
   "theme_color": "#23904f",
   "orientation": "portrait",
   "scope": "/",
-  "id": "n-home-app",
-  "categories": ["business", "productivity", "lifestyle", "utilities"],
+  "id": "n-home-admin",
+  "categories": ["business", "productivity"],
   "lang": "vi",
   "dir": "ltr",
   "prefer_related_applications": false,
-  "display_override": ["window-controls-overlay", "standalone"],
-  "edge_side_panel": {
-    "preferred_width": 480
-  },
   "icons": [
     {
       "src": "/icon-nen-xanh.jpg",

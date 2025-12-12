@@ -1,0 +1,24 @@
+{
+  "name": "N-Home - Khách Hàng",
+  "short_name": "N-Home",
+  "description": "Ứng dụng xem hóa đơn và thanh toán tiền nhà trọ",
+  "start_url": "/app.html",
+  "display": "standalone",
+  "background_color": "#23904f",
+  "theme_color": "#23904f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-nen-xanh.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-nen-xanh.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

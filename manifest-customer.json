@@ -7,16 +7,12 @@
   "background_color": "#23904f",
   "theme_color": "#23904f",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "/app.html",
   "id": "n-home-customer",
   "categories": ["lifestyle", "utilities"],
   "lang": "vi",
   "dir": "ltr",
   "prefer_related_applications": false,
-  "display_override": ["window-controls-overlay", "standalone"],
-  "edge_side_panel": {
-    "preferred_width": 480
-  },
   "icons": [
     {
       "src": "/icon-nen-xanh.jpg",

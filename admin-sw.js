@@ -1,7 +1,7 @@
 // admin-sw.js
-// Service Worker cho N-Home PWA (chung cho cả admin và customer)
+// Service Worker cho N-Home PWA
 
-const CACHE_NAME = 'n-home-unified-v1.2';
+const CACHE_NAME = 'n-home-admin-v2';
 const urlsToCache = [
     '/index.html',
     '/styles.css',
