@@ -40,8 +40,8 @@ const PERMISSIONS = {
         services: false, // Không xem dịch vụ
         accounts: false, // Không xem sổ quỹ
         transactionCategories: false, // Không xem hạng mục
-        customers: { view: true, add: false, edit: false, delete: false }, // CHỈ XEM khách hàng
-        contracts: false, // Không xem hợp đồng
+        customers: { view: true, add: true, edit: false, delete: false }, // XEM và THÊM khách hàng (không sửa/xóa)
+        contracts: { view: true, add: true, edit: false, delete: false }, // XEM và THÊM hợp đồng (không sửa/xóa)
         bills: { view: true, add: false, edit: false, delete: false, approve: false }, // CHỈ XEM hóa đơn
         transactions: false, // Không xem phiếu thu chi
         tasks: { view: true, add: false, edit: false, delete: false }, // CHỈ XEM sự cố
@@ -542,11 +542,11 @@ export function hideUnauthorizedMenus() {
             console.log("✅ Đã ẩn menu Danh mục dữ liệu");
         }
         
-        // Ẩn menu "Hợp đồng thuê" (id="contracts-btn")
+        // GIỮ menu "Hợp đồng thuê" cho viewer (quanly@gmail.com có quyền xem và thêm hợp đồng)
         const contractsBtn = document.getElementById('contracts-btn');
         if (contractsBtn) {
-            contractsBtn.style.display = 'none';
-            console.log("✅ Đã ẩn menu Hợp đồng thuê");
+            contractsBtn.style.display = 'block';
+            console.log("✅ Giữ menu Hợp đồng thuê cho viewer");
         }
         
         // Ẩn menu "Thu chi" (id="finance-btn") 
@@ -606,18 +606,23 @@ export function hideActionButtons(module) {
             
             const isAddTaskBtn = btn.id === 'add-task-btn' || btn.textContent?.includes('Thêm sự cố');
             
-            if (!isLogo && !isAddTaskBtn && (btn.textContent.includes('+') || btn.title?.includes('Thêm') || btn.title?.includes('thêm'))) {
+            // LOẠI TRỪ NÚT THÊM HỢP ĐỒNG VÀ NÚT THÊM KHÁCH HÀNG TRONG CONTRACT MODAL (cho viewer/quanly)
+            const isAddContractBtn = btn.id === 'add-contract-btn';
+            const isAddCustomerInContractBtn = btn.id === 'add-customer-from-contract';
+            
+            if (!isLogo && !isAddTaskBtn && !isAddContractBtn && !isAddCustomerInContractBtn && 
+                (btn.textContent.includes('+') || btn.title?.includes('Thêm') || btn.title?.includes('thêm'))) {
                 btn.style.display = 'none';
                 console.log("🚫 Đã ẩn nút:", btn.textContent || btn.title);
             }
         });
         
         // Ẩn tất cả nút sửa (màu xám)  
-        const editButtons = document.querySelectorAll('.bg-gray-500, .bg-gray-600, [title="Sửa"], [title*="sửa"], .edit-customer-btn');
+        const editButtons = document.querySelectorAll('.bg-gray-500, .bg-gray-600, [title="Sửa"], [title*="sửa"], .edit-customer-btn, .edit-contract-btn');
         editButtons.forEach(btn => btn.style.display = 'none');
         
         // Ẩn tất cả nút xóa (màu đỏ) - NHƯNG KHÔNG ẩn nút đăng xuất và KHÔNG ẩn status badge
-        const deleteButtons = document.querySelectorAll('.bg-red-500, .bg-red-600, [title="Xóa"], [title*="xóa"], .delete-customer-btn');
+        const deleteButtons = document.querySelectorAll('.bg-red-500, .bg-red-600, [title="Xóa"], [title*="xóa"], .delete-customer-btn, .delete-contract-btn');
         deleteButtons.forEach(btn => {
             // Kiểm tra xem có phải nút đăng xuất không (có icon logout)
             const isLogoutButton = btn.innerHTML.includes('M3 3a1 1 0') || // SVG logout path
@@ -634,10 +639,21 @@ export function hideActionButtons(module) {
         
         // Ẩn các nút bulk actions
         const bulkButtons = document.querySelectorAll(
-            '#bulk-delete-customers-btn, #bulk-delete-bills-btn, #bulk-delete-tasks-btn, ' +
+            '#bulk-delete-customers-btn, #bulk-delete-bills-btn, #bulk-delete-tasks-btn, #bulk-delete-contracts-btn, ' +
             '[id*="bulk-"], [class*="bulk-"], [title*="Xóa hàng loạt"], [title*="bulk"]'
         );
         bulkButtons.forEach(btn => btn.style.display = 'none');
+        
+        // Xử lý đặc biệt cho contracts module
+        if (module === 'contracts') {
+            // Ẩn nút thanh lý hợp đồng
+            const terminateButtons = document.querySelectorAll('.terminate-contract-btn');
+            terminateButtons.forEach(btn => btn.style.display = 'none');
+            
+            // Ẩn nút import/export cho contracts
+            const importExportBtns = document.querySelectorAll('#import-contracts-btn, #export-contracts-btn');
+            importExportBtns.forEach(btn => btn.style.display = 'none');
+        }
         
         // Xử lý các nút import/export theo module
         if (module === 'bills') {
@@ -766,12 +782,42 @@ export function hideActionButtons(module) {
             }
         }, 100); // Giảm delay
         
+        // ẨN CHECKBOX TRONG CONTRACTS CHO VIEWER (quanly@gmail.com)
+        if (module === 'contracts') {
+            // Ẩn checkbox header "select-all-contracts"
+            const selectAllContractsCheckbox = document.getElementById('select-all-contracts');
+            if (selectAllContractsCheckbox) {
+                const headerCell = selectAllContractsCheckbox.closest('th');
+                if (headerCell) {
+                    headerCell.style.display = 'none';
+                }
+            }
+            
+            // Ẩn tất cả checkbox trong desktop table rows
+            const contractCheckboxes = document.querySelectorAll('.contract-checkbox');
+            contractCheckboxes.forEach(cb => {
+                const cell = cb.closest('td');
+                if (cell) {
+                    cell.style.display = 'none';
+                }
+            });
+            
+            // Ẩn tất cả checkbox trong mobile cards
+            const mobileCheckboxContainers = document.querySelectorAll('#contracts-mobile-list .contract-checkbox');
+            mobileCheckboxContainers.forEach(cb => {
+                const container = cb.closest('.flex.items-center.gap-3');
+                if (container && container.classList.contains('border-b')) {
+                    container.style.display = 'none';
+                }
+            });
+        }
+        
         // Ẩn checkbox "Chọn tất cả" (trừ tasks)
-        const selectAllCheckboxes = document.querySelectorAll('#select-all-customers, #select-all-bills, [id*="select-all"]:not(#select-all-tasks)');
+        const selectAllCheckboxes = document.querySelectorAll('#select-all-customers, #select-all-bills, [id*="select-all"]:not(#select-all-tasks):not(#select-all-contracts)');
         selectAllCheckboxes.forEach(cb => cb.style.display = 'none');
         
         // Ẩn các checkbox trong từng row (trừ tasks để manager có thể chọn tasks)
-        const rowCheckboxes = document.querySelectorAll('.customer-checkbox, .bill-checkbox');
+        const rowCheckboxes = document.querySelectorAll('.customer-checkbox, .bill-checkbox, .contract-checkbox');
         rowCheckboxes.forEach(cb => cb.style.display = 'none');
         
         // Sẽ ẩn phần upload khi modal được mở (xử lý trong event listener)

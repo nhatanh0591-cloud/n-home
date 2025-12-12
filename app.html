@@ -1602,6 +1602,23 @@
          */
         function saveUserDataToCache(customerId, data) {
             try {
+                // 🔐 CRITICAL: Trước khi lưu, ÁP DỤNG read status vào notifications để không mất trạng thái
+                if (data.notifications && Array.isArray(data.notifications)) {
+                    const readStatus = loadReadStatusFromStorage(customerId);
+                    data.notifications.forEach(n => {
+                        const firebaseId = n.data?.firebaseId || n.id;
+                        // QUY TẮC: Nếu đã đọc (local HOẶC storage) → GIỮ NGUYÊN đã đọc
+                        if ((n.isRead || (firebaseId && readStatus[firebaseId])) && firebaseId) {
+                            n.isRead = true;
+                            // Đồng thời backup vào storage
+                            readStatus[firebaseId] = true;
+                        }
+                    });
+                    // Lưu lại read status đã update
+                    saveReadStatusToStorage(customerId, readStatus);
+                    console.log('🔐 Applied read status before caching');
+                }
+                
                 const cacheData = {
                     version: CACHE_VERSION,
                     timestamp: Date.now(),
@@ -2009,12 +2026,17 @@
                         if (existingNotification) {
                             console.log('🔄 Updating modified notification while preserving read status:', change.doc.id);
                             
-                            // 🔐 Lấy trạng thái đã đọc từ read status storage (ưu tiên cao nhất)
+                            // 🔐 ƯU TIÊN TUYỆT ĐỐI: Nếu local đã đọc rồi thì KHÔNG BAO GIỜ đổi về chưa đọc
+                            const currentIsRead = existingNotification.isRead;
+                            
+                            // 🔐 Backup: Kiểm tra read status storage (phòng trường hợp local bị sai)
                             const readStatus = loadReadStatusFromStorage(customerId);
                             const wasReadFromStorage = readStatus[change.doc.id] || false;
-                            const currentReadStatus = wasReadFromStorage || existingNotification.isRead;
                             
-                            // Cập nhật data mới nhưng giữ nguyên isRead
+                            // QUY TẮC: Nếu 1 trong 2 nơi đánh dấu đã đọc → GIỮ NGUYÊN đã đọc
+                            const finalReadStatus = currentIsRead || wasReadFromStorage;
+                            
+                            // Cập nhật data mới nhưng GIỮ NGUYÊN isRead
                             existingNotification.title = notificationData.title;
                             existingNotification.message = notificationData.customerMessage || notificationData.message;
                             existingNotification.data = {
@@ -2025,10 +2047,17 @@
                                 transactionId: notificationData.transactionId
                             };
                             
-                            // Lưu lại trạng thái đã đọc (ưu tiên read status storage)
-                            existingNotification.isRead = currentReadStatus;
+                            // ⚠️ QUAN TRỌNG: KHÔNG BAO GIỜ ĐỔI TỪ ĐÃ ĐỌC → CHƯA ĐỌC
+                            existingNotification.isRead = finalReadStatus;
                             
-                            console.log(`🔐 Preserved read status for ${change.doc.id}: ${currentReadStatus} (from storage: ${wasReadFromStorage})`);
+                            console.log(`🔐 LOCKED read status for ${change.doc.id}: ${finalReadStatus} (local: ${currentIsRead}, storage: ${wasReadFromStorage})`);
+                            
+                            // Nếu đã đọc, lưu lại vào storage để đảm bảo không mất
+                            if (finalReadStatus) {
+                                readStatus[change.doc.id] = true;
+                                saveReadStatusToStorage(customerId, readStatus);
+                                console.log('🔒 Reinforced read status in storage');
+                            }
                             
                             saveNotificationsToStorage();
                             renderNotificationsList();
@@ -2196,15 +2225,29 @@
                     // 🔐 SAU KHI LOAD XONG, ÁP DỤNG LẠI READ STATUS ĐỂ ĐẢM BẢO KHÔNG BỊ MẤT
                     const readStatus = loadReadStatusFromStorage(customerId);
                     let appliedCount = 0;
+                    let backedUpCount = 0;
+                    
                     notifications.forEach(n => {
                         const firebaseId = n.data?.firebaseId || n.id;
+                        
+                        // ⚠️ CHỈ ÁP DỤNG NẾU CHƯA ĐỌC (không ghi đè nếu đã đọc)
                         if (firebaseId && readStatus[firebaseId] && !n.isRead) {
                             n.isRead = true;
                             appliedCount++;
                         }
+                        // ⚠️ NGƯỢC LẠI: Nếu local đã đọc nhưng storage chưa có → LƯU VÀO STORAGE
+                        else if (n.isRead && firebaseId && !readStatus[firebaseId]) {
+                            readStatus[firebaseId] = true;
+                            backedUpCount++;
+                            console.log('🔒 Backing up local read status to storage:', firebaseId);
+                        }
                     });
-                    if (appliedCount > 0) {
-                        console.log(`🔐 Applied persistent read status to ${appliedCount} notifications after initial load`);
+                    
+                    // Lưu lại read status đã update (bao gồm cả backup)
+                    saveReadStatusToStorage(customerId, readStatus);
+                    
+                    if (appliedCount > 0 || backedUpCount > 0) {
+                        console.log(`🔐 Applied ${appliedCount} read statuses, backed up ${backedUpCount} to storage`);
                         saveNotificationsToStorage();
                         renderNotificationsList();
                     }

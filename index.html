@@ -122,9 +122,29 @@
             // Chỉ hiện popup trên mobile/tablet, không hiện trên desktop
             const isMobile = isMobileDevice();
             const dismissed = localStorage.getItem('pwa-admin-install-dismissed');
-            const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
             
-            console.log('Install conditions:', { isMobile, dismissed, isInstalled, deferredPrompt: !!deferredPrompt });
+            // Kiểm tra kỹ lưỡng xem app đã được cài chưa
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            const isInWebAppiOS = (window.navigator.standalone === true);
+            const isInstalled = isStandalone || isInWebAppiOS;
+            
+            console.log('Install conditions:', { 
+                isMobile, 
+                dismissed, 
+                isStandalone,
+                isInWebAppiOS,
+                isInstalled, 
+                deferredPrompt: !!deferredPrompt 
+            });
+            
+            // KHÔNG hiện popup nếu:
+            // 1. Đã cài app (isInstalled)
+            // 2. Đang chạy trong standalone mode
+            // 3. Không phải mobile
+            if (isInstalled) {
+                console.log('❌ App đã được cài - KHÔNG hiện popup');
+                return;
+            }
             
             if (isMobile && !isInstalled && (!dismissed || Date.now() - dismissed > 7 * 24 * 60 * 60 * 1000)) {
                 // Delay 2 seconds để user load xong trang

@@ -446,6 +446,13 @@ function renderContractsPage() {
     });
 
     updateContractPagination();
+    
+    // Ẩn nút action theo quyền (với timeout để đảm bảo DOM đã render)
+    setTimeout(() => {
+        if (window.hideActionButtons && typeof window.hideActionButtons === 'function') {
+            window.hideActionButtons('contracts');
+        }
+    }, 100);
 }
 
 /**
