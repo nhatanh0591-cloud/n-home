@@ -217,14 +217,10 @@
             width: 100%;
             max-width: 400px;
             margin: 0 auto;
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 50%;
             transform: translateX(-50%);
-        }
-        
-        /* Fix notifications screen layout */
-        #notifications-screen {
             background: white;
             height: 100vh;
             overflow: hidden;
@@ -362,7 +358,7 @@
             width: 100%;
             max-width: 400px;
             margin: 0 auto;
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 50%;
             transform: translateX(-50%);
@@ -400,19 +396,22 @@
             width: 100%;
             max-width: 400px;
             margin: 0 auto;
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 50%;
             transform: translateX(-50%);
             background: #f0f9ff;
             height: 100vh;
             overflow: hidden;
+            touch-action: none;
         }
         
         #profile-screen .content-wrapper {
             height: 100vh;
             padding-bottom: 80px;
             padding-top: 0;
+            overflow: hidden;
+            touch-action: none;
         }
     </style>
 </head>
