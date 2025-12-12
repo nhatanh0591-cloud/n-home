@@ -8,7 +8,7 @@
     <!-- Updated: 03/12/2025 -->
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest-customer.json">
+    <link rel="manifest" href="/manifest-customer.json" crossorigin="use-credentials">
     
     <!-- Theme Color - Trùng với logo #23904f -->
     <meta name="theme-color" content="#23904f">
@@ -68,10 +68,19 @@
         // Function to manually trigger install
         window.showInstallPrompt = function() {
             const installPrompt = document.getElementById('install-prompt');
+            
+            // Check if already installed
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                alert('✅ App đã được cài đặt rồi!');
+                return;
+            }
+            
+            // If we have deferredPrompt, show popup
             if (deferredPrompt && installPrompt) {
                 installPrompt.style.display = 'flex';
             } else {
-                alert('App chưa sẵn sàng để cài đặt. Vui lòng đợi vài giây hoặc reload trang.');
+                // No deferredPrompt - try alternative methods
+                alert('⚠️ Trình duyệt chưa cho phép cài đặt.\n\n📱 Cách cài thủ công:\n1. Bấm menu Chrome (3 chấm)\n2. Chọn "Add to Home screen" hoặc "Install app"\n3. Xác nhận cài đặt');
             }
         };
     </script>

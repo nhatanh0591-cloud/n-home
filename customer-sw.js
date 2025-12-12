@@ -5,8 +5,7 @@ const CACHE_NAME = 'n-home-customer-v2';
 const urlsToCache = [
     '/app.html',
     '/manifest-customer.json',
-    '/icon-192.png',
-    '/icon-512.png'
+    '/icon-nen-xanh.jpg'
 ];
 
 // Install Service Worker
