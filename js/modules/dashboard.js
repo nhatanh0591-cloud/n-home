@@ -12,7 +12,7 @@ import {
     getTransactions, 
     getTasks 
 } from '../store.js';
-import { formatCurrency, safeToDate } from '../utils.js';
+import { formatCurrency, safeToDate, parseDateInput } from '../utils.js';
 
 // Cache DOM elements
 const dashboardSection = document.getElementById('dashboard-section');
@@ -141,8 +141,11 @@ function calculateBuildingStats() {
     const active = buildings.filter(b => b.isActive !== false).length;
     const inactive = buildings.filter(b => b.isActive === false).length;
     const totalRooms = buildings.reduce((sum, building) => sum + building.rooms.length, 0);
+    const activeRooms = buildings
+        .filter(b => b.isActive !== false)
+        .reduce((sum, building) => sum + building.rooms.length, 0);
     
-    return { total, active, inactive, totalRooms };
+    return { total, active, inactive, totalRooms, activeRooms };
 }
 
 /**
@@ -201,26 +204,72 @@ function calculateContractStats() {
 }
 
 /**
- * Tính toán thống kê khách hàng
+ * Tính toán thống kê khách hàng - COPY Y HỆT từ customers.js
  */
 function calculateCustomerStats() {
     const customers = getCustomers();
+    const contracts = getContracts();
+    const buildings = getBuildings();
     
+    // Tạo customersWithInfo GIỐNG HỆT trang Customers
+    const customersWithInfo = [];
+    
+    customers.forEach(customer => {
+        // ĐÚNG LOGIC: customers là ARRAY trong contract
+        const customerContracts = contracts.filter(c => 
+            c.customers && Array.isArray(c.customers) && c.customers.includes(customer.id)
+        );
+        
+        if (customerContracts.length === 0) {
+            customersWithInfo.push({ 
+                ...customer, 
+                status: 'no_contract',
+                buildingId: '',
+                buildingName: '',
+                roomName: ''
+            });
+        } else {
+            customerContracts.forEach(contract => {
+                let status = 'no_contract';
+                let buildingId = contract.buildingId || '';
+                let buildingName = '';
+                let roomName = contract.room || '';
+
+                // Kiểm tra trạng thái hợp đồng
+                if (contract.status === 'terminated') {
+                    status = 'moved';
+                } else {
+                    const today = new Date(); 
+                    today.setHours(0, 0, 0, 0);
+                    const endDate = parseDateInput(contract.endDate);
+                    if (endDate) {
+                        endDate.setHours(0, 0, 0, 0);
+                        status = endDate >= today ? 'active' : 'moved';
+                    }
+                }
+
+                // Tìm thông tin tòa nhà
+                const building = buildings.find(b => b.id === buildingId);
+                buildingName = building ? building.code : '';
+
+                customersWithInfo.push({
+                    ...customer,
+                    contractId: contract.id,
+                    id: `${customer.id}_${contract.id}`,
+                    originalCustomerId: customer.id,
+                    status,
+                    buildingId,
+                    buildingName,
+                    roomName
+                });
+            });
+        }
+    });
+    
+    // Đếm GIỐNG HỆT updateCustomerStats trong customers.js
     const total = customers.length;
-    const current = customers.filter(c => {
-        return c.status === 'active' || 
-               c.status === 'đang ở' ||
-               c.status === 'Đang ở' ||
-               c.isActive === true ||
-               (!c.status && !c.hasOwnProperty('status'));
-    }).length;
-    
-    const movedOut = customers.filter(c => {
-        return c.status === 'moved_out' || 
-               c.status === 'đã chuyển đi' ||
-               c.status === 'Đã chuyển đi' ||
-               c.status === 'inactive';
-    }).length;
+    const current = customersWithInfo.filter(c => c.status === 'active').length;
+    const movedOut = customersWithInfo.filter(c => c.status === 'moved').length;
     
     return { total, current, movedOut };
 }
@@ -231,9 +280,11 @@ function calculateCustomerStats() {
 function calculateBillStats(month, year) {
     const bills = getBills();
     
-    // Lọc hóa đơn theo tháng hiện tại - sử dụng field period
+    // Lọc hóa đơn theo tháng hiện tại, loại trừ hóa đơn thanh lý
     const currentMonthBills = bills.filter(bill => {
-        return parseInt(bill.period) === month;
+        if (parseInt(bill.period) !== month) return false;
+        if (bill.isTerminationBill === true) return false;
+        return true;
     });
     
     const totalAmount = currentMonthBills.reduce((sum, bill) => {
@@ -241,11 +292,17 @@ function calculateBillStats(month, year) {
         return sum + amount;
     }, 0);
     
-    const paidBills = currentMonthBills.filter(bill => bill.status === 'paid');
-    const paidAmount = paidBills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0);
+    // Đã thanh toán = tổng paidAmount của TẤT CẢ hóa đơn (bao gồm thanh toán 1 phần)
+    const paidAmount = currentMonthBills.reduce((sum, bill) => {
+        const paid = bill.paidAmount || 0;
+        return sum + paid;
+    }, 0);
     
+    // Chưa thanh toán = Tổng cộng - Đã thanh toán
+    const unpaidAmount = totalAmount - paidAmount;
+    
+    const paidBills = currentMonthBills.filter(bill => bill.status === 'paid');
     const unpaidBills = currentMonthBills.filter(bill => bill.status !== 'paid');
-    const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0);
     
     return {
         totalAmount,
@@ -263,32 +320,23 @@ function calculateBillStats(month, year) {
 function calculateTransactionStats(month, year) {
     const transactions = getTransactions();
     
-    // Lọc giao dịch theo tháng hiện tại
-    const currentMonthTransactions = transactions.filter(transaction => {
-        if (!transaction.date) return false;
+    // Tạo startDate và endDate giống như trong trang Thu chi
+    const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`; // 2025-12-01
+    const now = new Date();
+    const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; // 2025-12-13
+    
+    const startDate = parseDateInput(startDateStr);
+    const endDate = parseDateInput(endDateStr);
+    
+    // Lọc giống hệt trang Thu chi
+    const currentMonthTransactions = transactions.filter(t => {
+        if (!t.date) return false;
         
-        let transactionMonth, transactionYear;
+        const tDate = parseDateInput(t.date);
+        if (startDate && (!tDate || tDate < startDate)) return false;
+        if (endDate && (!tDate || tDate > endDate)) return false;
         
-        if (typeof transaction.date === 'string') {
-            if (/^\d{4}-\d{2}-\d{2}$/.test(transaction.date)) {
-                // YYYY-MM-DD
-                const [y, m] = transaction.date.split('-');
-                transactionYear = parseInt(y);
-                transactionMonth = parseInt(m);
-            } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(transaction.date)) {
-                // DD/MM/YYYY
-                const [d, m, y] = transaction.date.split('/');
-                transactionYear = parseInt(y);
-                transactionMonth = parseInt(m);
-            }
-        } else if (transaction.date.toDate || transaction.date.seconds) {
-            // Firestore Timestamp - sử dụng safeToDate
-            const date = safeToDate(transaction.date);
-            transactionMonth = date.getMonth() + 1;
-            transactionYear = date.getFullYear();
-        }
-        
-        return transactionMonth === month && transactionYear === year;
+        return true;
     });
     
     const totalIncome = currentMonthTransactions
@@ -354,11 +402,13 @@ function renderDashboard(data) {
     // Update building statistics
     const totalBuildings = document.getElementById('dash-total-buildings');
     const totalRooms = document.getElementById('dash-total-rooms');
+    const activeRooms = document.getElementById('dash-active-rooms');
     const activeBuildings = document.getElementById('dash-active-buildings');
     const inactiveBuildings = document.getElementById('dash-inactive-buildings');
     
     if (totalBuildings) totalBuildings.textContent = buildings.total;
     if (totalRooms) totalRooms.textContent = buildings.totalRooms;
+    if (activeRooms) activeRooms.textContent = buildings.activeRooms;
     if (activeBuildings) activeBuildings.textContent = buildings.active;
     if (inactiveBuildings) inactiveBuildings.textContent = buildings.inactive;
     

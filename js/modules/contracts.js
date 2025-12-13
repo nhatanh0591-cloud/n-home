@@ -515,7 +515,7 @@ function updateContractStats(contracts) {
     totalContractsEl.textContent = contracts.length;
     activeContractsEl.textContent = activeContracts;
     expiringContractsEl.textContent = expiringContracts;
-    expiredContractsEl.textContent = contracts.filter(c => c.status === 'expired').length;
+    expiredContractsEl.textContent = contracts.filter(c => c.status === 'terminated').length;
 }
 
 /**
