@@ -1667,16 +1667,17 @@
                 
                 const cacheData = JSON.parse(cached);
                 
-                // 🔥 CACHE EXPIRY DÀI HƠN ĐỂ GIỮ TRẠNG THÁI ĐÃ ĐỌC
-                const SHORT_CACHE_EXPIRY = 30 * 60 * 1000; // 30 phút cho critical data như bills
+                // 🔥 CACHE KHÔNG BAO GIỜ HẾT HẠN - GIỮ READ STATUS VĨNH VIỄN
+                // const SHORT_CACHE_EXPIRY = 30 * 60 * 1000; // ĐÃ TẮT AUTO-EXPIRE
                 const age = Date.now() - cacheData.timestamp;
                 
-                // Kiểm tra version và hạn sử dụng
-                if (cacheData.version !== CACHE_VERSION || age > SHORT_CACHE_EXPIRY) {
-                    console.log(`⏰ Cache hết hạn hoặc cũ (${Math.round(age / 1000 / 60)} phút), xóa cache`);
+                // Chỉ kiểm tra version, KHÔNG kiểm tra expiry
+                if (cacheData.version !== CACHE_VERSION) {
+                    console.log(`🔄 Cache version cũ, xóa cache để cập nhật`);
                     localStorage.removeItem(`n_home_user_${customerId}`);
                     return null;
                 }
+                // ✅ CACHE KHÔNG BAO GIỜ HẾT HẠN - Firebase realtime sẽ update data mới
                 
                 console.log(`📖 Load data user ${customerId} từ cache (${Math.round(age / 1000 / 60)} phút tuổi)`);
                 return cacheData.data;
