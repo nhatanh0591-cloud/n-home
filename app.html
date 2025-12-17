@@ -90,10 +90,24 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
     
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow-x: hidden;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #e5e7eb;
             min-height: 100vh;
+            /* Handle mobile safe areas */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
         }
         .app-container {
             max-width: 400px;
@@ -225,6 +239,17 @@
             max-width: 400px;
             margin: 0 auto;
             position: relative;
+            min-height: 100vh;
+        }
+        
+        /* Fix login screen to cover entire viewport */
+        #login-screen {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 100vh;
+            padding-top: env(safe-area-inset-top, 0);
         }
         
         #notifications-screen {
@@ -456,7 +481,7 @@
 
         <!-- Login Screen -->
         <div id="login-screen" class="hidden gradient-bg h-screen">
-            <div class="pt-20 px-6">
+            <div class="pt-8 px-6">
                 <div class="text-center text-white mb-10">
                     <img src="/icon-nen-xanh.jpg" alt="N-Home Logo" class="w-16 h-16 rounded-full mx-auto mb-4">
                     <h1 class="text-2xl font-bold mb-2">N-Home</h1>
