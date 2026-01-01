@@ -11,6 +11,30 @@ import {
 // --- HÀM HELPER ---
 
 /**
+ * Hiển thị kỳ thanh toán với định dạng "Tháng X/YYYY"
+ */
+function getDisplayPeriod(bill) {
+    if (!bill.period) return 'N/A';
+    
+    let year = null;
+    if (bill.year) {
+        year = bill.year;
+    } else if (bill.billDate) {
+        const billDate = parseDateInput(bill.billDate);
+        year = billDate ? billDate.getFullYear() : null;
+    } else if (bill.createdAt) {
+        const createdDate = safeToDate(bill.createdAt);
+        year = createdDate ? createdDate.getFullYear() : null;
+    }
+    
+    if (year) {
+        return `Tháng ${bill.period}/${year}`;
+    } else {
+        return `Tháng ${bill.period}`;
+    }
+}
+
+/**
  * Tính ngày hạn thanh toán từ thông tin hóa đơn
  * Ví dụ: Hóa đơn tháng 11/2025 + Hạn = 3 → 03-11-2025
  */
@@ -64,6 +88,7 @@ const pendingAmountEl = document.getElementById('pending-amount');
 const filterBuildingEl = document.getElementById('filter-bill-building');
 const filterRoomEl = document.getElementById('filter-bill-room');
 const filterMonthEl = document.getElementById('filter-bill-month');
+const filterYearEl = document.getElementById('filter-bill-year');
 const filterStatusEl = document.getElementById('filter-bill-status');
 const filterApprovalEl = document.getElementById('filter-bill-approval');
 const searchEl = document.getElementById('bill-search');
@@ -136,6 +161,7 @@ export function initBills() {
     filterBuildingEl.addEventListener('change', handleBuildingFilterChange);
     filterRoomEl.addEventListener('change', applyBillFilters);
     filterMonthEl.addEventListener('change', applyBillFilters);
+    filterYearEl.addEventListener('change', applyBillFilters);
     filterStatusEl.addEventListener('change', applyBillFilters);
     filterApprovalEl.addEventListener('change', applyBillFilters);
     searchEl.addEventListener('input', applyBillFilters);
@@ -182,6 +208,7 @@ function applyBillFilters() {
     const buildingFilter = filterBuildingEl.value;
     const roomFilter = filterRoomEl.value;
     const monthFilter = filterMonthEl.value;
+    const yearFilter = filterYearEl.value;
     const statusFilter = filterStatusEl.value;
     const approvalFilter = filterApprovalEl.value;
     const searchText = searchEl.value.toLowerCase();
@@ -194,6 +221,22 @@ function applyBillFilters() {
     }
     if (monthFilter) {
         bills = bills.filter(bill => bill.period == monthFilter);
+    }
+    if (yearFilter) {
+        bills = bills.filter(bill => {
+            // Lấy năm từ bill.year hoặc từ bill.billDate
+            let billYear = null;
+            if (bill.year) {
+                billYear = parseInt(bill.year);
+            } else if (bill.billDate) {
+                const billDate = parseDateInput(bill.billDate);
+                billYear = billDate ? billDate.getFullYear() : null;
+            } else if (bill.createdAt) {
+                const createdDate = safeToDate(bill.createdAt);
+                billYear = createdDate ? createdDate.getFullYear() : null;
+            }
+            return billYear == parseInt(yearFilter);
+        });
     }
     if (statusFilter) {
         if (statusFilter === 'termination') {
@@ -355,7 +398,7 @@ function renderBillsTable(bills) {
                     <div class="text-sm text-gray-500">${building ? building.code : 'N/A'} - ${bill.room}</div>
                 </div>
             </td>
-            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</td>
+            <td class="py-4 px-4">${bill.isTerminationBill ? '-' : getDisplayPeriod(bill)}</td>
             <td class="py-4 px-4">${bill.isTerminationBill ? '-' : formatMoney(bill.totalAmount)}</td>
             <td class="py-4 px-4">${bill.isTerminationBill ? '-' : formatMoney(bill.paidAmount || 0)}</td>
             <td class="py-4 px-4">
@@ -390,7 +433,7 @@ function renderBillsTable(bills) {
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Kỳ thanh toán:</span>
-                    <span class="mobile-card-value">${bill.isTerminationBill ? '-' : `Tháng ${bill.period}`}</span>
+                    <span class="mobile-card-value">${bill.isTerminationBill ? '-' : getDisplayPeriod(bill)}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Tổng tiền:</span>
@@ -913,9 +956,13 @@ async function handleBillFormSubmit(e) {
         const customer = getCustomers().find(c => c.id === customerId);
         const customerName = customer ? customer.name : '';
         
+        // Lấy năm từ billDate để lưu vào field year
+        const billYear = billDateObj.getFullYear();
+        
         const billData = {
             buildingId, room, customerId, customerName,
             period, 
+            year: billYear, // THÊM FIELD NÀY
             billDate: formattedBillDate, 
             dueDate,
             services,
