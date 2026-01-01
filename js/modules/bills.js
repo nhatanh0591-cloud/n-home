@@ -3504,7 +3504,22 @@ function findPreviousBill(buildingId, room, currentPeriod, currentYear = null) {
         b.buildingId === buildingId && 
         b.room === room && 
         parseInt(b.period) === previousMonth &&
-        (parseInt(b.year) === previousYear || (!b.year && previousYear === new Date().getFullYear()))
+        (
+            // Trường hợp 1: Có field year và khớp với previousYear
+            (b.year && parseInt(b.year) === previousYear) ||
+            // Trường hợp 2: Không có field year - tìm theo billDate hoặc createdAt
+            (!b.year && (() => {
+                let billYear = null;
+                if (b.billDate) {
+                    const billDate = parseDateInput(b.billDate);
+                    billYear = billDate ? billDate.getFullYear() : null;
+                } else if (b.createdAt) {
+                    const createdDate = safeToDate(b.createdAt);
+                    billYear = createdDate ? createdDate.getFullYear() : null;
+                }
+                return billYear === previousYear;
+            })())
+        )
     );
 }
 
