@@ -1421,8 +1421,9 @@ async function toggleBillStatus(billId, paymentDate = null) {
  * @param {string} billId - ID hóa đơn
  * @param {number} amount - Số tiền thu lần này
  * @param {string} paymentDate - Ngày thu tiền (dd-mm-yyyy)
+ * @param {string} accountId - ID tài khoản sổ quỹ được chọn (optional, dùng mặc định nếu không có)
  */
-async function collectBillPayment(billId, amount, paymentDate) {
+async function collectBillPayment(billId, amount, paymentDate, accountId = null) {
     try {
         const bill = getBills().find(b => b.id === billId);
         if (!bill) throw new Error('Không tìm thấy hóa đơn');
@@ -1460,6 +1461,9 @@ async function collectBillPayment(billId, amount, paymentDate) {
             }
         }
         
+        // Sử dụng accountId được chọn, nếu không có thì dùng mặc định từ building
+        const finalAccountId = accountId || building?.accountId || '';
+        
         const transactionCode = `PT${Date.now()}`;
         const transactionData = {
             type: 'income',
@@ -1468,7 +1472,7 @@ async function collectBillPayment(billId, amount, paymentDate) {
             room: bill.room,
             customerId: bill.customerId,
             billId: bill.id,
-            accountId: building?.accountId || '',
+            accountId: finalAccountId,
             title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
             payer: customer?.name || 'Khách hàng',
             date: transactionDate.toISOString().split('T')[0],
@@ -1691,7 +1695,7 @@ async function bulkApprove(approve) {
     }
 }
 
-async function bulkCollect(billIds = null, paymentDate = null) {
+async function bulkCollect(billIds = null, paymentDate = null, accountId = null) {
     // Nếu có billIds được truyền vào, sử dụng chúng (từ modal)
     // Nếu không, lấy từ Set mobile hoặc desktop checkboxes
     let selected;
@@ -1734,10 +1738,10 @@ async function bulkCollect(billIds = null, paymentDate = null) {
             // Tạo phiếu thu với hạng mục "Tiền hóa đơn"
             const items = await createTransactionItemsFromBillWithRealCategories(bill);
             
-            // LẤY ACCOUNT TỪ TÒA NHÀ
-            const accountId = building?.accountId || '';
+            // Sử dụng accountId được chọn, nếu không có thì dùng mặc định từ building
+            const finalAccountId = accountId || building?.accountId || '';
             
-            if (accountId) {
+            if (finalAccountId) {
                 const transactionCode = `PT${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}_${billId.slice(-4)}`;
                 // Sử dụng ngày thu tiền được chọn hoặc ngày hiện tại
                 const transactionDate = paymentDate || getCurrentDateString();
@@ -1748,7 +1752,7 @@ async function bulkCollect(billIds = null, paymentDate = null) {
                     room: bill.room,
                     customerId: bill.customerId,
                     billId: bill.id,
-                    accountId: accountId,
+                    accountId: finalAccountId,
                     title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
                     payer: customer?.name || 'Khách hàng',
                     date: transactionDate,
@@ -3695,6 +3699,47 @@ function createTransactionItemsFromBill(bill) {
 // --- HÀM XỬ LÝ MODAL THU TIỀN ---
 
 /**
+ * Load danh sách tài khoản vào dropdown thu tiền
+ */
+function loadAccountsToPaymentModal(buildingId) {
+    const accountSelect = document.getElementById('payment-account');
+    if (!accountSelect) return;
+    
+    const accounts = getAccounts();
+    const buildings = getBuildings();
+    const building = buildings.find(b => b.id === buildingId);
+    
+    // Xóa các option cũ
+    accountSelect.innerHTML = '<option value="">-- Chọn sổ quỹ --</option>';
+    
+    // Thêm các tài khoản vào dropdown
+    accounts.forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        
+        // Hiển thị tên ngân hàng - Tên chủ TK (hoặc số TK nếu không có tên)
+        let displayText = account.bank;
+        if (account.bank === 'Cash') {
+            displayText = '💰 Tiền mặt';
+        } else {
+            const name = account.accountHolder || account.accountNumber || 'Chưa rõ';
+            displayText = `🏦 ${account.bank} - ${name}`;
+        }
+        
+        option.textContent = displayText;
+        accountSelect.appendChild(option);
+    });
+    
+    // Set giá trị mặc định từ tòa nhà nếu có
+    if (building && building.accountId) {
+        accountSelect.value = building.accountId;
+    } else if (accounts.length > 0) {
+        // Nếu không có tài khoản mặc định, chọn tài khoản đầu tiên
+        accountSelect.value = accounts[0].id;
+    }
+}
+
+/**
  * Mở modal thu tiền cho hóa đơn đơn lẻ
  */
 function openPaymentModal(billId) {
@@ -3709,6 +3754,9 @@ function openPaymentModal(billId) {
     document.getElementById('payment-total-amount').textContent = formatMoney(totalAmount);
     document.getElementById('payment-paid-amount').textContent = formatMoney(paidAmount);
     document.getElementById('payment-remaining-amount').textContent = formatMoney(remainingAmount);
+    
+    // Load danh sách sổ quỹ vào dropdown
+    loadAccountsToPaymentModal(bill.buildingId);
     
     // Set ngày mặc định là hôm nay
     const today = formatDateDisplay(new Date());
@@ -3748,6 +3796,42 @@ function openPaymentModal(billId) {
 }
 
 /**
+ * Load danh sách tài khoản vào dropdown thu tiền hàng loạt
+ */
+function loadAccountsToBulkPaymentModal() {
+    const accountSelect = document.getElementById('bulk-payment-account');
+    if (!accountSelect) return;
+    
+    const accounts = getAccounts();
+    
+    // Xóa các option cũ
+    accountSelect.innerHTML = '<option value="">-- Chọn sổ quỹ --</option>';
+    
+    // Thêm các tài khoản vào dropdown
+    accounts.forEach(account => {
+        const option = document.createElement('option');
+        option.value = account.id;
+        
+        // Hiển thị tên ngân hàng - Tên chủ TK (hoặc số TK nếu không có tên)
+        let displayText = account.bank;
+        if (account.bank === 'Cash') {
+            displayText = '💰 Tiền mặt';
+        } else {
+            const name = account.accountHolder || account.accountNumber || 'Chưa rõ';
+            displayText = `🏦 ${account.bank} - ${name}`;
+        }
+        
+        option.textContent = displayText;
+        accountSelect.appendChild(option);
+    });
+    
+    // Set giá trị mặc định là tài khoản đầu tiên nếu có
+    if (accounts.length > 0) {
+        accountSelect.value = accounts[0].id;
+    }
+}
+
+/**
  * Mở modal thu tiền hàng loạt
  */
 function openBulkPaymentModal() {
@@ -3775,6 +3859,9 @@ function openBulkPaymentModal() {
     
     // Hiển thị số lượng hóa đơn
     document.getElementById('bulk-payment-count').textContent = selectedBills.length;
+    
+    // Load danh sách sổ quỹ vào dropdown
+    loadAccountsToBulkPaymentModal();
     
     // Set ngày mặc định là hôm nay
     const today = formatDateDisplay(new Date());
@@ -3804,9 +3891,17 @@ async function handleSinglePaymentConfirm() {
     const billId = modal.dataset.billId;
     const paymentDateStr = document.getElementById('payment-date').value;
     const paymentDate = parseDateInput(paymentDateStr);
+    const selectedAccountId = document.getElementById('payment-account').value;
     
     if (!paymentDate) {
         showToast('Vui lòng chọn ngày thu tiền!', 'error');
+        isProcessingPayment = false;
+        return;
+    }
+    
+    if (!selectedAccountId) {
+        showToast('Vui lòng chọn sổ quỹ!', 'error');
+        isProcessingPayment = false;
         return;
     }
     
@@ -3848,8 +3943,8 @@ async function handleSinglePaymentConfirm() {
         
         const paymentDateFormatted = paymentDate ? formatDateDisplay(paymentDate) : null;
         
-        // Gọi function mới xử lý partial payment
-        await collectBillPayment(billId, amountToCollect, paymentDateFormatted);
+        // Gọi function mới xử lý partial payment với accountId được chọn
+        await collectBillPayment(billId, amountToCollect, paymentDateFormatted, selectedAccountId);
         
         closeModal(modal);
         showToast(`Thu tiền thành công ${formatMoney(amountToCollect)}!`);
@@ -3888,9 +3983,15 @@ async function handleBulkPaymentConfirm() {
     const billIds = JSON.parse(modal.dataset.billIds || '[]');
     const paymentDateStr = document.getElementById('bulk-payment-date').value;
     const paymentDate = parseDateInput(paymentDateStr);
+    const selectedAccountId = document.getElementById('bulk-payment-account').value;
     
     if (!paymentDate) {
         showToast('Vui lòng chọn ngày thu tiền!', 'error');
+        return;
+    }
+    
+    if (!selectedAccountId) {
+        showToast('Vui lòng chọn sổ quỹ!', 'error');
         return;
     }
     
@@ -3906,7 +4007,7 @@ async function handleBulkPaymentConfirm() {
         confirmBtn.innerHTML = 'Đang xử lý...';
         
         const paymentDateFormatted = paymentDate ? formatDateDisplay(paymentDate) : null;
-        await bulkCollect(billIds, paymentDateFormatted);
+        await bulkCollect(billIds, paymentDateFormatted, selectedAccountId);
         closeModal(modal);
         
         // Reset trạng thái checkbox và ẩn nút hàng loạt

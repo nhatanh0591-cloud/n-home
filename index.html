@@ -2772,6 +2772,14 @@
                 </div>
                 
                 <div>
+                    <label for="payment-account" class="block text-sm font-medium text-gray-700 mb-2">Sổ quỹ</label>
+                    <select id="payment-account" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                        <option value="">Chọn sổ quỹ...</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Mặc định sử dụng sổ quỹ được gán cho tòa nhà</p>
+                </div>
+
+                <div>
                     <label for="payment-date" class="block text-sm font-medium text-gray-700 mb-2">Ngày thu tiền</label>
                     <input type="text" id="payment-date" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 cursor-pointer" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
                 </div>
@@ -2798,6 +2806,14 @@
             </div>
             
             <div class="p-6 space-y-4">
+                <div>
+                    <label for="bulk-payment-account" class="block text-sm font-medium text-gray-700 mb-3">Sổ quỹ</label>
+                    <select id="bulk-payment-account" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
+                        <option value="">Chọn sổ quỹ...</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Áp dụng cho tất cả hóa đơn được chọn</p>
+                </div>
+                
                 <div>
                     <label for="bulk-payment-date" class="block text-sm font-medium text-gray-700 mb-3">Chọn ngày thu tiền</label>
                     <input type="text" id="bulk-payment-date" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg cursor-pointer" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}" placeholder="dd-mm-yyyy" autocomplete="off">
