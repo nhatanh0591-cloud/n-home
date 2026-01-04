@@ -4833,7 +4833,28 @@
             // Sắp xếp theo THÁNG HÓA ĐƠN (mới nhất trước) thay vì thời gian tạo
             const sortedNotifications = [...notifications].sort((a, b) => {
                 const getBillMonth = (notification) => {
-                    // Tìm tháng từ message content
+                    // Đặc biệt cho thông báo "Xác nhận thanh toán": tìm theo số tiền
+                    if ((notification.title || '').includes('Xác nhận thanh toán')) {
+                        const paymentAmount = notification.data?.amount || 0;
+                        if (paymentAmount > 0) {
+                            // Tìm thông báo hóa đơn có cùng số tiền
+                            const matchingBillNotification = notifications.find(n => 
+                                (n.title || '').includes('Thông báo hóa đơn') && 
+                                (n.data?.amount || 0) === paymentAmount
+                            );
+                            if (matchingBillNotification) {
+                                const billMessage = matchingBillNotification.message || matchingBillNotification.title || '';
+                                const billMonthMatch = billMessage.match(/tháng\s+(\d+)(?:-(\d+))?/i);
+                                if (billMonthMatch) {
+                                    const month = parseInt(billMonthMatch[1]);
+                                    const year = billMonthMatch[2] ? parseInt(billMonthMatch[2]) : 2025;
+                                    return year * 100 + month;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Tìm tháng từ message content (cho thông báo hóa đơn)
                     const message = notification.message || notification.title || '';
                     
                     // Pattern: "tháng X-YYYY" hoặc "tháng X"
