@@ -280,10 +280,26 @@ function calculateCustomerStats() {
 function calculateBillStats(month, year) {
     const bills = getBills();
     
-    // Lọc hóa đơn theo tháng hiện tại, loại trừ hóa đơn thanh lý
+    // Lọc hóa đơn theo tháng và năm hiện tại, loại trừ hóa đơn thanh lý
     const currentMonthBills = bills.filter(bill => {
         if (parseInt(bill.period) !== month) return false;
         if (bill.isTerminationBill === true) return false;
+        
+        // Kiểm tra năm của hóa đơn
+        let billYear = null;
+        if (bill.year) {
+            billYear = parseInt(bill.year);
+        } else if (bill.billDate) {
+            const billDate = parseDateInput(bill.billDate);
+            billYear = billDate ? billDate.getFullYear() : null;
+        } else if (bill.createdAt) {
+            const createdDate = safeToDate(bill.createdAt);
+            billYear = createdDate ? createdDate.getFullYear() : null;
+        }
+        
+        // Chỉ lấy hóa đơn của năm hiện tại
+        if (billYear !== year) return false;
+        
         return true;
     });
     
