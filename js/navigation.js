@@ -32,23 +32,10 @@ const navButtons = {
     'contracts': document.getElementById('contracts-btn'),
     'customers': document.getElementById('customers-btn'),
     'bills': document.getElementById('bills-btn'),
-    'transactions': document.getElementById('finance-btn'), // 'finance-btn' là ID của mục "Thu chi"
+    'transactions': document.getElementById('finance-btn'),
     'tasks': document.getElementById('tasks-btn'),
     'notifications': document.getElementById('notifications-btn'),
     'reports': document.getElementById('reports-btn')
-};
-
-// Các menu cha (dropdown)
-const dropdownToggles = {
-    'data': document.getElementById('data-menu-toggle'),
-    'customers': document.getElementById('customers-menu-toggle'),
-    'finance': document.getElementById('finance-menu-toggle')
-};
-
-const dropdownContents = {
-    'data': document.getElementById('data-menu-content'),
-    'customers': document.getElementById('customers-menu-content'),
-    'finance': document.getElementById('finance-menu-content')
 };
 
 /**
@@ -106,60 +93,11 @@ function updateSidebarActiveState(activeSection) {
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.classList.remove('active');
     });
-    document.querySelectorAll('.sidebar-submenu-item').forEach(item => {
-        item.classList.remove('active');
-    });
 
-    // 2. KHÔNG đóng menu con nữa - giữ menu mở khi click vào item
-    // Object.values(dropdownContents).forEach(content => {
-    //     if (content) content.classList.remove('show');
-    // });
-    // document.querySelectorAll('.dropdown-arrow').forEach(arrow => {
-    //     if (arrow) arrow.classList.remove('rotated');
-    // });
-
-    // 3. Xác định mục và menu cha cần kích hoạt
-    let parentMenuToggle, parentMenuContent, activeSubMenu;
-
-    switch (activeSection) {
-        case 'buildings':
-        case 'services':
-        case 'transaction-categories':
-        case 'accounts':
-            parentMenuToggle = dropdownToggles['data'];
-            parentMenuContent = dropdownContents['data'];
-            activeSubMenu = navButtons[activeSection];
-            break;
-        case 'contracts':
-        case 'customers':
-            parentMenuToggle = dropdownToggles['customers'];
-            parentMenuContent = dropdownContents['customers'];
-            activeSubMenu = navButtons[activeSection];
-            break;
-        case 'bills':
-        case 'transactions':
-            parentMenuToggle = dropdownToggles['finance'];
-            parentMenuContent = dropdownContents['finance'];
-            activeSubMenu = navButtons[activeSection];
-            break;
-        case 'dashboard':
-        case 'tasks':
-        case 'notifications':
-        case 'reports':
-            // Các menu item độc lập (không có submenu)
-            activeSubMenu = navButtons[activeSection];
-            break;
-    }
-
-    // 4. Kích hoạt mục và menu cha (nếu có)
-    if (parentMenuToggle && parentMenuContent && activeSubMenu) {
-        parentMenuToggle.classList.add('active'); // Kích hoạt menu cha
-        parentMenuContent.classList.add('show'); // Bung menu con
-        parentMenuToggle.querySelector('.dropdown-arrow')?.classList.add('rotated'); // Xoay mũi tên
-        activeSubMenu.classList.add('active'); // Kích hoạt mục con
-    } else if (activeSubMenu) {
-        // Trường hợp là mục cha (như Bảng tin)
-        activeSubMenu.classList.add('active');
+    // 2. Kích hoạt mục được chọn
+    const activeButton = navButtons[activeSection];
+    if (activeButton) {
+        activeButton.classList.add('active');
     }
 }
 
@@ -177,31 +115,7 @@ export function initNavigation(loadCallback) {
             button.addEventListener('click', (e) => {
                 e.preventDefault();
                 // Khi click, gọi hàm showSection và truyền vào hàm tải dữ liệu tương ứng
-                // (loadCallback sẽ là một object chứa các hàm load, ví dụ: loadCallback.loadBills)
                 showSection(sectionName, loadCallback[sectionName]);
-            });
-        }
-    });
-
-    // Lắng nghe click vào các menu cha (dropdown)
-    Object.values(dropdownToggles).forEach(toggle => {
-        if (toggle) {
-            toggle.addEventListener('click', (e) => {
-                const dropdown = e.target.closest('.dropdown-menu');
-                const content = dropdown.querySelector('.dropdown-content');
-                const arrow = dropdown.querySelector('.dropdown-arrow');
-
-                // Đóng các menu khác
-                Object.values(dropdownContents).forEach(dc => {
-                    if (dc && dc !== content) dc.classList.remove('show');
-                });
-                document.querySelectorAll('.dropdown-arrow').forEach(da => {
-                    if (da && da !== arrow) da.classList.remove('rotated');
-                });
-
-                // Mở/đóng menu hiện tại
-                if (content) content.classList.toggle('show');
-                if (arrow) arrow.classList.toggle('rotated');
             });
         }
     });

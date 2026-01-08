@@ -771,7 +771,16 @@ window.markAsRead = async function(notificationId) {
         showToast('Đã đánh dấu đã đọc!');
     } catch (error) {
         console.error('Lỗi khi đánh dấu thông báo đã đọc:', error);
-        showToast('Lỗi: ' + error.message, 'error');
+        
+        // Nếu document không tồn tại, xóa khỏi localStorage
+        if (error.message && error.message.includes('No document to update')) {
+            console.warn(`Document ${notificationId} không tồn tại, xóa khỏi cache`);
+            deleteFromLocalStorage('notifications', notificationId);
+            window.dispatchEvent(new CustomEvent('store:notifications:updated'));
+            showToast('Thông báo đã được loại bỏ khỏi danh sách', 'info');
+        } else {
+            showToast('Lỗi: ' + error.message, 'error');
+        }
     }
 };
 
@@ -839,25 +848,52 @@ async function markAllAsRead() {
             return;
         }
         
+        let successCount = 0;
+        let removedCount = 0;
+        
         for (const notification of targetNotifications) {
-            // Update Firebase
-            await updateDoc(doc(db, 'adminNotifications', notification.id), {
-                isRead: true,
-                readAt: serverTimestamp()
-            });
-            
-            // Update localStorage
-            updateInLocalStorage('notifications', notification.id, {
-                isRead: true,
-                readAt: new Date()
-            });
+            try {
+                // Update Firebase
+                await updateDoc(doc(db, 'adminNotifications', notification.id), {
+                    isRead: true,
+                    readAt: serverTimestamp()
+                });
+                
+                // Update localStorage
+                updateInLocalStorage('notifications', notification.id, {
+                    isRead: true,
+                    readAt: new Date()
+                });
+                
+                successCount++;
+            } catch (error) {
+                console.error(`Lỗi khi update notification ${notification.id}:`, error);
+                
+                // Nếu document không tồn tại, xóa khỏi localStorage
+                if (error.message && error.message.includes('No document to update')) {
+                    console.warn(`Document ${notification.id} không tồn tại, xóa khỏi cache`);
+                    deleteFromLocalStorage('notifications', notification.id);
+                    removedCount++;
+                } else {
+                    // Lỗi khác, throw để dừng vòng lặp
+                    throw error;
+                }
+            }
         }
         
         // Dispatch event để UI cập nhật
         window.dispatchEvent(new CustomEvent('store:notifications:updated'));
         
         resetBulkSelection();
-        showToast(`Đã đánh dấu ${targetNotifications.length} thông báo là đã đọc!`);
+        
+        // Hiển thị kết quả
+        if (successCount > 0 && removedCount > 0) {
+            showToast(`Đã đánh dấu ${successCount} thông báo là đã đọc và loại bỏ ${removedCount} thông báo không tồn tại!`);
+        } else if (successCount > 0) {
+            showToast(`Đã đánh dấu ${successCount} thông báo là đã đọc!`);
+        } else if (removedCount > 0) {
+            showToast(`Đã loại bỏ ${removedCount} thông báo không tồn tại khỏi danh sách!`, 'info');
+        }
         
         // Refresh filter để cập nhật danh sách
         applyNotificationFilters();
