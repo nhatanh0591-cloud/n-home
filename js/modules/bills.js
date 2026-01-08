@@ -116,7 +116,7 @@ const billDetailModal = document.getElementById('bill-detail-modal');
 
 const importBillsModal = document.getElementById('import-bills-modal');
 const importBillMonthSelect = document.getElementById('import-bill-month');
-const importBillYearSelect = document.getElementById('import-bill-year');
+const importBillYearInput = document.getElementById('import-bill-year');
 const importBillBuildingSelect = document.getElementById('import-bill-building');
 
 // --- HÀM CHÍNH ---
@@ -584,6 +584,11 @@ function loadBillFilterOptions() {
         filterBuildingEl.innerHTML += `<option value="${building.id}">${building.code}</option>`;
     });
     filterBuildingEl.value = currentBuilding;
+    
+    // Set năm hiện tại làm mặc định nếu chưa có giá trị
+    if (!filterYearEl.value) {
+        filterYearEl.value = new Date().getFullYear().toString();
+    }
     
     // Cập nhật phòng
     handleBuildingFilterChange();
@@ -3050,7 +3055,7 @@ function initImportModal() {
             importBillBuildingSelect.innerHTML += `<option value="${building.id}">${building.code}</option>`;
         });
         importBillMonthSelect.value = '';
-        importBillYearSelect.value = new Date().getFullYear().toString(); // Mặc định là năm hiện tại
+        importBillYearInput.value = new Date().getFullYear().toString(); // Mặc định là năm hiện tại
         document.getElementById('import-bills-file-name').textContent = '';
         document.getElementById('import-bills-file').value = '';
         openModal(importBillsModal);
@@ -3060,7 +3065,7 @@ function initImportModal() {
     document.getElementById('cancel-import-bills-btn').addEventListener('click', () => closeModal(importBillsModal));
     document.getElementById('download-bill-template-link').addEventListener('click', () => {
         const month = importBillMonthSelect.value;
-        const year = importBillYearSelect.value;
+        const year = importBillYearInput.value;
         const buildingId = importBillBuildingSelect.value;
         
         if (!month || !year || !buildingId) {
@@ -3080,7 +3085,7 @@ function downloadBillTemplate(buildingId, month, year) {
     // Nếu gọi từ event listener thì lấy từ select
     if (!buildingId) {
         month = parseInt(importBillMonthSelect.value);
-        year = parseInt(importBillYearSelect.value);
+        year = parseInt(importBillYearInput.value);
         buildingId = importBillBuildingSelect.value;
     }
     
