@@ -1,7 +1,7 @@
 // admin-sw.js
 // Service Worker cho N-Home PWA
 
-const CACHE_NAME = 'n-home-admin-v2';
+const CACHE_NAME = 'n-home-admin-v3';
 const urlsToCache = [
     '/index.html',
     '/styles.css',
@@ -30,6 +30,7 @@ const urlsToCache = [
 // Install Service Worker
 self.addEventListener('install', (event) => {
     console.log('N-Home SW: Installing...');
+    self.skipWaiting(); // Kích hoạt ngay, không chờ
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
@@ -52,17 +53,27 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim()) // Chiếm quyền ngay cho tất cả tab
     );
 });
 
 // Fetch từ cache hoặc network
 self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+    
+    // Bỏ qua request đến domain bên ngoài (vietqr, firebase, v.v.) - để browser tự xử lý
+    if (url.origin !== self.location.origin) {
+        return;
+    }
+    
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
                 // Trả về từ cache nếu có, hoặc fetch từ network
                 return response || fetch(event.request);
+            })
+            .catch(() => {
+                return caches.match('/index.html');
             })
     );
 });

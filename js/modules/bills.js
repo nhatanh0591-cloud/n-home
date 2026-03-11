@@ -2922,92 +2922,91 @@ async function showBillDetail(billId) {
     }
     const qrImg = document.getElementById('bill-detail-qr');
     
+    // Reset QR mỗi lần mở
+    if (qrImg) {
+        qrImg.style.display = 'block';
+        qrImg.src = '';
+    }
+    
     // 🔍 Kiểm tra xem hóa đơn đã thu tiền chưa
     let targetAccountId = null;
     
     if (bill.status === 'paid' && relatedTransactions.length > 0) {
-        // 🔒 HÓA ĐƠN ĐÃ THU: Dùng tài khoản từ phiếu thu đầu tiên (cố định)
         const firstTransaction = relatedTransactions[0];
         targetAccountId = firstTransaction.accountId;
         console.log(`🔒 Hóa đơn đã thu - dùng tài khoản từ phiếu thu: ${targetAccountId}`);
     } else {
-        // 🔄 HÓA ĐƠN CHƯA THU: Dùng tài khoản hiện tại của tòa nhà  
         targetAccountId = building?.accountId;
         console.log(`🔄 Hóa đơn chưa thu - dùng tài khoản hiện tại: ${targetAccountId}`);
     }
 
-    // Lấy thông tin tài khoản
-    let qrUrl = '';
-    let usingAssignedAccount = false;
+    // Hàm tìm account và set QR
+    const BANK_ID_MAP = {
+        'VietcomBank': '970436',
+        'BIDV': '970418', 
+        'VietinBank': '970415',
+        'Agribank': '970405',
+        'ACB': '970416',
+        'Techcombank': '970407',
+        'MBBank': '970422',
+        'TPBank': '970423',
+        'Sacombank': '970403',
+        'HDBank': '970437',
+        'VPBank': '970432',
+        'SHB': '970443',
+        'Eximbank': '970431',
+        'MSB': '970426',
+        'OCB': '970448',
+        'Nam A Bank': '970428'
+    };
     
-    if (targetAccountId) {
+    const trySetQR = () => {
+        if (!targetAccountId || !qrImg) return false;
         const accounts = getAccounts();
-        if (accounts && accounts.length > 0) {
-            const assignedAccount = accounts.find(acc => acc.id === targetAccountId);
-            
-            if (assignedAccount) {
-                console.log('🔍 DEBUG assigned account:', assignedAccount);
-                
-                if (assignedAccount.bank === 'Cash') {
-                    // Tiền mặt - chỉ ẩn QR thôi, không hiện gì thêm
-                    qrImg.style.display = 'none';
-                    
-                    // Ẩn luôn thông báo nếu có
-                    const cashDiv = document.getElementById('cash-payment-notice');
-                    if (cashDiv) {
-                        cashDiv.style.display = 'none';
-                    }
-                    
-                    console.log('💵 Tiền mặt - ẩn QR code');
-                    // KHÔNG return ở đây để modal vẫn mở được
-                } else if (assignedAccount.accountNumber) {
-                    // Reset - ẩn thông báo tiền mặt, hiện lại QR
-                    const cashDiv = document.getElementById('cash-payment-notice');
-                    if (cashDiv) cashDiv.style.display = 'none';
-                    qrImg.style.display = 'block';
-                    
-                    // Có tài khoản ngân hàng được gán
-                    const BANK_ID_MAP = {
-                        'VietcomBank': '970436',
-                        'BIDV': '970418', 
-                        'VietinBank': '970415',
-                        'Agribank': '970405',
-                        'ACB': '970416',
-                        'Techcombank': '970407',
-                        'MBBank': '970422',
-                        'TPBank': '970423',
-                        'Sacombank': '970403',
-                        'HDBank': '970437',
-                        'VPBank': '970432',
-                        'SHB': '970443',
-                        'Eximbank': '970431',
-                        'MSB': '970426',
-                        'OCB': '970448',
-                        'Nam A Bank': '970428'  // Nam A Bank
-                    };
-                    let bankId = BANK_ID_MAP[assignedAccount.bank] || assignedAccount.bankId || '970416';
-                    
-                    const accountNo = assignedAccount.accountNumber;
-                    const accountName = assignedAccount.accountHolder || 'KHACH HANG';
-                    
-                    console.log('🏦 QR Info:', { bank: assignedAccount.bank, bankId, accountNo, accountName });
-                    
-                    qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-qr_only.jpg?amount=${bill.totalAmount}&addInfo=${encodeURIComponent(qrContent)}&accountName=${encodeURIComponent(accountName)}`;
-                    usingAssignedAccount = true;
-                    
-                    console.log('✅ Using account:', assignedAccount.bank, accountNo, 'BankID:', bankId);
-                }
-            }
+        if (!accounts || accounts.length === 0) return false;
+        const assignedAccount = accounts.find(acc => acc.id === targetAccountId);
+        if (!assignedAccount) return false;
+        
+        if (assignedAccount.bank === 'Cash') {
+            qrImg.style.display = 'none';
+            const cashDiv = document.getElementById('cash-payment-notice');
+            if (cashDiv) cashDiv.style.display = 'none';
+            return true;
         }
-    }
+        
+        if (!assignedAccount.accountNumber) return false;
+        
+        const cashDiv = document.getElementById('cash-payment-notice');
+        if (cashDiv) cashDiv.style.display = 'none';
+        qrImg.style.display = 'block';
+        
+        const bankId = BANK_ID_MAP[assignedAccount.bank] || assignedAccount.bankId || '970416';
+        const accountNo = assignedAccount.accountNumber;
+        const accountName = assignedAccount.accountHolder || 'KHACH HANG';
+        
+        const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-qr_only.jpg?amount=${bill.totalAmount}&addInfo=${encodeURIComponent(qrContent)}&accountName=${encodeURIComponent(accountName)}`;
+        
+        // Dùng fetch để tải ảnh QR (tránh bị Service Worker chặn)
+        fetch(qrUrl).then(res => {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.blob();
+        }).then(blob => {
+            qrImg.src = URL.createObjectURL(blob);
+        }).catch(() => {
+            // Fallback: gán trực tiếp
+            qrImg.src = qrUrl;
+        });
+        
+        return true;
+    };
     
-    // Chỉ hiển thị QR nếu có URL (không phải tiền mặt)
-    if (qrUrl) {
-        qrImg.src = qrUrl;
-    } else if (!targetAccountId) {
-        // Chỉ báo lỗi khi thực sự chưa có tài khoản gì cả
-        console.error('❌ KHÔNG CÓ TÀI KHOẢN CHO HÓA ĐƠN NÀY!');
-        qrImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2ZmMDAwMCIvPjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1zaXplPSIxNCI+Q2h1YSBnYW4gdGFpIGtob2FuPC90ZXh0Pjwvc3ZnPg==';
+    if (!targetAccountId) {
+        if (qrImg) qrImg.style.display = 'none';
+    } else if (!trySetQR()) {
+        let retries = 0;
+        const retryTimer = setInterval(() => {
+            if (trySetQR() || ++retries >= 15) clearInterval(retryTimer);
+        }, 200);
     }
 
     openModal(billDetailModal);
