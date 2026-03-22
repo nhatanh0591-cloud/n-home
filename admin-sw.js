@@ -1,7 +1,7 @@
 // admin-sw.js
 // Service Worker cho N-Home PWA
 
-const CACHE_NAME = 'n-home-admin-v3';
+const CACHE_NAME = 'n-home-admin-v4';
 const urlsToCache = [
     '/index.html',
     '/styles.css',
@@ -67,13 +67,18 @@ self.addEventListener('fetch', (event) => {
     }
     
     event.respondWith(
-        caches.match(event.request)
+        // ignoreSearch: true -> 'styles.css?v=8.5' match được cache entry '/styles.css'
+        caches.match(event.request, { ignoreSearch: true })
             .then((response) => {
-                // Trả về từ cache nếu có, hoặc fetch từ network
                 return response || fetch(event.request);
             })
             .catch(() => {
-                return caches.match('/index.html');
+                // Chỉ trả index.html cho navigate (gõ URL, click link)
+                // KHÔNG trả index.html cho CSS/JS/image - tránh HTML bị parse làm asset
+                if (event.request.mode === 'navigate') {
+                    return caches.match('/index.html', { ignoreSearch: true });
+                }
+                return Response.error();
             })
     );
 });
