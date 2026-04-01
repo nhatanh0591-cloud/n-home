@@ -1157,7 +1157,7 @@ export function showContractDetail(contractId) {
     setEl('contract-detail-customer-phone', customer ? customer.phone : 'N/A');
     
     // Thông tin phòng
-    setEl('contract-detail-building', building ? `${building.code} - ${building.name}` : 'N/A');
+    setEl('contract-detail-building', building ? (building.name ? `${building.code} - ${building.name}` : building.code) : 'N/A');
     setEl('contract-detail-room', contract.room || 'N/A');
     setEl('contract-detail-rent', formatMoney(contract.rentPrice) + ' VNĐ');
     setEl('contract-detail-deposit', formatMoney(contract.deposit || 0) + ' VNĐ');
