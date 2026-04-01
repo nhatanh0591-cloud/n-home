@@ -60,6 +60,8 @@ const contractServicesListEl = document.getElementById('contract-services-list')
 const quickCustomerModal = document.getElementById('quick-customer-modal');
 const quickCustomerForm = document.getElementById('quick-customer-form');
 
+const contractDetailModal = document.getElementById('contract-detail-modal');
+
 const selectContractServiceModal = document.getElementById('select-contract-service-modal');
 const availableContractServicesListEl = document.getElementById('available-contract-services-list');
 const searchContractServicesInput = document.getElementById('search-contract-services');
@@ -159,6 +161,9 @@ export function initContracts() {
 
     // Khởi tạo modal import
     initImportModal();
+    
+    // Export hàm để có thể gọi từ onclick
+    window.showContractDetail = showContractDetail;
 }
 
 /**
@@ -363,7 +368,7 @@ function renderContractsPage() {
             </td>
             <td class="py-4 px-4">
                 <div>
-                    <div class="font-medium">${customer ? customer.name : 'N/A'}</div>
+                    <div class="font-medium cursor-pointer hover:bg-gray-100 rounded transition-colors" onclick="window.showContractDetail('${contract.id}')" title="Click để xem chi tiết">${customer ? customer.name : 'N/A'}</div>
                     <div class="text-sm text-gray-500">${building ? building.code : 'N/A'} - ${contract.room || 'Chưa có phòng'}</div>
                 </div>
             </td>
@@ -373,8 +378,8 @@ function renderContractsPage() {
             <td class="py-4 px-4 text-center">${vehicleCount}</td>
             <td class="py-4 px-4 whitespace-nowrap">${formatMoney(contract.rentPrice)} VNĐ</td>
             <td class="py-4 px-4 whitespace-nowrap">${formatMoney(contract.deposit || 0)} VNĐ</td>
-            <td class="py-4 px-4">
-                <span class="px-2 py-1 rounded-full text-xs font-medium ${statusInfo.className}">
+            <td class="py-4 px-4 text-center">
+                <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block ${statusInfo.className}">
                     ${statusInfo.text}
                 </span>
             </td>
@@ -393,7 +398,7 @@ function renderContractsPage() {
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Khách hàng:</span>
-                    <span class="mobile-card-value font-medium">${customer ? customer.name : 'N/A'}</span>
+                    <span class="mobile-card-value font-medium cursor-pointer hover:underline" onclick="window.showContractDetail('${contract.id}')">${customer ? customer.name : 'N/A'}</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Phòng:</span>
@@ -418,7 +423,7 @@ function renderContractsPage() {
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Trạng thái:</span>
                     <span class="mobile-card-value">
-                        <span class="px-2 py-1 rounded-full text-xs font-medium ${statusInfo.className}">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block ${statusInfo.className}">
                             ${statusInfo.text}
                         </span>
                     </span>
@@ -630,6 +635,12 @@ async function handleBodyClick(e) {
             selectedMobileContractIds.delete(contractId);
         }
         updateClearSelectionButton();
+        return;
+    }
+    
+    // Đóng modal chi tiết hợp đồng
+    if (target.id === 'close-contract-detail-modal') {
+        closeModal(contractDetailModal);
         return;
     }
     
@@ -1107,6 +1118,108 @@ function updateClearSelectionButton() {
             btn.classList.add('hidden');
         }
     }
+}
+
+/**
+ * Hiển thị chi tiết hợp đồng trong modal
+ */
+export function showContractDetail(contractId) {
+    const contract = getContracts().find(c => c.id === contractId);
+    if (!contract) {
+        showToast('Không tìm thấy hợp đồng!', 'error');
+        return;
+    }
+    
+    const building = getBuildings().find(b => b.id === contract.buildingId);
+    const customer = getCustomers().find(c => c.id === contract.representativeId);
+    const statusInfo = getStatusInfo(contract.status || getContractStatus(contract));
+    const contractNumber = `CT${contract.id.slice(-6).toUpperCase()}`;
+    
+    // Helper function để set text
+    const setEl = (id, text) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = text || 'N/A';
+        }
+    };
+    
+    // Thông tin cơ bản
+    setEl('contract-detail-number', contractNumber);
+    const statusEl = document.getElementById('contract-detail-status');
+    if (statusEl) {
+        statusEl.innerHTML = `<span class="px-2 py-1 rounded-full text-xs font-medium ${statusInfo.className}">${statusInfo.text}</span>`;
+    }
+    setEl('contract-detail-start-date', formatDateDisplay(contract.startDate));
+    setEl('contract-detail-end-date', formatDateDisplay(contract.endDate));
+    
+    // Thông tin khách hàng
+    setEl('contract-detail-customer-name', customer ? customer.name : 'N/A');
+    setEl('contract-detail-customer-phone', customer ? customer.phone : 'N/A');
+    
+    // Thông tin phòng
+    setEl('contract-detail-building', building ? `${building.code} - ${building.name}` : 'N/A');
+    setEl('contract-detail-room', contract.room || 'N/A');
+    setEl('contract-detail-rent', formatMoney(contract.rentPrice) + ' VNĐ');
+    setEl('contract-detail-deposit', formatMoney(contract.deposit || 0) + ' VNĐ');
+    
+    // Dịch vụ đính kèm
+    const servicesListEl = document.getElementById('contract-detail-services-list');
+    servicesListEl.innerHTML = '';
+    
+    if (contract.serviceDetails && contract.serviceDetails.length > 0) {
+        contract.serviceDetails.forEach((serviceDetail, index) => {
+            const service = getServices().find(s => s.id === serviceDetail.serviceId);
+            const serviceName = service ? service.name : 'Dịch vụ không xác định';
+            const quantity = serviceDetail.quantity || 1;
+            const unit = service ? service.unit : '';
+            const oldReading = serviceDetail.oldReading || serviceDetail.initialReading || '-';
+            
+            // Kiểm tra xem có phải dịch vụ điện không (theo tên hoặc đơn vị)
+            const isElectric = serviceName.toLowerCase().includes('điện') || unit.toLowerCase().includes('kwh');
+            
+            const serviceItem = document.createElement('div');
+            serviceItem.className = 'bg-white rounded-lg p-3 border border-orange-200';
+            
+            if (isElectric) {
+                // Tiền điện: chỉ hiện chỉ số đầu
+                serviceItem.innerHTML = `
+                    <div class="font-semibold text-gray-900 mb-2">${index + 1}. ${serviceName}</div>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-600">Chỉ số đầu:</span>
+                            <span class="font-medium ml-1">${oldReading}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">Đơn vị:</span>
+                            <span class="font-medium ml-1">${unit}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Các dịch vụ khác: chỉ hiện số lượng và đơn vị
+                serviceItem.innerHTML = `
+                    <div class="font-semibold text-gray-900 mb-2">${index + 1}. ${serviceName}</div>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-600">Số lượng:</span>
+                            <span class="font-medium ml-1">${quantity}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600">Đơn vị:</span>
+                            <span class="font-medium ml-1">${unit}</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            servicesListEl.appendChild(serviceItem);
+        });
+    } else {
+        servicesListEl.innerHTML = '<div class="text-center text-gray-500 py-4">Không có dịch vụ nào</div>';
+    }
+    
+    // Mở modal
+    openModal(contractDetailModal);
 }
 
 /**
@@ -1688,10 +1801,10 @@ function getContractStatus(contract) {
  */
 function getStatusInfo(status) {
     switch (status) {
-        case 'active': return { text: 'Đang thuê', className: 'bg-green-100 text-green-800' };
-        case 'expiring': return { text: 'Sắp hết hạn', className: 'bg-yellow-100 text-yellow-800' };
-        case 'expired': return { text: 'Quá hạn', className: 'bg-red-100 text-red-800' };
-        case 'terminated': return { text: 'Đã thanh lý', className: 'bg-gray-100 text-gray-800' };
+        case 'active': return { text: '🟢 Thuê', className: 'bg-green-100 text-green-800' };
+        case 'expiring': return { text: '🟡 Sắp hết', className: 'bg-yellow-100 text-yellow-800' };
+        case 'expired': return { text: '🔴 Quá hạn', className: 'bg-red-100 text-red-800' };
+        case 'terminated': return { text: '⚫ Thanh lý', className: 'bg-gray-100 text-gray-800' };
         default: return { text: 'Không xác định', className: 'bg-gray-100 text-gray-800' };
     }
 }

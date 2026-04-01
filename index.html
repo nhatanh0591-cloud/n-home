@@ -2620,6 +2620,87 @@
         </div>
     </div>
 
+    <!-- Modal Chi Tiết Hợp Đồng -->
+    <div id="contract-detail-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl modal-content transform scale-95 max-h-[95vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Chi tiết Hợp đồng</h3>
+                <button id="close-contract-detail-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <div class="border-2 border-gray-800 rounded-lg p-6">
+                    <!-- Thông tin cơ bản -->
+                    <div class="mb-6 bg-gray-50 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-4 text-gray-800">Thông tin Hợp đồng</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-600">Mã hợp đồng:</p>
+                                <p id="contract-detail-number" class="font-semibold text-gray-900 text-lg"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Trạng thái:</p>
+                                <p id="contract-detail-status" class="font-semibold"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Ngày bắt đầu:</p>
+                                <p id="contract-detail-start-date" class="font-semibold text-gray-900"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Ngày kết thúc:</p>
+                                <p id="contract-detail-end-date" class="font-semibold text-gray-900"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Thông tin khách hàng -->
+                    <div class="mb-6 bg-blue-50 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-4 text-blue-800">Thông tin Khách hàng</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-600">Tên khách hàng:</p>
+                                <p id="contract-detail-customer-name" class="font-semibold text-gray-900"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Số điện thoại:</p>
+                                <p id="contract-detail-customer-phone" class="font-semibold text-gray-900"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Thông tin phòng -->
+                    <div class="mb-6 bg-green-50 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-4 text-green-800">Thông tin Phòng</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-600">Tòa nhà:</p>
+                                <p id="contract-detail-building" class="font-semibold text-gray-900"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Phòng:</p>
+                                <p id="contract-detail-room" class="font-semibold text-gray-900 text-lg"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Giá thuê:</p>
+                                <p id="contract-detail-rent" class="font-semibold text-green-600 text-lg"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Tiền cọc:</p>
+                                <p id="contract-detail-deposit" class="font-semibold text-orange-600 text-lg"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dịch vụ đính kèm -->
+                    <div class="bg-orange-50 rounded-lg p-4">
+                        <h4 class="text-lg font-semibold mb-4 text-orange-800">Dịch vụ đính kèm</h4>
+                        <div id="contract-detail-services-list" class="space-y-3">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="import-bills-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
             <div class="p-5 border-b flex justify-between items-center">
