@@ -1409,17 +1409,15 @@ async function bulkDelete() {
 function handleExport() {
     if (transactionsCache_filtered.length === 0) return showToast('Không có dữ liệu để xuất!', 'error');
     
-    const buildings = getBuildings();
     const data = transactionsCache_filtered.map(t => ({
-        'Mã phiếu': t.code,
-        'Loại': t.type === 'income' ? 'Thu' : 'Chi',
+        'Mã tòa nhà': '',
+        'Loại': '',
         'Tên phiếu': t.title,
-        'Số tiền': t.amount,
-        'Ngày': formatDateForDisplay(t.date),
-        'Người nộp/nhận': t.payer,
-        'Tòa nhà': buildings.find(b => b.id === t.buildingId)?.code || '',
-        'Phòng': t.room,
-        'Trạng thái': t.approved ? 'Đã duyệt' : 'Chưa duyệt'
+        'Người nộp/nhận': '',
+        'Tên số quỹ': '',
+        'Ngày (dd-mm-yyyy)': formatDateForDisplay(t.date),
+        'Hạng mục': '',
+        'Số tiền': Number(t.amount).toLocaleString('en-US')
     }));
     
     exportToExcel(data, 'Danh_sach_thu_chi');
