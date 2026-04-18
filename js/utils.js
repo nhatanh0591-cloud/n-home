@@ -305,7 +305,7 @@ export const closeModal = (modalEl) => {
 /**
  * Xuất dữ liệu ra file Excel
  */
-export function exportToExcel(data, fileName, dropdownConfig = null) {
+export function exportToExcel(data, fileName, dropdownConfig = null, columnFormats = null) {
     try {
         if (!data || data.length === 0) {
             showToast('Không có dữ liệu để xuất!', 'error');
@@ -332,6 +332,16 @@ export function exportToExcel(data, fileName, dropdownConfig = null) {
             colWidths.push({ wch: Math.min(maxWidth + 2, 50) }); // Giới hạn 50 ký tự
         }
         ws['!cols'] = colWidths;
+
+        // Áp dụng định dạng số cho các cột được chỉ định (columnFormats: { colIndex: numFmt })
+        if (columnFormats) {
+            for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                for (const [colIdx, fmt] of Object.entries(columnFormats)) {
+                    const cellAddr = XLSX.utils.encode_cell({r: R, c: Number(colIdx)});
+                    if (ws[cellAddr]) ws[cellAddr].z = fmt;
+                }
+            }
+        }
         
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Data');

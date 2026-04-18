@@ -1409,18 +1409,24 @@ async function bulkDelete() {
 function handleExport() {
     if (transactionsCache_filtered.length === 0) return showToast('Không có dữ liệu để xuất!', 'error');
     
-    const data = transactionsCache_filtered.map(t => ({
-        'Mã tòa nhà': '',
-        'Loại': '',
-        'Tên phiếu': t.title,
-        'Người nộp/nhận': '',
-        'Tên số quỹ': '',
-        'Ngày (dd-mm-yyyy)': formatDateForDisplay(t.date),
-        'Hạng mục': '',
-        'Số tiền': Number(t.amount).toLocaleString('en-US')
-    }));
+    const data = transactionsCache_filtered.map(t => {
+        const totalAmount = t.items && t.items.length > 0
+            ? t.items.reduce((sum, item) => sum + (item.amount || 0), 0)
+            : 0;
+        return {
+            'Mã tòa nhà': '',
+            'Loại': '',
+            'Tên phiếu': t.title,
+            'Người nộp/nhận': '',
+            'Tên số quỹ': '',
+            'Ngày (dd-mm-yyyy)': formatDateForDisplay(t.date),
+            'Hạng mục': '',
+            'Số tiền': totalAmount
+        };
+    });
     
-    exportToExcel(data, 'Danh_sach_thu_chi');
+    // Cột H (index 7) = Số tiền → numFmt dấu phẩy, vẫn là số để SUM được
+    exportToExcel(data, 'Danh_sach_thu_chi', null, { 7: '#,##0' });
     showToast('Xuất dữ liệu thành công!');
 }
 
