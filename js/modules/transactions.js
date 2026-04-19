@@ -1406,6 +1406,46 @@ async function bulkDelete() {
     }
 }
 
+function guessBuilding(title) {
+    if (!title) return '';
+
+    // Chỉ lấy các buildings đang hoạt động
+    const activeBuildings = getBuildings().filter(b => b.isActive !== false);
+
+    // Trích phần số đầu của mã tòa nhà để so sánh: '644VVK' → '644', '34THD' → '34', '12/5NVD' → '12'
+    const buildingNumbers = activeBuildings.map(b => {
+        const m = (b.code || '').match(/^(\d+)/);
+        return { building: b, numStr: m ? m[1] : null };
+    }).filter(x => x.numStr && x.numStr.length >= 2);
+
+    // Tách các token trong title, chỉ lấy token có chữ thường (nội dung mày nhập, không phải ngân hàng)
+    const tokens = title.split(/\s+/).filter(token => /[a-z]/.test(token));
+
+    let bestMatch = null;
+    let bestLen = 0;
+
+    for (const token of tokens) {
+        // Trích tất cả chuỗi chữ số trong token (không chỉ đuôi), ưu tiên đuôi trước
+        const allNums = [...token.matchAll(/\d+/g)].map(m => m[0]).reverse(); // reverse để ưu tiên đuôi
+
+        for (const numStr of allNums) {
+            // Thử khớp từ dài nhất (3 số) xuống 2 số
+            for (let len = Math.min(numStr.length, 3); len >= 2; len--) {
+                const sub = numStr.slice(-len); // lấy 'len' số cuối
+                const matches = buildingNumbers.filter(x => x.numStr === sub);
+                if (matches.length === 1 && sub.length > bestLen) {
+                    bestMatch = matches[0].building.code;
+                    bestLen = sub.length;
+                }
+            }
+            if (bestMatch) break;
+        }
+        if (bestMatch) break;
+    }
+
+    return bestMatch || '';
+}
+
 function handleExport() {
     if (transactionsCache_filtered.length === 0) return showToast('Không có dữ liệu để xuất!', 'error');
     
@@ -1414,11 +1454,11 @@ function handleExport() {
             ? t.items.reduce((sum, item) => sum + (item.amount || 0), 0)
             : 0;
         return {
-            'Mã tòa nhà': '',
-            'Loại': '',
+            'Mã tòa nhà': guessBuilding(t.title),
+            'Loại': t.type === 'income' ? 'Thu' : 'Chi',
             'Tên phiếu': t.title,
             'Người nộp/nhận': '',
-            'Tên số quỹ': '',
+            'Tên số quỹ': 'MB Bank - DANG NHAT ANH',
             'Ngày (dd-mm-yyyy)': formatDateForDisplay(t.date),
             'Hạng mục': '',
             'Số tiền': totalAmount
