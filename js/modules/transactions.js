@@ -1453,14 +1453,18 @@ function handleExport() {
         const totalAmount = t.items && t.items.length > 0
             ? t.items.reduce((sum, item) => sum + (item.amount || 0), 0)
             : 0;
+        const buildings = getBuildings();
+        const assignedBuilding = t.buildingId ? buildings.find(b => b.id === t.buildingId) : null;
+        const buildingCode = assignedBuilding ? (assignedBuilding.code || '') : guessBuilding(t.title);
+        const categoryName = t.items && t.items.length > 0 ? (t.items[0].name || '') : '';
         return {
-            'Mã tòa nhà': guessBuilding(t.title),
+            'Mã tòa nhà': buildingCode,
             'Loại': t.type === 'income' ? 'Thu' : 'Chi',
             'Tên phiếu': t.title,
-            'Người nộp/nhận': '',
+            'Người nộp/nhận': (t.payer && t.payer !== t.title) ? t.payer : '',
             'Tên sổ quỹ': 'MB Bank - DANG NHAT ANH',
             'Ngày (dd-mm-yyyy)': formatDateForDisplay(t.date),
-            'Hạng mục': '',
+            'Hạng mục': categoryName,
             'Số tiền': totalAmount
         };
     });
