@@ -1458,7 +1458,7 @@ function handleExport() {
             'Loại': t.type === 'income' ? 'Thu' : 'Chi',
             'Tên phiếu': t.title,
             'Người nộp/nhận': '',
-            'Tên số quỹ': 'MB Bank - DANG NHAT ANH',
+            'Tên sổ quỹ': 'MB Bank - DANG NHAT ANH',
             'Ngày (dd-mm-yyyy)': formatDateForDisplay(t.date),
             'Hạng mục': '',
             'Số tiền': totalAmount
