@@ -305,7 +305,7 @@ export const closeModal = (modalEl) => {
 /**
  * Xuất dữ liệu ra file Excel
  */
-export function exportToExcel(data, fileName, dropdownConfig = null, columnFormats = null) {
+export function exportToExcel(data, fileName, dropdownConfig = null, columnFormats = null, guideSheetData = null) {
     try {
         if (!data || data.length === 0) {
             showToast('Không có dữ liệu để xuất!', 'error');
@@ -345,7 +345,25 @@ export function exportToExcel(data, fileName, dropdownConfig = null, columnForma
         
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Data');
-        
+
+        // Thêm tab Hướng dẫn nếu có guideSheetData
+        if (guideSheetData && guideSheetData.length > 0) {
+            const guideWs = XLSX.utils.aoa_to_sheet(guideSheetData);
+            // Tự động độ rộng cột cho sheet hướng dẫn
+            const guideColWidths = [];
+            const guideRange = XLSX.utils.decode_range(guideWs['!ref']);
+            for (let C = guideRange.s.c; C <= guideRange.e.c; ++C) {
+                let maxW = 15;
+                for (let R = guideRange.s.r; R <= guideRange.e.r; ++R) {
+                    const cell = guideWs[XLSX.utils.encode_cell({r: R, c: C})];
+                    if (cell && cell.v) maxW = Math.max(maxW, String(cell.v).length + 2);
+                }
+                guideColWidths.push({ wch: Math.min(maxW, 60) });
+            }
+            guideWs['!cols'] = guideColWidths;
+            XLSX.utils.book_append_sheet(wb, guideWs, 'Huong Dan');
+        }
+
         // Thêm sheet riêng chứa danh sách dropdown nếu có config
         if (dropdownConfig) {
             const listData = [

@@ -1465,8 +1465,37 @@ function handleExport() {
         };
     });
     
+    // Tạo tab Hướng dẫn
+    const activeBuildings = getBuildings().filter(b => b.isActive !== false);
+    const accounts = getAccounts();
+    const categories = transactionCategoriesCache;
+
+    const buildingCodes = activeBuildings.map(b => b.code || '').filter(Boolean).sort();
+    const accountNames = accounts.map(a => {
+        if (a.bank === 'Cash') return 'Tiền mặt';
+        return a.bank && a.accountHolder ? `${a.bank} - ${a.accountHolder}` : (a.bank || a.accountHolder || '');
+    }).filter(Boolean);
+    const categoryNames = categories.map(c => c.name || '').filter(Boolean).sort();
+
+    const maxRows = Math.max(buildingCodes.length, accountNames.length, categoryNames.length);
+    const guideData = [
+        ['=== HƯỚNG DẪN ĐIỀN FILE IMPORT ===', '', ''],
+        ['', '', ''],
+        ['MÃ TÒA NHÀ (cột A)', 'TÊN SỔ QUỸ (cột E)', 'HẠNG MỤC (cột G)'],
+    ];
+    for (let i = 0; i < maxRows; i++) {
+        guideData.push([
+            buildingCodes[i] || '',
+            accountNames[i] || '',
+            categoryNames[i] || ''
+        ]);
+    }
+    guideData.push(['', '', '']);
+    guideData.push(['CỘT LOẠI (cột B): điền "Thu" hoặc "Chi"', '', '']);
+    guideData.push(['NGÀY (cột F): định dạng dd-mm-yyyy, ví dụ 05-02-2026', '', '']);
+
     // Cột H (index 7) = Số tiền → numFmt dấu phẩy, vẫn là số để SUM được
-    exportToExcel(data, 'Danh_sach_thu_chi', null, { 7: '#,##0' });
+    exportToExcel(data, 'Danh_sach_thu_chi', null, { 7: '#,##0' }, guideData);
     showToast('Xuất dữ liệu thành công!');
 }
 
