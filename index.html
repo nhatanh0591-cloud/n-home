@@ -1538,6 +1538,260 @@
 
                 <!-- Reports Section -->
                 <div id="reports-section" class="hidden">
+                    <!-- ===== BÁO CÁO THÁNG THEO NHÀ ===== -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
+                            <h2 class="text-lg font-semibold">Báo cáo tháng theo nhà</h2>
+                            <button id="print-monthly-report-btn" class="hidden bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded-lg">
+                                In báo cáo
+                            </button>
+                        </div>
+                        <div class="p-4 md:p-6">
+                            <!-- Bộ lọc -->
+                            <div class="mb-5 flex gap-3 items-end flex-wrap">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Tòa nhà</label>
+                                    <select id="monthly-report-building" class="p-2.5 border rounded-lg bg-gray-50 min-w-[140px]">
+                                        <option value="">-- Chọn tòa nhà --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Tháng</label>
+                                    <select id="monthly-report-month" class="p-2.5 border rounded-lg bg-gray-50">
+                                        <option value="1">Tháng 1</option>
+                                        <option value="2">Tháng 2</option>
+                                        <option value="3">Tháng 3</option>
+                                        <option value="4">Tháng 4</option>
+                                        <option value="5">Tháng 5</option>
+                                        <option value="6">Tháng 6</option>
+                                        <option value="7">Tháng 7</option>
+                                        <option value="8">Tháng 8</option>
+                                        <option value="9">Tháng 9</option>
+                                        <option value="10">Tháng 10</option>
+                                        <option value="11">Tháng 11</option>
+                                        <option value="12">Tháng 12</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Năm</label>
+                                    <input type="number" id="monthly-report-year" class="p-2.5 border rounded-lg bg-gray-50 w-24" value="2026" min="2020" max="2100">
+                                </div>
+                                <button id="load-monthly-report-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-5 rounded-lg">
+                                    Xem báo cáo
+                                </button>
+                            </div>
+
+                            <!-- Nội dung báo cáo -->
+                            <div id="monthly-report-content" class="hidden space-y-6">
+
+                                <!-- BẢNG DOANH THU -->
+                                <div>
+                                    <div class="bg-yellow-400 text-center font-bold text-gray-800 py-2 px-4 rounded-t-lg text-sm tracking-wide">
+                                        BẢNG DOANH THU
+                                    </div>
+                                    <div class="overflow-x-auto border border-yellow-300 rounded-b-lg">
+                                        <table class="w-full text-xs md:text-sm border-collapse">
+                                            <thead>
+                                                <tr class="bg-yellow-100 font-bold text-gray-700">
+                                                    <th class="py-2 px-2 border border-yellow-300 text-center whitespace-nowrap">STT</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-center whitespace-nowrap">Khách hàng</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-center whitespace-nowrap">Bắt đầu HĐ</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-center whitespace-nowrap">Kết thúc HĐ</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-center whitespace-nowrap">Điện cũ</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-center whitespace-nowrap">Điện mới</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-right whitespace-nowrap">Tiền cọc</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-right whitespace-nowrap">Dịch vụ</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-right whitespace-nowrap">Tiền nước</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-right whitespace-nowrap">Tiền Phòng</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-right whitespace-nowrap">Tiền điện</th>
+                                                    <th class="py-2 px-2 border border-yellow-300 text-right whitespace-nowrap">Tổng Cộng</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="monthly-revenue-table-body"></tbody>
+                                            <tfoot id="monthly-revenue-table-foot"></tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- BẢNG CHI -->
+                                <div>
+                                    <div class="bg-red-400 text-center font-bold text-white py-2 px-4 rounded-t-lg text-sm tracking-wide">
+                                        BẢNG CHI
+                                    </div>
+                                    <div class="overflow-x-auto border border-red-200 rounded-b-lg">
+                                        <table class="w-full text-xs md:text-sm border-collapse" style="table-layout:fixed">
+                                            <colgroup>
+                                                <col style="width:4%">
+                                                <col style="width:21%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:5%">
+                                                <col style="width:5%">
+                                                <col style="width:9%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:9%">
+                                                <col style="width:8%">
+                                                <col style="width:11%">
+                                            </colgroup>
+                                            <thead>
+                                                <tr class="bg-red-50 font-bold text-gray-700">
+                                                    <th class="py-2 px-2 border border-red-200 text-center">STT</th>
+                                                    <th class="py-2 px-2 border border-red-200 text-left" colspan="3">Tên phiếu chi</th>
+                                                    <th class="py-2 px-2 border border-red-200 text-center" colspan="3">Thành tiền</th>
+                                                    <th class="py-2 px-2 border border-red-200 text-left" colspan="5">Người nhận</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="monthly-expense-table-body"></tbody>
+                                            <tfoot id="monthly-expense-table-foot"></tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- BẢNG THU -->
+                                <div>
+                                    <div class="bg-green-500 text-center font-bold text-white py-2 px-4 rounded-t-lg text-sm tracking-wide">
+                                        BẢNG THU
+                                    </div>
+                                    <div class="overflow-x-auto border border-green-200 rounded-b-lg">
+                                        <table class="w-full text-xs md:text-sm border-collapse" style="table-layout:fixed">
+                                            <colgroup>
+                                                <col style="width:4%">
+                                                <col style="width:21%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:5%">
+                                                <col style="width:5%">
+                                                <col style="width:9%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:9%">
+                                                <col style="width:8%">
+                                                <col style="width:11%">
+                                            </colgroup>
+                                            <thead>
+                                                <tr class="bg-green-50 font-bold text-gray-700">
+                                                    <th class="py-2 px-2 border border-green-200 text-center">STT</th>
+                                                    <th class="py-2 px-2 border border-green-200 text-left" colspan="3">Tên phiếu thu</th>
+                                                    <th class="py-2 px-2 border border-green-200 text-center" colspan="3">Thành tiền</th>
+                                                    <th class="py-2 px-2 border border-green-200 text-left" colspan="5">Người nộp</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="monthly-income-table-body"></tbody>
+                                            <tfoot id="monthly-income-table-foot"></tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- TỔNG KẾT THÁNG -->
+                                <div>
+                                    <div class="bg-yellow-400 text-center font-bold text-gray-800 py-2 px-4 rounded-t-lg text-sm tracking-wide" id="monthly-summary-title">
+                                        TỔNG KẾT THÁNG
+                                    </div>
+                                    <div class="border border-yellow-300 rounded-b-lg overflow-hidden">
+                                        <table class="w-full text-sm border-collapse" style="table-layout:fixed">
+                                            <colgroup>
+                                                <col style="width:4%">
+                                                <col style="width:21%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:5%">
+                                                <col style="width:5%">
+                                                <col style="width:9%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:9%">
+                                                <col style="width:8%">
+                                                <col style="width:11%">
+                                            </colgroup>
+                                            <tbody>
+                                                <tr class="border-b border-yellow-200">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">Tổng Doanh Thu</td>
+                                                    <td class="py-2 px-2 text-green-700 text-center" colspan="3" id="monthly-summary-revenue">0 đ</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="border-b border-yellow-200">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">Tổng Chi Phí</td>
+                                                    <td class="py-2 px-2 text-red-600 text-center" colspan="3" id="monthly-summary-expense">0 đ</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="bg-orange-100">
+                                                    <td class="py-2 px-2 font-bold text-gray-800" colspan="4">Lợi nhuận</td>
+                                                    <td class="py-2 px-2 font-bold text-center" colspan="3" id="monthly-summary-profit">0 đ</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- TỔNG KẾT DỰ ÁN -->
+                                <div>
+                                    <div class="bg-blue-600 text-center font-bold text-white py-2 px-4 rounded-t-lg text-sm tracking-wide">
+                                        TỔNG KẾT DỰ ÁN
+                                    </div>
+                                    <div class="border border-blue-200 rounded-b-lg overflow-hidden">
+                                        <table class="w-full text-sm border-collapse" style="table-layout:fixed">
+                                            <colgroup>
+                                                <col style="width:4%">
+                                                <col style="width:21%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:5%">
+                                                <col style="width:5%">
+                                                <col style="width:9%">
+                                                <col style="width:7%">
+                                                <col style="width:7%">
+                                                <col style="width:9%">
+                                                <col style="width:8%">
+                                                <col style="width:11%">
+                                            </colgroup>
+                                            <tbody>
+                                                <tr class="border-b border-blue-100">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">Vốn đầu tư</td>
+                                                    <td class="py-2 px-2 text-center" colspan="3" id="project-capital">—</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="border-b border-blue-100">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">Lợi nhuận đã thu về</td>
+                                                    <td class="py-2 px-2 text-center text-green-700" colspan="3" id="project-collected">—</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="border-b border-blue-100">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">Trung bình mỗi tháng</td>
+                                                    <td class="py-2 px-2 text-center" colspan="3" id="project-avg-month">—</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="border-b border-blue-100">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">Trung bình 1 năm</td>
+                                                    <td class="py-2 px-2 text-center" colspan="3" id="project-avg-year">—</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="border-b border-blue-100">
+                                                    <td class="py-2 px-2 text-gray-600" colspan="4">%/Năm (ROI)</td>
+                                                    <td class="py-2 px-2 text-center" colspan="3" id="project-roi">—</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                                <tr class="bg-blue-100">
+                                                    <td class="py-2 px-2 font-bold text-gray-800" colspan="4">Lợi nhuận tới hiện tại</td>
+                                                    <td class="py-2 px-2 text-center font-bold" colspan="3" id="project-profit-to-date">—</td>
+                                                    <td colspan="5"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                            </div><!-- end monthly-report-content -->
+
+                            <!-- Placeholder khi chưa chọn -->
+                            <div id="monthly-report-placeholder" class="py-12 text-center text-gray-400 text-sm">
+                                Chọn tòa nhà, tháng, năm rồi nhấn <strong>Xem báo cáo</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ===== END BÁO CÁO THÁNG THEO NHÀ ===== -->
+
                     <!-- Báo cáo theo hạng mục -->
                     <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
                         <div class="p-4 border-b">
@@ -1802,6 +2056,11 @@
                 <div class="space-y-4">
                     <h4 class="text-base font-semibold text-gray-700 border-b pb-2">1. Thông tin tòa nhà</h4>
                     <div>
+                        <label for="building-start-date" class="block mb-2 text-sm font-medium">Ngày bắt đầu thuê nhà</label>
+                        <input type="text" id="building-start-date" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="dd-mm-yyyy" pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}">
+                        <small class="text-gray-500">Dùng để tính trung bình lợi nhuận mỗi tháng</small>
+                    </div>
+                    <div>
                         <label for="building-code" class="block mb-2 text-sm font-medium">Mã tòa nhà</label>
                         <input type="text" id="building-code" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Ví dụ: A1, B2, C3..." required>
                     </div>
@@ -1847,6 +2106,32 @@
                         <select id="building-account" class="w-full p-2.5 border rounded-lg bg-gray-50">
                             <option value="">-- Chọn tài khoản --</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <h4 class="text-base font-semibold text-gray-700">4. Vốn đầu tư</h4>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="building-prior-profit" class="block mb-2 text-sm font-medium">Số dư ban đầu</label>
+                            <input type="text" id="building-prior-profit" class="w-full p-2.5 border rounded-lg bg-gray-50 money-input" placeholder="0">
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-medium">Tổng vốn đầu tư</label>
+                                <button type="button" id="toggle-capital-btn" class="text-blue-600 font-bold hover:underline cursor-pointer text-sm">
+                                    <span id="capital-total-display">0 đ</span> ▾
+                                </button>
+                            </div>
+                            <div id="capital-items-wrapper" class="hidden space-y-2">
+                                <div id="capital-items-list" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+                                <button type="button" id="add-capital-item-btn" class="mt-1 w-full py-2 border-2 border-dashed border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 text-sm font-medium">
+                                    + Thêm hạng mục đầu tư
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2928,14 +3213,30 @@
     </div>
 
     <div id="rooms-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95">
-            <div class="p-5 border-b flex justify-between items-center">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl modal-content transform scale-95 max-h-[85vh] overflow-y-auto">
+            <div class="p-5 border-b flex justify-between items-center sticky top-0 bg-white z-10">
                 <h3 class="text-lg font-semibold" id="rooms-modal-title">Danh sách phòng</h3>
                 <button id="close-rooms-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
             </div>
-            <div class="p-6">
-                <div id="rooms-modal-content" class="grid grid-cols-4 gap-2">
-                    </div>
+            <div class="p-6 space-y-6">
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-3">Danh sách phòng</h4>
+                    <div id="rooms-modal-content" class="grid grid-cols-4 gap-2"></div>
+                </div>
+                <div id="capital-summary-section" class="hidden">
+                    <h4 class="font-semibold text-gray-700 mb-3">Bảng vốn đầu tư</h4>
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-yellow-100 font-bold text-gray-700">
+                                <th class="py-2 px-3 border border-yellow-300 text-center w-10">STT</th>
+                                <th class="py-2 px-3 border border-yellow-300 text-left">Hạng mục</th>
+                                <th class="py-2 px-3 border border-yellow-300 text-right">Giá</th>
+                            </tr>
+                        </thead>
+                        <tbody id="capital-summary-body"></tbody>
+                        <tfoot id="capital-summary-foot"></tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

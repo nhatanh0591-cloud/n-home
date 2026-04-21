@@ -529,7 +529,7 @@ input[type="text"][pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}"]:hover {
 
 /* Sidebar styles */
 .sidebar {
-    width: 220px;
+    width: 200px;
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     flex-shrink: 0;

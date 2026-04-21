@@ -11,8 +11,8 @@ import {
     orderBy
 } from '../firebase.js';
 
-import { getTransactions, getBills, getBuildings, getTransactionCategories } from '../store.js';
-import { safeToDate } from '../utils.js';
+import { getTransactions, getBills, getBuildings, getContracts, getCustomers, getTransactionCategories } from '../store.js';
+import { safeToDate, formatDateDisplay } from '../utils.js';
 
 // Format money function for reports - rounded to whole numbers with dots
 function formatMoney(amount) {
@@ -34,6 +34,21 @@ const categoryReportTableBody = document.getElementById('category-report-table-b
 const categoryTotalIncomeEl = document.getElementById('category-total-income');
 const categoryTotalExpenseEl = document.getElementById('category-total-expense');
 const categoryTotalProfitEl = document.getElementById('category-total-profit');
+
+// Monthly report elements
+const monthlyReportBuildingEl = document.getElementById('monthly-report-building');
+const monthlyReportMonthEl = document.getElementById('monthly-report-month');
+const monthlyReportYearEl = document.getElementById('monthly-report-year');
+const loadMonthlyReportBtn = document.getElementById('load-monthly-report-btn');
+const printMonthlyReportBtn = document.getElementById('print-monthly-report-btn');
+const monthlyReportContent = document.getElementById('monthly-report-content');
+const monthlyReportPlaceholder = document.getElementById('monthly-report-placeholder');
+const monthlyRevenueTbody = document.getElementById('monthly-revenue-table-body');
+const monthlyRevenueTfoot = document.getElementById('monthly-revenue-table-foot');
+const monthlyExpenseTbody = document.getElementById('monthly-expense-table-body');
+const monthlyExpenseTfoot = document.getElementById('monthly-expense-table-foot');
+const monthlyIncomeTbody = document.getElementById('monthly-income-table-body');
+const monthlyIncomeTfoot = document.getElementById('monthly-income-table-foot');
 
 // Cache
 let transactionsCache = [];
@@ -139,6 +154,17 @@ async function loadBuildingsList() {
                 quarterlyReportBuildingEl.appendChild(option);
             });
         }
+
+        // Load cho báo cáo tháng
+        if (monthlyReportBuildingEl) {
+            monthlyReportBuildingEl.innerHTML = '<option value="">-- Chọn tòa nhà --</option>';
+            buildings.forEach(building => {
+                const option = document.createElement('option');
+                option.value = building.id;
+                option.textContent = building.code || 'N/A';
+                monthlyReportBuildingEl.appendChild(option);
+            });
+        }
         
         console.log('✅ Buildings list loaded successfully');
     } catch (error) {
@@ -155,6 +181,8 @@ function setupEventListeners() {
     categoryReportMonthEl?.addEventListener('change', loadCategoryReport);
     categoryReportYearEl?.addEventListener('change', loadCategoryReport);
     categoryReportBuildingEl?.addEventListener('change', loadCategoryReport);
+    loadMonthlyReportBtn?.addEventListener('click', loadMonthlyReport);
+    printMonthlyReportBtn?.addEventListener('click', printMonthlyReport);
 }
 
 /**
@@ -1035,4 +1063,514 @@ function renderQuarterlyReportMobileCards(reportData, selectedYear, selectedBuil
     displayAverageProfitBox(monthsWithExpense, averageProfitWithExpense);
     
     mobileContainer.innerHTML = html;
+}
+
+// ============================================================
+// BÁO CÁO THÁNG THEO NHÀ
+// ============================================================
+
+/**
+ * Hàm trích xuất thông số điện/nước/phòng/dịch vụ từ bill.services[]
+ */
+function extractBillServices(services) {
+    const result = { electric: null, water: null, rent: 0, serviceTotal: 0, customItems: [] };
+    if (!Array.isArray(services)) return result;
+
+    services.forEach(svc => {
+        const t = (svc.type || '').toLowerCase();
+        const name = (svc.serviceName || svc.name || '').toLowerCase();
+
+        if (t === 'electric' || name.includes('điện')) {
+            result.electric = svc;
+        } else if (t === 'water_meter' || t === 'water_flat' || name.includes('nước')) {
+            result.water = svc;
+        } else if (t === 'rent' || name.includes('tiền nhà') || name.includes('phòng')) {
+            result.rent = parseFloat(svc.amount) || 0;
+        } else if (t === 'custom') {
+            // Khoản thu thêm (cọc, bổ sung...) → vào BẢNG THU
+            result.customItems.push(svc);
+        } else {
+            // type='service' — phí dịch vụ cố định
+            result.serviceTotal += parseFloat(svc.amount) || 0;
+        }
+    });
+    return result;
+}
+
+/**
+ * Parse ngày transaction về {year, month} 
+ */
+function parseTransactionDate(dateVal) {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+            const [y, m] = dateVal.split('-');
+            return { year: parseInt(y), month: parseInt(m) };
+        }
+        if (/^\d{2}-\d{2}-\d{4}$/.test(dateVal)) {
+            const [d, m, y] = dateVal.split('-');
+            return { year: parseInt(y), month: parseInt(m) };
+        }
+        const d = new Date(dateVal);
+        if (!isNaN(d)) return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    }
+    if (dateVal.toDate || dateVal.seconds) {
+        const d = safeToDate(dateVal);
+        return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    }
+    const d = new Date(dateVal);
+    if (!isNaN(d)) return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    return null;
+}
+
+/**
+ * Load và render báo cáo tháng
+ */
+async function loadMonthlyReport() {
+    const buildingId = monthlyReportBuildingEl?.value;
+    const month = parseInt(monthlyReportMonthEl?.value);
+    const year = parseInt(monthlyReportYearEl?.value);
+
+    if (!buildingId) {
+        alert('Vui lòng chọn tòa nhà!');
+        return;
+    }
+
+    const buildings = getBuildings();
+    const contracts = getContracts ? getContracts() : [];
+    const allBills = getBills();
+    const allTransactions = getTransactions();
+
+    const building = buildings.find(b => b.id === buildingId);
+
+    // --- BẢNG DOANH THU: bills theo buildingId + period + year ---
+    const revenueBills = allBills.filter(b => {
+        if (b.buildingId !== buildingId) return false;
+        if (b.isTerminationBill) return false;
+        const billMonth = parseInt(b.period) || 0;
+        const billYear = parseInt(b.year) || 0;
+        return billMonth === month && billYear === year;
+    });
+
+    // Sắp xếp theo phòng
+    revenueBills.sort((a, b) => {
+        const roomA = a.room || '';
+        const roomB = b.room || '';
+        return roomA.localeCompare(roomB, undefined, { numeric: true });
+    });
+
+    // --- BẢNG CHI: expense transactions theo buildingId + tháng ---
+    const expenseTransactions = allTransactions.filter(t => {
+        if (t.type !== 'expense') return false;
+        if (t.approved !== true) return false;
+        if (t.buildingId && t.buildingId !== buildingId) return false;
+        const parsed = parseTransactionDate(t.date);
+        if (!parsed) return false;
+        return parsed.month === month && parsed.year === year;
+    });
+
+    // --- BẢNG THU: income transactions KHÔNG phải từ bill payments ---
+    const incomeTransactions = allTransactions.filter(t => {
+        if (t.type !== 'income') return false;
+        if (t.approved !== true) return false;
+        if (t.billId) return false; // loại bỏ thu từ hóa đơn
+        if (t.buildingId && t.buildingId !== buildingId) return false;
+        const parsed = parseTransactionDate(t.date);
+        if (!parsed) return false;
+        return parsed.month === month && parsed.year === year;
+    });
+
+    // --- Thu thêm từ hóa đơn (type='custom'): cọc, bổ sung... → vào BẢNG THU ---
+    const billCustomItems = [];
+    const customers = getCustomers();
+    revenueBills.forEach(bill => {
+        const svc = extractBillServices(bill.services);
+        const customerName = bill.customerName || customers.find(c => c.id === bill.customerId)?.name || '—';
+        svc.customItems.forEach(item => {
+            billCustomItems.push({
+                name: item.serviceName || item.name || '—',
+                amount: parseFloat(item.amount) || 0,
+                source: `P${bill.room} - ${customerName.split(' ').pop()} - ${building?.code || ''}`
+            });
+        });
+    });
+
+    // --- Render ---
+    renderMonthlyRevenue(revenueBills, contracts, building);
+    renderMonthlyExpense(expenseTransactions);
+    renderMonthlyIncome(incomeTransactions, billCustomItems);
+    renderMonthlySummary(revenueBills, expenseTransactions, incomeTransactions, billCustomItems, month, year);
+    renderProjectSummary(buildingId, allBills, allTransactions);
+
+    // Cập nhật tài khoản
+    const accounts = window.__accounts || [];
+    const accountName = building?.accountId
+        ? (accounts.find(a => a.id === building.accountId)?.bank || building.accountId)
+        : '—';
+    const accountEl = document.getElementById('monthly-report-account');
+    if (accountEl) accountEl.textContent = accountName;
+
+    // Hiển thị
+    if (monthlyReportContent) monthlyReportContent.classList.remove('hidden');
+    if (monthlyReportPlaceholder) monthlyReportPlaceholder.classList.add('hidden');
+    if (printMonthlyReportBtn) printMonthlyReportBtn.classList.remove('hidden');
+}
+
+/**
+ * Render BẢNG DOANH THU
+ */
+function renderMonthlyRevenue(bills, contracts, building) {
+    if (!monthlyRevenueTbody) return;
+
+    const customers = getCustomers();
+    let totalDeposit = 0, totalService = 0, totalWater = 0, totalRent = 0, totalElectric = 0, grandTotal = 0;
+    let html = '';
+
+    bills.forEach(bill => {
+        // Tìm hợp đồng tương ứng
+        const contract = contracts.find(c =>
+            c.buildingId === bill.buildingId && c.room === bill.room
+        );
+
+        const startDate = contract?.startDate ? formatDateDisplay(contract.startDate) : '—';
+        const endDate   = contract?.endDate   ? formatDateDisplay(contract.endDate)   : '—';
+        const deposit = parseFloat(contract?.deposit) || 0;
+
+        const svc = extractBillServices(bill.services);
+        const electricOld    = svc.electric?.oldReading ?? '—';
+        const electricNew    = svc.electric?.newReading ?? '—';
+        const waterAmount    = parseFloat(svc.water?.amount) || 0;
+        const electricAmount = parseFloat(svc.electric?.amount) || 0;
+        const rentAmount     = svc.rent;
+        const serviceAmount  = svc.serviceTotal;
+        // Tổng = chỉ các cột cố định, KHÔNG tính custom items
+        const rowTotal = rentAmount + electricAmount + waterAmount + serviceAmount;
+
+        // Ưu tiên customerName trên bill, fallback sang lookup theo customerId
+        const customer = bill.customerId ? customers.find(c => c.id === bill.customerId) : null;
+        const customerName = bill.customerName || customer?.name || '—';
+
+        const isPaid = bill.status === 'paid';
+        const rowBg = isPaid ? 'bg-white' : 'bg-orange-50';
+        const paidBadge = isPaid ? '' : ' <span class="text-orange-500 text-xs">(chưa thu)</span>';
+
+        totalDeposit  += deposit;
+        totalService  += serviceAmount;
+        totalWater    += waterAmount;
+        totalRent     += rentAmount;
+        totalElectric += electricAmount;
+        grandTotal    += rowTotal;
+
+        html += `
+            <tr class="border-b border-yellow-200 ${rowBg} hover:bg-yellow-50 text-sm">
+                <td class="py-2 px-2 border border-yellow-200 text-center font-medium">${bill.room || '—'}</td>
+                <td class="py-2 px-2 border border-yellow-200 whitespace-nowrap">${customerName}${paidBadge}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-center whitespace-nowrap">${startDate}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-center whitespace-nowrap">${endDate}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-center">${electricOld}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-center">${electricNew}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-right">${deposit > 0 ? formatMoney(deposit) : '—'}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-right">${serviceAmount > 0 ? formatMoney(serviceAmount) : '—'}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-right">${waterAmount > 0 ? formatMoney(waterAmount) : '—'}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-right">${rentAmount > 0 ? formatMoney(rentAmount) : '—'}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-right">${electricAmount > 0 ? formatMoney(electricAmount) : '—'}</td>
+                <td class="py-2 px-2 border border-yellow-200 text-right font-semibold">${formatMoney(rowTotal)}</td>
+            </tr>`;
+    });
+
+    if (bills.length === 0) {
+        html = '<tr><td colspan="12" class="py-4 text-center text-gray-400">Không có hóa đơn nào trong tháng này</td></tr>';
+    }
+
+    monthlyRevenueTbody.innerHTML = html;
+
+    // Footer tổng
+    monthlyRevenueTfoot.innerHTML = bills.length > 0 ? `
+        <tr class="bg-yellow-200 font-bold text-gray-800 text-sm">
+            <td class="py-2 px-2 border border-yellow-300 text-center" colspan="6">TỔNG</td>
+            <td class="py-2 px-2 border border-yellow-300 text-right">${formatMoney(totalDeposit)}</td>
+            <td class="py-2 px-2 border border-yellow-300 text-right">${formatMoney(totalService)}</td>
+            <td class="py-2 px-2 border border-yellow-300 text-right">${formatMoney(totalWater)}</td>
+            <td class="py-2 px-2 border border-yellow-300 text-right">${formatMoney(totalRent)}</td>
+            <td class="py-2 px-2 border border-yellow-300 text-right">${formatMoney(totalElectric)}</td>
+            <td class="py-2 px-2 border border-yellow-300 text-right">${formatMoney(grandTotal)}</td>
+        </tr>` : '';
+}
+
+/**
+ * Render BẢNG CHI
+ */
+function renderMonthlyExpense(transactions) {
+    if (!monthlyExpenseTbody) return;
+
+    let html = '';
+    let stt = 0;
+    let total = 0;
+
+    // Gộp tất cả items từ tất cả transactions
+    transactions.forEach(t => {
+        const items = Array.isArray(t.items) && t.items.length > 0 ? t.items : [{ name: t.title || '—', amount: 0 }];
+        items.forEach(item => {
+            stt++;
+            const amount = parseFloat(item.amount) || 0;
+            total += amount;
+            html += `
+                <tr class="border-b border-red-100 hover:bg-red-50 text-sm">
+                    <td class="py-2 px-2 border border-red-100 text-center text-gray-500">${stt}</td>
+                    <td class="py-2 px-2 border border-red-100" colspan="3">${t.title || '—'}</td>
+                    <td class="py-2 px-2 border border-red-100 text-center text-red-700" colspan="3">${formatMoney(amount)} đ</td>
+                    <td class="py-2 px-2 border border-red-100 text-gray-600" colspan="5">${t.payer || '—'}</td>
+                </tr>`;
+        });
+    });
+
+    if (stt === 0) {
+        html = '<tr><td colspan="4" class="py-4 text-center text-gray-400">Không có khoản chi nào trong tháng này</td></tr>';
+    }
+
+    monthlyExpenseTbody.innerHTML = html;
+    monthlyExpenseTfoot.innerHTML = stt > 0 ? `
+        <tr class="bg-red-100 font-bold text-sm">
+            <td class="py-2 px-2 border border-red-200 text-center text-red-700" colspan="4">TỔNG CHI</td>
+            <td class="py-2 px-2 border border-red-200 text-center text-red-700" colspan="3">${formatMoney(total)} đ</td>
+            <td class="py-2 px-2 border border-red-200" colspan="5"></td>
+        </tr>` : '';
+}
+
+/**
+ * Render BẢNG THU
+ */
+function renderMonthlyIncome(transactions, billCustomItems = []) {
+    if (!monthlyIncomeTbody) return;
+
+    let html = '';
+    let stt = 0;
+    let total = 0;
+
+    // 1. Khoản thu custom từ hóa đơn (cọc, bổ sung...)
+    billCustomItems.forEach(item => {
+        stt++;
+        const amount = item.amount || 0;
+        total += amount;
+        html += `
+            <tr class="border-b border-green-100 hover:bg-green-50 text-sm">
+                <td class="py-2 px-2 border border-green-100 text-center text-gray-500">${stt}</td>
+                <td class="py-2 px-2 border border-green-100" colspan="3">${item.name}</td>
+                <td class="py-2 px-2 border border-green-100 text-center text-green-700" colspan="3">${formatMoney(amount)} đ</td>
+                <td class="py-2 px-2 border border-green-100 text-gray-600" colspan="5">${item.source || '—'}</td>
+            </tr>`;
+    });
+
+    // 2. Các khoản thu nhập thủ công (không từ hóa đơn)
+    transactions.forEach(t => {
+        const items = Array.isArray(t.items) && t.items.length > 0 ? t.items : [{ name: t.title || '—', amount: 0 }];
+        items.forEach(item => {
+            stt++;
+            const amount = parseFloat(item.amount) || 0;
+            total += amount;
+            html += `
+                <tr class="border-b border-green-100 hover:bg-green-50 text-sm">
+                    <td class="py-2 px-2 border border-green-100 text-center text-gray-500">${stt}</td>
+                    <td class="py-2 px-2 border border-green-100" colspan="3">${t.title || '—'}</td>
+                    <td class="py-2 px-2 border border-green-100 text-center text-green-700" colspan="3">${formatMoney(amount)} đ</td>
+                    <td class="py-2 px-2 border border-green-100 text-gray-600" colspan="5">${t.payer || '—'}</td>
+                </tr>`;
+        });
+    });
+
+    if (stt === 0) {
+        html = '<tr><td colspan="12" class="py-4 text-center text-gray-400">Không có khoản thu nào trong tháng này</td></tr>';
+    }
+
+    monthlyIncomeTbody.innerHTML = html;
+    monthlyIncomeTfoot.innerHTML = stt > 0 ? `
+        <tr class="bg-green-100 font-bold text-sm">
+            <td class="py-2 px-2 border border-green-200 text-center text-green-700" colspan="4">TỔNG THU</td>
+            <td class="py-2 px-2 border border-green-200 text-center text-green-700" colspan="3">${formatMoney(total)} đ</td>
+            <td class="py-2 px-2 border border-green-200" colspan="5"></td>
+        </tr>` : '';
+}
+
+/**
+ * Render TỔNG KẾT THÁNG
+ */
+function renderMonthlySummary(bills, expenseTransactions, incomeTransactions, billCustomItems = [], month = 0, year = 0) {
+    // Cập nhật tiêu đề
+    const titleEl = document.getElementById('monthly-summary-title');
+    if (titleEl && month && year) titleEl.textContent = `TỔNG KẾT THÁNG ${String(month).padStart(2,'0')} - ${year}`;
+
+    // Tổng doanh thu từ hóa đơn (rent + điện + nước + dịch vụ)
+    const totalRevenue = bills.reduce((sum, b) => {
+        const svc = extractBillServices(b.services);
+        return sum + svc.rent + (parseFloat(svc.electric?.amount) || 0) + (parseFloat(svc.water?.amount) || 0) + svc.serviceTotal;
+    }, 0);
+
+    const totalExpense = expenseTransactions.reduce((sum, t) => {
+        const items = Array.isArray(t.items) ? t.items : [];
+        return sum + items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    }, 0);
+
+    // Tổng thu (thu thủ công + custom items từ hóa đơn)
+    const totalIncome = incomeTransactions.reduce((sum, t) => {
+        const items = Array.isArray(t.items) ? t.items : [];
+        return sum + items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    }, 0) + billCustomItems.reduce((s, i) => s + (i.amount || 0), 0);
+
+    // Tổng Doanh Thu hiển thị = bảng doanh thu + bảng thu
+    const combinedRevenue = totalRevenue + totalIncome;
+    const profit = combinedRevenue - totalExpense;
+    const profitColor = profit >= 0 ? 'text-green-700' : 'text-red-600';
+
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('monthly-summary-revenue', formatMoney(combinedRevenue) + ' đ');
+    setEl('monthly-summary-expense', formatMoney(totalExpense) + ' đ');
+
+    const profitEl = document.getElementById('monthly-summary-profit');
+    if (profitEl) {
+        profitEl.textContent = formatMoney(profit) + ' đ';
+        profitEl.className = `py-2 px-2 font-bold text-center ${profitColor}`;
+    }
+}
+
+/**
+ * Render TỔNG KẾT DỰ ÁN (lũy kế đến hết tháng trước tháng hiện tại)
+ */
+function renderProjectSummary(buildingId, allBills, allTransactions) {
+    // Cắt off = tháng hiện tại - 1
+    const today = new Date();
+    let cutoffMonth = today.getMonth(); // 0-based, getMonth() trả về 0=Jan
+    let cutoffYear = today.getFullYear();
+    if (cutoffMonth === 0) { cutoffMonth = 12; cutoffYear--; }
+    // cutoffMonth giờ là số tháng thực (1-12)
+
+    const allBuildingBills = allBills.filter(b =>
+        b.buildingId === buildingId && !b.isTerminationBill
+    );
+    const allExpense = allTransactions.filter(t =>
+        t.type === 'expense' && t.approved === true && (!t.buildingId || t.buildingId === buildingId)
+    );
+    const allManualIncome = allTransactions.filter(t =>
+        t.type === 'income' && t.approved === true && !t.billId && (!t.buildingId || t.buildingId === buildingId)
+    );
+
+    const cutoffFilter = (dateVal) => {
+        const parsed = parseTransactionDate(dateVal);
+        if (!parsed) return false;
+        if (parsed.year < cutoffYear) return true;
+        if (parsed.year === cutoffYear && parsed.month <= cutoffMonth) return true;
+        return false;
+    };
+
+    const billsCutoff = allBuildingBills.filter(b => {
+        const bYear = parseInt(b.year) || 0;
+        const bMonth = parseInt(b.period) || 0;
+        if (bYear < cutoffYear) return true;
+        if (bYear === cutoffYear && bMonth <= cutoffMonth) return true;
+        return false;
+    });
+
+    const expenseCutoff = allExpense.filter(t => cutoffFilter(t.date));
+    const incomeCutoff = allManualIncome.filter(t => cutoffFilter(t.date));
+
+    const cumulativeRevenue = billsCutoff.reduce((s, b) => {
+        const svc = extractBillServices(b.services);
+        return s + svc.rent + (parseFloat(svc.electric?.amount) || 0) + (parseFloat(svc.water?.amount) || 0) + svc.serviceTotal;
+    }, 0);
+    const cumulativeExpense = expenseCutoff.reduce((sum, t) => {
+        const items = Array.isArray(t.items) ? t.items : [];
+        return sum + items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    }, 0);
+    const cumulativeIncome = incomeCutoff.reduce((sum, t) => {
+        const items = Array.isArray(t.items) ? t.items : [];
+        return sum + items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    }, 0);
+
+    const building = getBuildings().find(b => b.id === buildingId);
+    const priorProfit = parseFloat(building?.priorProfit) || 0;
+    const collected = priorProfit + cumulativeRevenue + cumulativeIncome - cumulativeExpense;
+
+    // Số tháng từ startDate đến cutoff
+    let totalMonths = 1;
+    if (building?.startDate) {
+        const parts = building.startDate.split('-');
+        let startM, startY;
+        if (parts.length === 3) {
+            if (parts[2].length === 4) { startM = parseInt(parts[1]); startY = parseInt(parts[2]); }
+            else { startY = parseInt(parts[0]); startM = parseInt(parts[1]); }
+            totalMonths = (cutoffYear - startY) * 12 + (cutoffMonth - startM) + 1;
+        }
+    } else {
+        let earliestYear = cutoffYear, earliestMonth = cutoffMonth;
+        billsCutoff.forEach(b => {
+            const y = parseInt(b.year) || cutoffYear;
+            const m = parseInt(b.period) || cutoffMonth;
+            if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
+                earliestYear = y; earliestMonth = m;
+            }
+        });
+        totalMonths = (cutoffYear - earliestYear) * 12 + (cutoffMonth - earliestMonth) + 1;
+    }
+    if (totalMonths < 1) totalMonths = 1;
+
+    const capitalItems = building?.capitalItems || [];
+    const capital = capitalItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    const avgMonth = collected / totalMonths;
+    const avgYear = avgMonth * 12;
+
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const profitColor = collected >= 0 ? 'text-green-700' : 'text-red-600';
+
+    setEl('project-capital', capital > 0 ? formatMoney(capital) + ' đ' : '— (chưa cài đặt)');
+    const collectedEl = document.getElementById('project-collected');
+    if (collectedEl) { collectedEl.textContent = formatMoney(collected) + ' đ'; collectedEl.className = `py-2 px-2 text-center ${profitColor}`; }
+
+    if (capital > 0) {
+        const profitToDate = collected - capital;
+        const roi = (avgYear / capital * 100).toFixed(1);
+        const ptdEl = document.getElementById('project-profit-to-date');
+        if (ptdEl) {
+            ptdEl.textContent = formatMoney(profitToDate) + ' đ';
+            ptdEl.className = `py-2 px-2 text-center font-bold ${profitToDate >= 0 ? 'text-green-700' : 'text-red-600'}`;
+        }
+        setEl('project-roi', roi + ' %');
+    } else {
+        setEl('project-profit-to-date', '— (cần nhập Vốn)');
+        setEl('project-roi', '— (cần nhập Vốn)');
+    }
+    setEl('project-avg-month', formatMoney(avgMonth) + ' đ');
+    setEl('project-avg-year', formatMoney(avgYear) + ' đ');
+}
+
+/**
+ * In báo cáo tháng
+ */
+function printMonthlyReport() {
+    const building = monthlyReportBuildingEl?.options[monthlyReportBuildingEl.selectedIndex]?.text || '';
+    const month = monthlyReportMonthEl?.value;
+    const year = monthlyReportYearEl?.value;
+    const content = monthlyReportContent?.innerHTML || '';
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8">
+<title>Báo cáo tháng ${month}/${year} - ${building}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
+  h2 { text-align: center; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th, td { border: 1px solid #ccc; padding: 4px 8px; }
+  thead { background: #f5f5f5; }
+  .bg-yellow-400 { background: #FBBF24; font-weight: bold; text-align: center; padding: 6px; }
+  .bg-red-400 { background: #F87171; color: white; font-weight: bold; text-align: center; padding: 6px; }
+  .bg-green-500 { background: #22C55E; color: white; font-weight: bold; text-align: center; padding: 6px; }
+  .bg-blue-600 { background: #2563EB; color: white; font-weight: bold; text-align: center; padding: 6px; }
+  button { display: none !important; }
+</style></head>
+<body>
+<h2>BÁO CÁO THÁNG ${month}/${year} — ${building}</h2>
+${content}
+</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 500);
 }

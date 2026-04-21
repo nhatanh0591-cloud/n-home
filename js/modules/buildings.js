@@ -9,6 +9,7 @@ let currentBuildingServices = []; // Dịch vụ tạm thời khi chỉnh sửa 
 let originalBuildingServices = []; // Sao lưu dịch vụ gốc
 let isCreatingServiceFromBuilding = false; // Cờ báo hiệu
 let selectedMobileBuildingIds = new Set(); // Checkbox mobile persistent
+let currentCapitalItems = []; // Vốn đầu tư tạm thời khi chỉnh sửa
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Tòa nhà) ---
 const buildingsSection = document.getElementById('buildings-section');
@@ -272,7 +273,13 @@ async function handleBodyClick(e) {
         buildingStatusText.textContent = 'Hoạt động';
         currentBuildingServices = [];
         originalBuildingServices = [];
+        currentCapitalItems = [];
         renderBuildingServices();
+        renderCapitalItems();
+        document.getElementById('capital-items-wrapper')?.classList.add('hidden');
+        document.getElementById('building-start-date')?.value && (document.getElementById('building-start-date').value = '');
+        const priorEl = document.getElementById('building-prior-profit');
+        if (priorEl) priorEl.value = '';
         loadAccountsToDropdown();
         openModal(buildingModal);
     }
@@ -290,7 +297,19 @@ async function handleBodyClick(e) {
             
             currentBuildingServices = JSON.parse(JSON.stringify(building.services || []));
             originalBuildingServices = JSON.parse(JSON.stringify(building.services || []));
+            currentCapitalItems = JSON.parse(JSON.stringify(building.capitalItems || []));
             renderBuildingServices();
+            renderCapitalItems();
+            document.getElementById('capital-items-wrapper')?.classList.add('hidden');
+
+            // Load startDate
+            const startDateEl = document.getElementById('building-start-date');
+            if (startDateEl) startDateEl.value = building.startDate || '';
+
+            // Load priorProfit
+            const priorEl = document.getElementById('building-prior-profit');
+            if (priorEl) priorEl.value = building.priorProfit ? formatMoney(building.priorProfit) : '';
+
             loadAccountsToDropdown();
             
             // Set giá trị account sau khi load dropdown với retry mechanism
@@ -341,11 +360,41 @@ async function handleBodyClick(e) {
     // Nút "Xem danh sách phòng"
     else if (target.classList.contains('view-rooms-btn')) {
         const buildingCode = target.dataset.buildingCode;
+        const buildingId = target.dataset.buildingId;
         const rooms = JSON.parse(target.dataset.rooms);
-        document.getElementById('rooms-modal-title').textContent = `Danh sách phòng - ${buildingCode}`;
+        document.getElementById('rooms-modal-title').textContent = `${buildingCode}`;
         document.getElementById('rooms-modal-content').innerHTML = rooms.map(room =>
             `<span class="bg-blue-100 text-blue-800 px-3 py-2 rounded text-sm font-medium text-center">${room}</span>`
         ).join('');
+
+        // Hiển thị bảng vốn đầu tư
+        const building = getBuildings().find(b => b.id === buildingId);
+        const capitalSection = document.getElementById('capital-summary-section');
+        const capitalBody = document.getElementById('capital-summary-body');
+        const capitalFoot = document.getElementById('capital-summary-foot');
+        const capitalItems = building?.capitalItems || [];
+        if (capitalItems.length > 0 && capitalSection && capitalBody && capitalFoot) {
+            let capitalHtml = '';
+            let capitalTotal = 0;
+            capitalItems.forEach((item, i) => {
+                const amt = parseFloat(item.amount) || 0;
+                capitalTotal += amt;
+                capitalHtml += `<tr class="border-b border-yellow-200 hover:bg-yellow-50">
+                    <td class="py-2 px-3 border border-yellow-200 text-center text-gray-500">${i + 1}</td>
+                    <td class="py-2 px-3 border border-yellow-200">${item.name || '—'}</td>
+                    <td class="py-2 px-3 border border-yellow-200 text-right">${formatMoney(amt)} đ</td>
+                </tr>`;
+            });
+            capitalBody.innerHTML = capitalHtml;
+            capitalFoot.innerHTML = `<tr class="bg-yellow-200 font-bold">
+                <td class="py-2 px-3 border border-yellow-300 text-center" colspan="2">TỔNG VỐN ĐẦU TƯ</td>
+                <td class="py-2 px-3 border border-yellow-300 text-right">${formatMoney(capitalTotal)} đ</td>
+            </tr>`;
+            capitalSection.classList.remove('hidden');
+        } else if (capitalSection) {
+            capitalSection.classList.add('hidden');
+        }
+
         openModal(roomsModal);
     }
     // Nút đóng modal phòng
@@ -398,6 +447,25 @@ async function handleBodyClick(e) {
         renderBuildingServices();
         closeModal(selectBuildingServiceModal);
         showToast('Đã thêm dịch vụ vào tòa nhà!');
+    }
+    // Toggle Vốn đầu tư accordion
+    else if (target.id === 'toggle-capital-btn' || target.closest('#toggle-capital-btn')) {
+        const wrapper = document.getElementById('capital-items-wrapper');
+        if (wrapper) wrapper.classList.toggle('hidden');
+    }
+    // Thêm hạng mục vốn đầu tư
+    else if (target.id === 'add-capital-item-btn' || target.closest('#add-capital-item-btn')) {
+        syncCapitalItemsFromDOM();
+        currentCapitalItems.push({ name: '', amount: 0 });
+        renderCapitalItems();
+        document.getElementById('capital-items-wrapper')?.classList.remove('hidden');
+    }
+    // Xóa hạng mục vốn đầu tư
+    else if (target.classList.contains('remove-capital-item-btn')) {
+        const index = parseInt(target.dataset.index);
+        syncCapitalItemsFromDOM();
+        currentCapitalItems.splice(index, 1);
+        renderCapitalItems();
     }
     // Nút Xóa nhiều
     else if (target.id === 'bulk-delete-buildings-btn' || target.closest('#bulk-delete-buildings-btn')) {
@@ -468,6 +536,16 @@ async function handleBuildingFormSubmit(e) {
         
         // LUÔN set accountId (có thể là empty string để xóa giá trị cũ)
         buildingData.accountId = accountId && accountId.trim() !== '' ? accountId : null;
+
+        // Thu thập vốn đầu tư
+        syncCapitalItemsFromDOM();
+        buildingData.capitalItems = currentCapitalItems.filter(i => i.name.trim());
+
+        // startDate và priorProfit
+        const startDateVal = document.getElementById('building-start-date')?.value.trim() || '';
+        buildingData.startDate = startDateVal || null;
+        const priorRaw = (document.getElementById('building-prior-profit')?.value || '').replace(/\./g, '');
+        buildingData.priorProfit = parseFloat(priorRaw) || 0;
 
         let buildingId = id;
         if (id) {
@@ -705,6 +783,79 @@ function updateClearSelectionButton() {
             btn.classList.add('hidden');
         }
     }
+}
+
+/**
+ * Đồng bộ currentCapitalItems từ DOM inputs hiện tại
+ */
+function syncCapitalItemsFromDOM() {
+    currentCapitalItems = [];
+    document.querySelectorAll('.capital-item-row').forEach(row => {
+        const name = row.querySelector('.capital-item-name')?.value.trim() || '';
+        const rawAmt = (row.querySelector('.capital-item-amount')?.value || '0').replace(/\./g, '');
+        const amount = parseFloat(rawAmt) || 0;
+        currentCapitalItems.push({ name, amount });
+    });
+}
+
+/**
+ * Render danh sách vốn đầu tư trong form tòa nhà
+ */
+function renderCapitalItems() {
+    const listEl = document.getElementById('capital-items-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (currentCapitalItems.length > 0) {
+        currentCapitalItems.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'flex gap-2 items-center capital-item-row';
+
+            const numSpan = document.createElement('span');
+            numSpan.className = 'text-gray-400 text-sm w-5 text-right shrink-0';
+            numSpan.textContent = index + 1;
+
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'capital-item-name flex-1 p-2 border rounded-lg bg-gray-50 text-sm';
+            nameInput.placeholder = 'Tên hạng mục...';
+            nameInput.value = item.name || '';
+            nameInput.addEventListener('input', updateCapitalTotal);
+
+            const amtInput = document.createElement('input');
+            amtInput.type = 'text';
+            amtInput.className = 'capital-item-amount w-36 p-2 border rounded-lg bg-gray-50 text-sm text-right';
+            amtInput.placeholder = '0';
+            amtInput.value = item.amount ? formatMoney(item.amount) : '';
+            amtInput.addEventListener('input', updateCapitalTotal);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-capital-item-btn shrink-0 text-red-500 hover:text-red-700 px-1 rounded text-lg leading-none';
+            removeBtn.dataset.index = index;
+            removeBtn.title = 'Xóa';
+            removeBtn.textContent = '✕';
+
+            row.appendChild(numSpan);
+            row.appendChild(nameInput);
+            row.appendChild(amtInput);
+            row.appendChild(removeBtn);
+            listEl.appendChild(row);
+        });
+    }
+    updateCapitalTotal();
+}
+
+/**
+ * Cập nhật tổng vốn đầu tư hiển thị trên nút toggle
+ */
+function updateCapitalTotal() {
+    let total = 0;
+    document.querySelectorAll('.capital-item-row').forEach(row => {
+        const raw = (row.querySelector('.capital-item-amount')?.value || '0').replace(/\./g, '');
+        total += parseFloat(raw) || 0;
+    });
+    const displayEl = document.getElementById('capital-total-display');
+    if (displayEl) displayEl.textContent = formatMoney(total) + ' đ';
 }
 
 /**
