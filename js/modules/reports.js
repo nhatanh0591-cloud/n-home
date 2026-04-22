@@ -1231,10 +1231,16 @@ function renderMonthlyRevenue(bills, contracts, building) {
     let html = '';
 
     bills.forEach(bill => {
-        // Tìm hợp đồng tương ứng
-        const contract = contracts.find(c =>
+        const roomContracts = contracts.filter(c =>
             c.buildingId === bill.buildingId && c.room === bill.room
         );
+        // Tìm HĐ có customerId của người đóng tiền trong mảng customers[] hoặc representativeId
+        const contract = roomContracts.find(c =>
+            bill.customerId && (
+                (Array.isArray(c.customers) && c.customers.includes(bill.customerId)) ||
+                c.representativeId === bill.customerId
+            )
+        ) || roomContracts[0] || null;
 
         const startDate = contract?.startDate ? formatDateDisplay(contract.startDate) : '—';
         const endDate   = contract?.endDate   ? formatDateDisplay(contract.endDate)   : '—';
