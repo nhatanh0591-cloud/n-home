@@ -1156,6 +1156,10 @@ async function loadMonthlyReport() {
     revenueBills.sort((a, b) => {
         const roomA = a.room || '';
         const roomB = b.room || '';
+        const aIsG = /^G/i.test(roomA);
+        const bIsG = /^G/i.test(roomB);
+        if (aIsG && !bIsG) return -1;
+        if (!aIsG && bIsG) return 1;
         return roomA.localeCompare(roomB, undefined, { numeric: true });
     });
 
