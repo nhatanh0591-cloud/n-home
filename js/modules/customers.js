@@ -202,9 +202,10 @@ export function loadCustomers() {
             
             // Xử lý phòng đặc biệt (có chữ)
             const getSpecialOrder = (room) => {
-                if (room.toLowerCase().includes('sân thượng') || room.toLowerCase().includes('rooftop')) return 3;
-                if (isNaN(parseInt(room))) return 2; // Phòng có chữ
-                return 1; // Phòng số
+                if (room.toLowerCase().includes('sân thượng') || room.toLowerCase().includes('rooftop')) return 4;
+                if (/^G/i.test(room)) return 1; // Phòng G... lên đầu
+                if (isNaN(parseInt(room))) return 3; // Phòng có chữ khác
+                return 2; // Phòng số
             };
             
             const orderA = getSpecialOrder(roomA);
@@ -215,7 +216,7 @@ export function loadCustomers() {
             }
             
             // Cùng loại thì sắp xếp theo số hoặc chữ cái
-            if (orderA === 1) { // Cả hai đều là số
+            if (orderA === 2) { // Cả hai đều là phòng số
                 return parseInt(roomA) - parseInt(roomB);
             } else {
                 return roomA.localeCompare(roomB);

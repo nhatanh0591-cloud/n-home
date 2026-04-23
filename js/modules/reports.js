@@ -1204,7 +1204,7 @@ async function loadMonthlyReport() {
     renderMonthlyExpense(expenseTransactions);
     renderMonthlyIncome(incomeTransactions, billCustomItems);
     renderMonthlySummary(revenueBills, expenseTransactions, incomeTransactions, billCustomItems, month, year);
-    renderProjectSummary(buildingId, allBills, allTransactions);
+    renderProjectSummary(buildingId, allBills, allTransactions, month, year);
 
     // Cập nhật tài khoản
     const accounts = window.__accounts || [];
@@ -1313,12 +1313,43 @@ function renderMonthlyRevenue(bills, contracts, building) {
 function renderMonthlyExpense(transactions) {
     if (!monthlyExpenseTbody) return;
 
+    // Thứ tự ưu tiên cho các chi phí cố định (so sánh không dấu, không hoa thường)
+    const PRIORITY_ORDER = ['tiền nhà', 'điện', 'nước', 'lương quản lý', 'wifi', 'công an'];
+    const normalize = str => (str || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd');
+
+    // Các hạng mục được coi là chi phí cố định
+    const allCategories = getTransactionCategories();
+    const FIXED_CAT_KEYWORDS = ['chi phí cố định', 'tiền điện', 'tiền nước', 'tiền nhà'];
+    const fixedCategoryIds = new Set(
+        allCategories
+            .filter(c => FIXED_CAT_KEYWORDS.some(k => normalize(c.name).includes(normalize(k))))
+            .map(c => c.id)
+    );
+
+    // Kiểm tra transaction có thuộc một trong các hạng mục chi phí cố định không
+    const isFixedCost = (t) => {
+        if (!Array.isArray(t.items) || t.items.length === 0) return false;
+        return t.items.some(item => fixedCategoryIds.has(item.categoryId));
+    };
+
+    const getPriority = (t) => {
+        // Chỉ áp dụng ưu tiên nếu transaction thuộc hạng mục "Chi phí cố định"
+        if (!isFixedCost(t)) return PRIORITY_ORDER.length;
+        const n = normalize(t.title);
+        const idx = PRIORITY_ORDER.findIndex(p => n.includes(normalize(p)));
+        return idx === -1 ? PRIORITY_ORDER.length - 1 : idx;
+    };
+
+    const sorted = [...transactions].sort((a, b) => getPriority(a) - getPriority(b));
+
     let html = '';
     let stt = 0;
     let total = 0;
 
     // Gộp tất cả items từ tất cả transactions
-    transactions.forEach(t => {
+    sorted.forEach(t => {
         const items = Array.isArray(t.items) && t.items.length > 0 ? t.items : [{ name: t.title || '—', amount: 0 }];
         items.forEach(item => {
             stt++;
@@ -1443,87 +1474,81 @@ function renderMonthlySummary(bills, expenseTransactions, incomeTransactions, bi
 }
 
 /**
- * Render TỔNG KẾT DỰ ÁN (lũy kế đến hết tháng trước tháng hiện tại)
+ * Render TỔNG KẾT DỰ ÁN - tính month-by-month từ startDate đến cutoff, y hệt TỔNG KẾT THÁNG
  */
-function renderProjectSummary(buildingId, allBills, allTransactions) {
-    // Cắt off = tháng hiện tại - 1
-    const today = new Date();
-    let cutoffMonth = today.getMonth(); // 0-based, getMonth() trả về 0=Jan
-    let cutoffYear = today.getFullYear();
-    if (cutoffMonth === 0) { cutoffMonth = 12; cutoffYear--; }
-    // cutoffMonth giờ là số tháng thực (1-12)
-
-    const allBuildingBills = allBills.filter(b =>
-        b.buildingId === buildingId && !b.isTerminationBill
-    );
-    const allExpense = allTransactions.filter(t =>
-        t.type === 'expense' && t.approved === true && (!t.buildingId || t.buildingId === buildingId)
-    );
-    const allManualIncome = allTransactions.filter(t =>
-        t.type === 'income' && t.approved === true && !t.billId && (!t.buildingId || t.buildingId === buildingId)
-    );
-
-    const cutoffFilter = (dateVal) => {
-        const parsed = parseTransactionDate(dateVal);
-        if (!parsed) return false;
-        if (parsed.year < cutoffYear) return true;
-        if (parsed.year === cutoffYear && parsed.month <= cutoffMonth) return true;
-        return false;
-    };
-
-    const billsCutoff = allBuildingBills.filter(b => {
-        const bYear = parseInt(b.year) || 0;
-        const bMonth = parseInt(b.period) || 0;
-        if (bYear < cutoffYear) return true;
-        if (bYear === cutoffYear && bMonth <= cutoffMonth) return true;
-        return false;
-    });
-
-    const expenseCutoff = allExpense.filter(t => cutoffFilter(t.date));
-    const incomeCutoff = allManualIncome.filter(t => cutoffFilter(t.date));
-
-    const cumulativeRevenue = billsCutoff.reduce((s, b) => {
-        const svc = extractBillServices(b.services);
-        return s + svc.rent + (parseFloat(svc.electric?.amount) || 0) + (parseFloat(svc.water?.amount) || 0) + svc.serviceTotal;
-    }, 0);
-    const cumulativeExpense = expenseCutoff.reduce((sum, t) => {
-        const items = Array.isArray(t.items) ? t.items : [];
-        return sum + items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-    }, 0);
-    const cumulativeIncome = incomeCutoff.reduce((sum, t) => {
-        const items = Array.isArray(t.items) ? t.items : [];
-        return sum + items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-    }, 0);
-
+function renderProjectSummary(buildingId, allBills, allTransactions, cutoffMonth, cutoffYear) {
     const building = getBuildings().find(b => b.id === buildingId);
     const priorProfit = parseFloat(building?.priorProfit) || 0;
-    const collected = priorProfit + cumulativeRevenue + cumulativeIncome - cumulativeExpense;
+    const capitalItems = building?.capitalItems || [];
+    const capital = capitalItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
 
-    // Số tháng từ startDate đến cutoff
-    let totalMonths = 1;
+    // Xác định tháng bắt đầu (startDate của tòa nhà)
+    let startM = cutoffMonth, startY = cutoffYear;
     if (building?.startDate) {
         const parts = building.startDate.split('-');
-        let startM, startY;
         if (parts.length === 3) {
             if (parts[2].length === 4) { startM = parseInt(parts[1]); startY = parseInt(parts[2]); }
             else { startY = parseInt(parts[0]); startM = parseInt(parts[1]); }
-            totalMonths = (cutoffYear - startY) * 12 + (cutoffMonth - startM) + 1;
         }
     } else {
-        let earliestYear = cutoffYear, earliestMonth = cutoffMonth;
-        billsCutoff.forEach(b => {
+        // Fallback: tháng sớm nhất có bill
+        allBills.filter(b => b.buildingId === buildingId && !b.isTerminationBill).forEach(b => {
             const y = parseInt(b.year) || cutoffYear;
             const m = parseInt(b.period) || cutoffMonth;
-            if (y < earliestYear || (y === earliestYear && m < earliestMonth)) {
-                earliestYear = y; earliestMonth = m;
-            }
+            if (y < startY || (y === startY && m < startM)) { startY = y; startM = m; }
         });
-        totalMonths = (cutoffYear - earliestYear) * 12 + (cutoffMonth - earliestMonth) + 1;
+    }
+
+    // Tính lũy kế bằng cách cộng lợi nhuận từng tháng, y hệt TỔNG KẾT THÁNG
+    let cumulativeProfit = 0;
+    let totalMonths = 0;
+    for (let y = startY; y <= cutoffYear; y++) {
+        const mFrom = (y === startY) ? startM : 1;
+        const mTo   = (y === cutoffYear) ? cutoffMonth : 12;
+        for (let m = mFrom; m <= mTo; m++) {
+            totalMonths++;
+            // Bills của tháng này (y hệt revenueBills trong loadMonthlyReport)
+            const monthBills = allBills.filter(b =>
+                b.buildingId === buildingId && !b.isTerminationBill &&
+                parseInt(b.year) === y && parseInt(b.period) === m
+            );
+            const monthRevenue = monthBills.reduce((s, b) => {
+                const svc = extractBillServices(b.services);
+                return s + svc.rent + (parseFloat(svc.electric?.amount) || 0) + (parseFloat(svc.water?.amount) || 0) + svc.serviceTotal;
+            }, 0);
+            const monthCustomIncome = monthBills.reduce((s, b) => {
+                const svc = extractBillServices(b.services);
+                return s + svc.customItems.reduce((ss, i) => ss + (parseFloat(i.amount) || 0), 0);
+            }, 0);
+
+            // Expense của tháng này
+            const monthExpense = allTransactions.filter(t => {
+                if (t.type !== 'expense' || t.approved !== true) return false;
+                if (t.buildingId && t.buildingId !== buildingId) return false;
+                const parsed = parseTransactionDate(t.date);
+                return parsed && parsed.year === y && parsed.month === m;
+            }).reduce((s, t) => {
+                const items = Array.isArray(t.items) ? t.items : [];
+                return s + items.reduce((ss, i) => ss + (parseFloat(i.amount) || 0), 0);
+            }, 0);
+
+            // Thu thủ công của tháng này
+            const monthIncome = allTransactions.filter(t => {
+                if (t.type !== 'income' || t.approved !== true || t.billId) return false;
+                if (t.buildingId && t.buildingId !== buildingId) return false;
+                const parsed = parseTransactionDate(t.date);
+                return parsed && parsed.year === y && parsed.month === m;
+            }).reduce((s, t) => {
+                const items = Array.isArray(t.items) ? t.items : [];
+                return s + items.reduce((ss, i) => ss + (parseFloat(i.amount) || 0), 0);
+            }, 0);
+
+            cumulativeProfit += monthRevenue + monthCustomIncome + monthIncome - monthExpense;
+        }
     }
     if (totalMonths < 1) totalMonths = 1;
 
-    const capitalItems = building?.capitalItems || [];
-    const capital = capitalItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    const collected = priorProfit + cumulativeProfit;
     const avgMonth = collected / totalMonths;
     const avgYear = avgMonth * 12;
 
