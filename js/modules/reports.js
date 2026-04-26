@@ -1080,14 +1080,28 @@ function extractBillServices(services) {
         const t = (svc.type || '').toLowerCase();
         const name = (svc.serviceName || svc.name || '').toLowerCase();
 
-        if (t === 'electric' || name.includes('điện')) {
-            result.electric = svc;
+        // Nhận diện theo tên trước để tránh bị sai khi type='custom' nhưng thực ra là tiền nhà/điện/nước
+        if (t === 'electric' || (name.includes('điện') && !name.includes('nước'))) {
+            // Cộng dồn tiền điện (có thể có nhiều khoản bổ sung)
+            const existing = result.electric;
+            if (existing) {
+                existing.amount = (parseFloat(existing.amount) || 0) + (parseFloat(svc.amount) || 0);
+            } else {
+                result.electric = { ...svc };
+            }
         } else if (t === 'water_meter' || t === 'water_flat' || name.includes('nước')) {
-            result.water = svc;
-        } else if (t === 'rent' || name.includes('tiền nhà') || name.includes('phòng')) {
-            result.rent = parseFloat(svc.amount) || 0;
+            // Cộng dồn tiền nước
+            const existing = result.water;
+            if (existing) {
+                existing.amount = (parseFloat(existing.amount) || 0) + (parseFloat(svc.amount) || 0);
+            } else {
+                result.water = { ...svc };
+            }
+        } else if (t === 'rent' || name.includes('tiền nhà') || name.includes('tiền phòng') || name.includes('phòng')) {
+            // Cộng dồn tiền nhà (bổ sung nhiều khoản vẫn cộng hết)
+            result.rent += parseFloat(svc.amount) || 0;
         } else if (t === 'custom') {
-            // Khoản thu thêm (cọc, bổ sung...) → vào BẢNG THU
+            // Khoản thu thêm thực sự (cọc, bổ sung khác...) → vào BẢNG THU
             result.customItems.push(svc);
         } else {
             // type='service' — phí dịch vụ cố định
