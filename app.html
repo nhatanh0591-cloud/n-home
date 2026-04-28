@@ -1536,17 +1536,38 @@
                 }
                 
                 // Load song song để nhanh hơn
-                const [contractsSnapshot, billsSnapshot] = await Promise.all([
-                    getDocs(query(collection(db, 'contracts'), where('representativeId', '==', customerId))),
-                    getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId)))
+                const [contractsSnapshot] = await Promise.all([
+                    getDocs(query(collection(db, 'contracts'), where('representativeId', '==', customerId)))
                 ]);
                 
                 contracts = contractsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // CHỈ LOAD HÓA ĐƠN ĐÃ DUYỆT
-                bills = billsSnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() }))
-                    .filter(bill => bill.approved === true);
-                // console.log('✅ Loaded bills from Firestore - approved only:', bills.length);
+
+                // Load hóa đơn: 2 cách song song
+                // 1. Theo customerId hiện tại
+                // 2. Theo từng hợp đồng (query buildingId → lọc đúng room trong JS)
+                //    → lấy được bills của đại diện cũ mà không cần sửa DB
+                const billFetchPromises = [
+                    getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId))),
+                    ...contracts.map(c => getDocs(query(collection(db, 'bills'), where('buildingId', '==', c.buildingId))))
+                ];
+                const billResults = await Promise.all(billFetchPromises);
+
+                const allBillsMap = new Map();
+                // Cách 1: bills theo customerId
+                billResults[0].docs.forEach(d => allBillsMap.set(d.id, { id: d.id, ...d.data() }));
+                // Cách 2: bills theo từng hợp đồng - dùng String() để tránh lỗi type mismatch (số vs chuỗi)
+                contracts.forEach((contract, i) => {
+                    billResults[i + 1].docs.forEach(d => {
+                        const bill = { id: d.id, ...d.data() };
+                        if (String(bill.room) === String(contract.room)) {
+                            allBillsMap.set(d.id, bill);
+                        }
+                    });
+                });
+
+                // CHỈ HIỆN HÓA ĐƠN ĐÃ DUYỆT
+                bills = Array.from(allBillsMap.values()).filter(b => b.approved === true);
+                console.log('✅ Total approved bills loaded:', bills.length);
                 
                 // Load services if needed
                 const servicesSnapshot = await getDocs(collection(db, 'services'));
@@ -1590,11 +1611,23 @@
         async function reloadBillsOnly(customerId) {
             try {
                 console.log('🔄 Reloading bills only for customer:', customerId);
-                const billsSnapshot = await getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId)));
-                bills = billsSnapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() }))
-                    .filter(bill => bill.approved === true);
-                
+
+                const billFetchPromises = [
+                    getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId))),
+                    ...(contracts || []).map(c => getDocs(query(collection(db, 'bills'), where('buildingId', '==', c.buildingId))))
+                ];
+                const billResults = await Promise.all(billFetchPromises);
+
+                const allBillsMap = new Map();
+                billResults[0].docs.forEach(d => allBillsMap.set(d.id, { id: d.id, ...d.data() }));
+                (contracts || []).forEach((contract, i) => {
+                    billResults[i + 1].docs.forEach(d => {
+                        const bill = { id: d.id, ...d.data() };
+                        if (String(bill.room) === String(contract.room)) allBillsMap.set(d.id, bill);
+                    });
+                });
+
+                bills = Array.from(allBillsMap.values()).filter(b => b.approved === true);
                 console.log('✅ Bills reloaded - approved only:', bills.length);
                 
                 // Update cache với bills mới
@@ -1779,55 +1812,47 @@
             let isFirstBillLoad = true;
             
             const billsUnsubscribe = onSnapshot(billsQuery, (snapshot) => {
-                console.log(`📊 Bills changes: ${snapshot.docChanges().length} reads`);
-                
-                if (isFirstBillLoad) {
-                    bills = snapshot.docs
-                        .map(doc => ({ id: doc.id, ...doc.data() }))
-                        .filter(bill => bill.approved === true)
-                        .sort((a, b) => {
-                            // Ưu tiên billDate, fallback createdAt, cuối cùng là period
-                            const getTime = (bill) => {
-                                if (bill.billDate) {
-                                    if (bill.billDate.toDate) return bill.billDate.toDate().getTime();
-                                    if (typeof bill.billDate === 'string' && bill.billDate.includes('/')) {
-                                        const parts = bill.billDate.split('/');
-                                        return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
-                                    }
-                                    return new Date(bill.billDate).getTime();
+                // Chỉ cập nhật đúng hóa đơn bị thay đổi vào mảng bills hiện có
+                // Hóa đơn cũ đã được tải 1 lần trong loadUserData rồi — không cần gọi máy chủ lại
+                let changed = false;
+
+                snapshot.docChanges().forEach((change) => {
+                    const bill = { id: change.doc.id, ...change.doc.data() };
+
+                    if (change.type === 'added' || change.type === 'modified') {
+                        if (bill.approved === true) {
+                            const idx = bills.findIndex(b => b.id === bill.id);
+                            if (idx >= 0) {
+                                // Đã có rồi, kiểm tra có thay đổi gì không
+                                if (bills[idx].status !== bill.status || bills[idx].paid !== bill.paid) {
+                                    bills[idx] = bill;
+                                    changed = true;
                                 }
-                                if (bill.createdAt) {
-                                    if (bill.createdAt.toDate) return bill.createdAt.toDate().getTime();
-                                    return new Date(bill.createdAt).getTime();
-                                }
-                                // Fallback: từ period
-                                const period = parseInt(bill.period) || 11;
-                                return new Date(2025, period - 1, 1).getTime();
-                            };
-                            return getTime(b) - getTime(a); // Mới nhất trước
-                        });
-                    
-                    // 🔥 LUÔN RENDER DỮ LIỆU MỚI NHẤT TỪ FIREBASE (KHÔNG SKIP)
-                    console.log('🔄 First load - rendering fresh data from Firebase');
-                    renderHomeData();
-                    renderBillsList();
+                            } else {
+                                // Hóa đơn mới (admin vừa tạo cho đại diện hiện tại)
+                                bills.push(bill);
+                                changed = true;
+                            }
+                        } else {
+                            // Hóa đơn bị hủy duyệt → bỏ đi
+                            const idx = bills.findIndex(b => b.id === bill.id);
+                            if (idx >= 0) {
+                                bills.splice(idx, 1);
+                                changed = true;
+                            }
+                        }
+                    } else if (change.type === 'removed') {
+                        const idx = bills.findIndex(b => b.id === bill.id);
+                        if (idx >= 0) {
+                            bills.splice(idx, 1);
+                            changed = true;
+                        }
+                    }
+                });
+
+                if (isFirstBillLoad || changed) {
                     isFirstBillLoad = false;
-                    
-                    // 💾 Lưu vào cache SAU KHI ĐÃ RENDER
-                    saveUserDataToCache(customerId, { 
-                        bills, 
-                        notifications,
-                        timestamp: Date.now()
-                    });
-                    return;
-                }
-                
-                // Real-time update
-                const newBills = snapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() }))
-                    .filter(bill => bill.approved === true)
-                    .sort((a, b) => {
-                        // Ưu tiên billDate, fallback createdAt, cuối cùng là period
+                    bills.sort((a, b) => {
                         const getTime = (bill) => {
                             if (bill.billDate) {
                                 if (bill.billDate.toDate) return bill.billDate.toDate().getTime();
@@ -1841,38 +1866,17 @@
                                 if (bill.createdAt.toDate) return bill.createdAt.toDate().getTime();
                                 return new Date(bill.createdAt).getTime();
                             }
-                            // Fallback: từ period
-                            const period = parseInt(bill.period) || 11;
-                            return new Date(2025, period - 1, 1).getTime();
+                            return new Date(2025, (parseInt(bill.period) || 11) - 1, 1).getTime();
                         };
-                        return getTime(b) - getTime(a); // Mới nhất trước
+                        return getTime(b) - getTime(a);
                     });
-                
-                // Check for real changes including status updates
-                const hasChanges = newBills.length !== bills.length || 
-                    !newBills.every(nb => {
-                        const ob = bills.find(bill => bill.id === nb.id);
-                        return ob && ob.status === nb.status && ob.paid === nb.paid;
-                    });
-                
-                if (hasChanges) {
-                    console.log('🔄 Bills updated - status changes detected, FORCE UPDATE UI');
-                    bills = newBills;
-                    
-                    // 🔥 CRITICAL: Force clear cache cũ để tránh conflict
-                    localStorage.removeItem(`n_home_user_${customerId}`);
-                    localStorage.removeItem(`userData_${customerId}`);
-                    
-                    // Force refresh UI to show payment status changes
+
                     renderHomeData();
                     renderBillsList();
-                    
-                    // Update notification badge if needed
                     updateNotificationBadge();
-                    
-                    // 💾 Lưu cache mới với timestamp mới
-                    saveUserDataToCache(customerId, { 
-                        bills, 
+
+                    saveUserDataToCache(customerId, {
+                        bills,
                         notifications,
                         timestamp: Date.now()
                     });
@@ -1884,82 +1888,93 @@
             activeListeners.push(billsUnsubscribe);
 
             // 2. LẮNG NGHE TRANSACTIONS - BẮT TRÚNG KHI WEB THU TIỀN (bỏ orderBy)
+            // Query theo customerId hiện tại + theo buildingId của hợp đồng (để bắt transactions cũ từ đại diện trước)
+            const currentContract = contracts[0];
             const transactionsQuery = query(
                 collection(db, 'transactions'),
                 where('customerId', '==', customerId),
-                where('type', '==', 'income') // Chỉ lắng nghe phiếu thu, bỏ orderBy
+                where('type', '==', 'income')
             );
+            // Query thêm theo buildingId của hợp đồng
+            const transactionsByBuildingQuery = currentContract ? query(
+                collection(db, 'transactions'),
+                where('buildingId', '==', currentContract.buildingId),
+                where('type', '==', 'income')
+            ) : null;
             
             let isFirstTransactionLoad = true;
-            
-            onSnapshot(transactionsQuery, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    const transactionData = { id: change.doc.id, ...change.doc.data() };
+
+            // Hàm xử lý chung cho 1 transaction doc
+            function handleTransactionChange(change) {
+                const transactionData = { id: change.doc.id, ...change.doc.data() };
+
+                if (change.type === 'added' && transactionData.approved && transactionData.billId) {
+                    // Với transactions từ buildingId query: lọc đúng room
+                    if (transactionData.customerId !== customerId && currentContract) {
+                        if (String(transactionData.room) !== String(currentContract.room)) return;
+                    }
+
+                    console.log('💰 Payment transaction created by admin:', transactionData.id);
                     
-                    if (change.type === 'added' && transactionData.approved && transactionData.billId) {
-                        // Tạo IN-APP NOTIFICATION (không có push notification để tránh duplicate)
-                        console.log('💰 Payment transaction created by admin:', transactionData.id);
+                    const totalAmount = transactionData.items 
+                        ? transactionData.items.reduce((sum, item) => sum + (item.amount || 0), 0)
+                        : (transactionData.amount || 0);
                         
-                        // Tính tổng tiền từ items
-                        const totalAmount = transactionData.items 
-                            ? transactionData.items.reduce((sum, item) => sum + (item.amount || 0), 0)
-                            : 0;
-                            
-                        // Kiểm tra xem đã có thông báo cho transaction này chưa
-                        const existingPaymentNotification = notifications.find(n => n.data?.transactionId === transactionData.id);
-                        if (!existingPaymentNotification) {
-                            // Tạo notification trong app (không push)
-                            const notification = {
-                                id: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                type: 'payment_received',
-                                title: 'Xác nhận thanh toán',
-                                message: `Chúng tôi đã nhận được khoản thanh toán ${formatCurrency(totalAmount)} của bạn. Xin cảm ơn!`,
-                                createdAt: transactionData.createdAt?.toDate ? transactionData.createdAt.toDate() : new Date(),
-                                isRead: false, // LUÔN chưa đọc để user phải bấm đọc
-                                data: { 
-                                    transactionId: transactionData.id, 
-                                    billId: transactionData.billId, 
-                                    amount: totalAmount 
-                                }
-                            };
-                            
-                            // Thêm vào danh sách notifications
-                            notifications.unshift(notification);
-                            
-                            // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
-                            if (!isFirstTransactionLoad) {
-                                showInAppNotification('Xác nhận thanh toán', notification.message);
+                    const existingPaymentNotification = notifications.find(n => n.data?.transactionId === transactionData.id);
+                    if (!existingPaymentNotification) {
+                        const readStatus = loadReadStatusFromStorage(customerId);
+                        const notifId = `payment_${transactionData.id}`;
+                        const wasRead = readStatus[notifId] || false;
+
+                        const notification = {
+                            id: notifId,
+                            type: 'payment_received',
+                            title: 'Xác nhận thanh toán',
+                            message: `Chúng tôi đã nhận được khoản thanh toán ${formatCurrency(totalAmount)} của bạn. Xin cảm ơn!`,
+                            createdAt: transactionData.createdAt?.toDate ? transactionData.createdAt.toDate() : new Date(),
+                            isRead: wasRead,
+                            data: { 
+                                transactionId: transactionData.id, 
+                                billId: transactionData.billId, 
+                                amount: totalAmount 
                             }
-                            
-                            saveNotificationsToStorage();
-                            renderNotificationsList();
-                            
-                            console.log('✅ Created in-app payment notification, isFirstLoad:', isFirstTransactionLoad);
-                        }
-                    }
-                    
-                    // 🗑️ XỬ LÝ KHI TRANSACTION BỊ XÓA (HỦY THU TIỀN)
-                    if (change.type === 'removed' && transactionData.billId) {
-                        console.log('🗑️ Transaction deleted by admin:', transactionData.id);
+                        };
                         
-                        // Tìm và xóa notification có transactionId tương ứng
-                        const initialLength = notifications.length;
-                        notifications = notifications.filter(notification => 
-                            notification.data?.transactionId !== transactionData.id
-                        );
+                        notifications.unshift(notification);
                         
-                        if (notifications.length < initialLength) {
-                            console.log('✅ Đã xóa thông báo thanh toán do hủy thu tiền');
-                            saveNotificationsToStorage();
-                            renderNotificationsList();
-                        } else {
-                            console.log('ℹ️ Không tìm thấy thông báo thanh toán để xóa');
+                        if (!isFirstTransactionLoad) {
+                            showInAppNotification('Xác nhận thanh toán', notification.message);
                         }
+                        
+                        saveNotificationsToStorage();
+                        renderNotificationsList();
+                        console.log('✅ Created in-app payment notification, isFirstLoad:', isFirstTransactionLoad);
                     }
-                });
+                }
                 
-                // Đánh dấu đã load xong lần đầu
+                if (change.type === 'removed' && transactionData.billId) {
+                    console.log('🗑️ Transaction deleted by admin:', transactionData.id);
+                    const initialLength = notifications.length;
+                    notifications = notifications.filter(n => n.data?.transactionId !== transactionData.id);
+                    if (notifications.length < initialLength) {
+                        saveNotificationsToStorage();
+                        renderNotificationsList();
+                    }
+                }
+            }
+
+            onSnapshot(transactionsQuery, (snapshot) => {
+                snapshot.docChanges().forEach(handleTransactionChange);
                 if (isFirstTransactionLoad) {
+                    // Sau khi load xong query 1, load thêm query 2 (theo buildingId)
+                    if (transactionsByBuildingQuery) {
+                        getDocs(transactionsByBuildingQuery).then(snap => {
+                            snap.docs.forEach(doc => {
+                                handleTransactionChange({ type: 'added', doc });
+                            });
+                            renderNotificationsList();
+                        }).catch(() => {});
+                    }
                     console.log('✅ First transaction load completed');
                     isFirstTransactionLoad = false;
                 }
@@ -2092,12 +2107,11 @@
                     }
                     
                     // Filter room ở client side (query chỉ filter buildingId)
-                    // QUAN TRỌNG: Chỉ hiện thông báo cho đúng khách hàng (customerId) và đúng phòng (room)
-                    const isForThisCustomer = !notificationData.customerId || notificationData.customerId === customerId;
-                    const isForThisRoom = notificationData.room === contract.room;
-                    // console.log('🔔 Processing notification:', notificationData.type, 'customer match:', isForThisCustomer, 'room match:', isForThisRoom);
+                    // Chỉ cần đúng phòng là hiện - không cần check customerId
+                    // vì đại diện có thể thay đổi nhưng thông báo gắn với phòng/tòa nhà
+                    const isForThisRoom = String(notificationData.room) === String(contract.room);
                     
-                    if (change.type === 'added' && isForThisRoom && isForThisCustomer) {
+                    if (change.type === 'added' && isForThisRoom) {
                         // console.log('🔔 New customer notification received:', notificationData.type, notificationData.message);
                         
                         // Kiểm tra xem notification đã tồn tại chưa (check bằng firebaseId)
@@ -2172,34 +2186,15 @@
                             // Thêm vào đầu danh sách
                             notifications.unshift(notification);
                             
-                            // Sắp xếp theo THÁNG HÓA ĐƠN thay vì thời gian tạo
+                            // Sắp xếp theo thời gian tạo mới nhất trước
                             notifications.sort((a, b) => {
-                                const getBillMonth = (notification) => {
-                                    const message = notification.message || notification.title || '';
-                                    const monthMatch = message.match(/tháng\s+(\d+)(?:-(\d+))?/i);
-                                    if (monthMatch) {
-                                        const month = parseInt(monthMatch[1]);
-                                        const year = monthMatch[2] ? parseInt(monthMatch[2]) : 2025;
-                                        return year * 100 + month;
-                                    }
-                                    if (notification.data?.billId && bills?.length > 0) {
-                                        const bill = bills.find(b => b.id === notification.data.billId);
-                                        if (bill?.period) return 2025 * 100 + parseInt(bill.period);
-                                    }
-                                    return 202511;
+                                const getTime = (n) => {
+                                    if (!n.createdAt) return 0;
+                                    if (n.createdAt instanceof Date) return n.createdAt.getTime();
+                                    if (n.createdAt?.toDate) return n.createdAt.toDate().getTime();
+                                    return new Date(n.createdAt).getTime();
                                 };
-                                
-                                const monthA = getBillMonth(a);
-                                const monthB = getBillMonth(b);
-                                
-                                if (monthA === monthB) {
-                                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
-                                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
-                                    if (isPaymentA && !isPaymentB) return -1;
-                                    if (!isPaymentA && isPaymentB) return 1;
-                                }
-                                
-                                return monthB - monthA; // Tháng mới trước
+                                return getTime(b) - getTime(a);
                             });
                             
                             // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
@@ -4776,40 +4771,15 @@
                 }
             }
             
-            // 🔥 ĐẢMBẢO SẮP XẾP THEO THÁNG HÓA ĐƠN TRƯỚC KHI RENDER
+            // Sắp xếp theo thời gian tạo mới nhất trước
             notifications.sort((a, b) => {
-                const getBillMonth = (notification) => {
-                    // Tìm tháng từ message content
-                    const message = notification.message || notification.title || '';
-                    const monthMatch = message.match(/tháng\s+(\d+)(?:-(\d+))?/i);
-                    if (monthMatch) {
-                        const month = parseInt(monthMatch[1]);
-                        const year = monthMatch[2] ? parseInt(monthMatch[2]) : 2025;
-                        return year * 100 + month;
-                    }
-                    
-                    // Fallback: từ bill data
-                    if (notification.data?.billId && bills?.length > 0) {
-                        const bill = bills.find(b => b.id === notification.data.billId);
-                        if (bill?.period) return 2025 * 100 + parseInt(bill.period);
-                    }
-                    
-                    return 202511; // Default tháng 11/2025
+                const getTime = (n) => {
+                    if (!n.createdAt) return 0;
+                    if (n.createdAt instanceof Date) return n.createdAt.getTime();
+                    if (n.createdAt?.toDate) return n.createdAt.toDate().getTime();
+                    return new Date(n.createdAt).getTime();
                 };
-                
-                const monthA = getBillMonth(a);
-                const monthB = getBillMonth(b);
-                
-                // Cùng tháng thì "Xác nhận thanh toán" trước "Thông báo hóa đơn"
-                if (monthA === monthB) {
-                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
-                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
-                    
-                    if (isPaymentA && !isPaymentB) return -1;
-                    if (!isPaymentA && isPaymentB) return 1;
-                }
-                
-                return monthB - monthA; // Tháng mới nhất trước
+                return getTime(b) - getTime(a);
             });
             
             // Cập nhật badge
@@ -4830,82 +4800,15 @@
                 return;
             }
 
-            // Sắp xếp theo THÁNG HÓA ĐƠN (mới nhất trước) thay vì thời gian tạo
+            // Sắp xếp theo thời gian tạo mới nhất trước
             const sortedNotifications = [...notifications].sort((a, b) => {
-                const getBillMonth = (notification) => {
-                    // Đặc biệt cho thông báo "Xác nhận thanh toán": tìm theo số tiền
-                    if ((notification.title || '').includes('Xác nhận thanh toán')) {
-                        const paymentAmount = notification.data?.amount || 0;
-                        if (paymentAmount > 0) {
-                            // Tìm thông báo hóa đơn có cùng số tiền
-                            const matchingBillNotification = notifications.find(n => 
-                                (n.title || '').includes('Thông báo hóa đơn') && 
-                                (n.data?.amount || 0) === paymentAmount
-                            );
-                            if (matchingBillNotification) {
-                                const billMessage = matchingBillNotification.message || matchingBillNotification.title || '';
-                                const billMonthMatch = billMessage.match(/tháng\s+(\d+)(?:-(\d+))?/i);
-                                if (billMonthMatch) {
-                                    const month = parseInt(billMonthMatch[1]);
-                                    const year = billMonthMatch[2] ? parseInt(billMonthMatch[2]) : 2025;
-                                    return year * 100 + month;
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Tìm tháng từ message content (cho thông báo hóa đơn)
-                    const message = notification.message || notification.title || '';
-                    
-                    // Pattern: "tháng X-YYYY" hoặc "tháng X"
-                    const monthMatch = message.match(/tháng\s+(\d+)(?:-(\d+))?/i);
-                    if (monthMatch) {
-                        const month = parseInt(monthMatch[1]);
-                        const year = monthMatch[2] ? parseInt(monthMatch[2]) : 2025;
-                        return year * 100 + month; // VD: 2025*100 + 11 = 202511
-                    }
-                    
-                    // Fallback: tìm từ data.billId nếu có
-                    if (notification.data?.billId && bills?.length > 0) {
-                        const bill = bills.find(b => b.id === notification.data.billId);
-                        if (bill?.period) {
-                            const period = parseInt(bill.period);
-                            return 2025 * 100 + period;
-                        }
-                    }
-                    
-                    // Fallback cuối: dùng thời gian tạo
-                    if (notification.createdAt) {
-                        const date = notification.createdAt instanceof Date ? 
-                            notification.createdAt : 
-                            (notification.createdAt.toDate ? notification.createdAt.toDate() : new Date(notification.createdAt));
-                        return date.getFullYear() * 100 + (date.getMonth() + 1);
-                    }
-                    
-                    return 202511; // Default tháng 11/2025
+                const getTime = (n) => {
+                    if (!n.createdAt) return 0;
+                    if (n.createdAt instanceof Date) return n.createdAt.getTime();
+                    if (n.createdAt?.toDate) return n.createdAt.toDate().getTime();
+                    return new Date(n.createdAt).getTime();
                 };
-                
-                const monthA = getBillMonth(a);
-                const monthB = getBillMonth(b);
-                
-                // Nếu cùng tháng, sắp xếp theo loại: "Xác nhận thanh toán" trước "Thông báo hóa đơn"
-                if (monthA === monthB) {
-                    const isPaymentA = (a.title || '').includes('Xác nhận thanh toán');
-                    const isPaymentB = (b.title || '').includes('Xác nhận thanh toán');
-                    
-                    if (isPaymentA && !isPaymentB) return -1; // A (payment) lên trước
-                    if (!isPaymentA && isPaymentB) return 1;  // B (payment) lên trước
-                    
-                    // Cùng loại thì sắp xếp theo thời gian tạo
-                    const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : 
-                        (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime());
-                    const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : 
-                        (b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime());
-                    return timeB - timeA;
-                }
-                
-                // Tháng mới nhất trước (monthB - monthA)
-                return monthB - monthA;
+                return getTime(b) - getTime(a);
             });
 
             // Virtual scrolling cho danh sách dài
