@@ -1522,55 +1522,27 @@
         async function loadUserData(customerId) {
             try {
                 // console.log('Loading data for customer ID:', customerId);
-                
+
                 // Load từ cache trước (nếu có)
                 const cachedData = localStorage.getItem(`userData_${customerId}`);
                 if (cachedData) {
                     const parsed = JSON.parse(cachedData);
                     buildings = parsed.buildings || [];
                     contracts = parsed.contracts || [];
-                    // CHỈ LOAD HÓA ĐƠN ĐÃ DUYỆT TỪ CACHE
                     bills = (parsed.bills || []).filter(bill => bill.approved === true);
-                    // console.log('✅ Loaded from cache - approved bills only:', bills.length);
-                    renderHomeData(); // Hiện data cache trước
+                    renderHomeData();
                 }
-                
-                // Load contracts trước
+
+                // Load contracts mà user là người đại diện
                 const contractsSnapshot = await getDocs(query(collection(db, 'contracts'), where('representativeId', '==', customerId)));
                 contracts = contractsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                // Load bills: theo customerId + theo buildingId/room (để thấy hóa đơn cũ khi đổi người đại diện)
-                // Đồng thời load tất cả hợp đồng cùng phòng để lọc bỏ hóa đơn của hợp đồng khác
-                const allContractsForRoomSnapshots = await Promise.all(
-                    contracts.map(c => getDocs(query(
-                        collection(db, 'contracts'),
-                        where('buildingId', '==', c.buildingId),
-                        where('room', '==', c.room)
-                    )))
-                );
-                // RepresentativeId của các hợp đồng KHÁC cùng phòng (không phải hợp đồng hiện tại của user)
-                const foreignRepIds = new Set(
-                    allContractsForRoomSnapshots
-                        .flatMap(snap => snap.docs.map(d => d.data().representativeId))
-                        .filter(repId => repId && repId !== customerId)
-                );
-
-                const billsQueryList = [
-                    getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId))),
-                    ...contracts.map(c => getDocs(query(
-                        collection(db, 'bills'),
-                        where('buildingId', '==', c.buildingId),
-                        where('room', '==', c.room)
-                    )))
-                ];
-                const billsResults = await Promise.all(billsQueryList);
-                const billsMap = new Map();
-                billsResults
-                    .flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-                    .filter(bill => bill.approved === true && !foreignRepIds.has(bill.customerId))
-                    .forEach(bill => billsMap.set(bill.id, bill));
-                // CHỈ LOAD HÓA ĐƠN ĐÃ DUYỆT
-                bills = Array.from(billsMap.values());
+                // Chỉ load hóa đơn có customerId trùng user đang đăng nhập.
+                // Hợp đồng đổi đại diện hay phòng cho thuê lại → mỗi người chỉ thấy hóa đơn của chính mình.
+                const billsSnapshot = await getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId)));
+                bills = billsSnapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter(bill => bill.approved === true);
                 // console.log('✅ Loaded bills from Firestore - approved only:', bills.length);
                 
                 // Load services if needed
@@ -1615,33 +1587,10 @@
         async function reloadBillsOnly(customerId) {
             try {
                 console.log('🔄 Reloading bills only for customer:', customerId);
-                const allRoomContractSnaps = await Promise.all(
-                    contracts.map(c => getDocs(query(
-                        collection(db, 'contracts'),
-                        where('buildingId', '==', c.buildingId),
-                        where('room', '==', c.room)
-                    )))
-                );
-                const foreignRepIdsReload = new Set(
-                    allRoomContractSnaps
-                        .flatMap(snap => snap.docs.map(d => d.data().representativeId))
-                        .filter(repId => repId && repId !== customerId)
-                );
-                const reloadQueryList = [
-                    getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId))),
-                    ...contracts.map(c => getDocs(query(
-                        collection(db, 'bills'),
-                        where('buildingId', '==', c.buildingId),
-                        where('room', '==', c.room)
-                    )))
-                ];
-                const reloadResults = await Promise.all(reloadQueryList);
-                const reloadMap = new Map();
-                reloadResults
-                    .flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-                    .filter(bill => bill.approved === true && !foreignRepIdsReload.has(bill.customerId))
-                    .forEach(bill => reloadMap.set(bill.id, bill));
-                bills = Array.from(reloadMap.values());
+                const billsSnapshot = await getDocs(query(collection(db, 'bills'), where('customerId', '==', customerId)));
+                bills = billsSnapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .filter(bill => bill.approved === true);
                 
                 console.log('✅ Bills reloaded - approved only:', bills.length);
                 
@@ -1664,7 +1613,7 @@
         }
 
         // 💾 CACHE CONSTANTS
-        const CACHE_VERSION = '1.0';
+        const CACHE_VERSION = '1.2';
         const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 giờ
         
         // Real-time listeners cho thông báo - ĐÃ TỐI ƯU CACHE
@@ -2014,50 +1963,6 @@
                     console.log('✅ First transaction load completed');
                     isFirstTransactionLoad = false;
                 }
-            });
-
-            // 2b. LẮNG NGHE TRANSACTIONS CỦA NGƯỜI ĐẠI DIỆN CŨ (hóa đơn cũ khi đổi người đại diện)
-            const oldRepCustomerIds = [...new Set(bills.map(b => b.customerId).filter(id => id && id !== customerId))];
-            oldRepCustomerIds.forEach(oldCId => {
-                const oldTransQuery = query(
-                    collection(db, 'transactions'),
-                    where('customerId', '==', oldCId),
-                    where('type', '==', 'income')
-                );
-                const oldTransUnsub = onSnapshot(oldTransQuery, (snapshot) => {
-                    snapshot.docChanges().forEach((change) => {
-                        const transactionData = { id: change.doc.id, ...change.doc.data() };
-                        if (change.type === 'added' && transactionData.approved && transactionData.billId) {
-                            const existingNotif = notifications.find(n => n.data?.transactionId === transactionData.id);
-                            if (!existingNotif) {
-                                const totalAmount = transactionData.items
-                                    ? transactionData.items.reduce((sum, item) => sum + (item.amount || 0), 0)
-                                    : 0;
-                                const notification = {
-                                    id: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                    type: 'payment_received',
-                                    title: 'Xác nhận thanh toán',
-                                    message: `Chúng tôi đã nhận được khoản thanh toán ${formatCurrency(totalAmount)} của bạn. Xin cảm ơn!`,
-                                    createdAt: transactionData.createdAt?.toDate ? transactionData.createdAt.toDate() : new Date(),
-                                    isRead: false,
-                                    data: { transactionId: transactionData.id, billId: transactionData.billId, amount: totalAmount }
-                                };
-                                notifications.unshift(notification);
-                                saveNotificationsToStorage();
-                                renderNotificationsList();
-                            }
-                        }
-                        if (change.type === 'removed' && transactionData.billId) {
-                            const initialLength = notifications.length;
-                            notifications = notifications.filter(n => n.data?.transactionId !== transactionData.id);
-                            if (notifications.length < initialLength) {
-                                saveNotificationsToStorage();
-                                renderNotificationsList();
-                            }
-                        }
-                    });
-                });
-                activeListeners.push(oldTransUnsub);
             });
 
             // 3. LẮNG NGHE TASKS - BẮT TRÚNG KHI WEB DUYỆT SỰ CỐ (toggleTaskStatus)

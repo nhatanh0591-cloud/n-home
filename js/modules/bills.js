@@ -2966,25 +2966,31 @@ async function showBillDetail(billId) {
         if (!accounts || accounts.length === 0) return false;
         const assignedAccount = accounts.find(acc => acc.id === targetAccountId);
         if (!assignedAccount) return false;
-        
+
         if (assignedAccount.bank === 'Cash') {
             qrImg.style.display = 'none';
             const cashDiv = document.getElementById('cash-payment-notice');
             if (cashDiv) cashDiv.style.display = 'none';
             return true;
         }
-        
+
         if (!assignedAccount.accountNumber) return false;
-        
+
         const cashDiv = document.getElementById('cash-payment-notice');
         if (cashDiv) cashDiv.style.display = 'none';
+
+        // Nếu đã thanh toán đủ thì ẩn QR (không còn nợ)
+        if (remainingAmount <= 0) {
+            qrImg.style.display = 'none';
+            return true;
+        }
         qrImg.style.display = 'block';
-        
+
         const bankId = BANK_ID_MAP[assignedAccount.bank] || assignedAccount.bankId || '970416';
         const accountNo = assignedAccount.accountNumber;
         const accountName = assignedAccount.accountHolder || 'KHACH HANG';
-        
-        const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-qr_only.jpg?amount=${bill.totalAmount}&addInfo=${encodeURIComponent(qrContent)}&accountName=${encodeURIComponent(accountName)}`;
+
+        const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-qr_only.jpg?amount=${remainingAmount}&addInfo=${encodeURIComponent(qrContent)}&accountName=${encodeURIComponent(accountName)}`;
         
         // Dùng fetch để tải ảnh QR (tránh bị Service Worker chặn)
         fetch(qrUrl).then(res => {
