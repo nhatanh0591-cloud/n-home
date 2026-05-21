@@ -936,11 +936,16 @@ async function handleBillFormSubmit(e) {
                 }
             }
             
-            serviceDetail.quantity = originalQuantity;
-            
-            // Đặc biệt với tiền nhà, đảm bảo unitPrice đúng
-            if (serviceDetail.type === 'rent' && serviceDetail.quantity > 0) {
-                serviceDetail.unitPrice = serviceDetail.amount / serviceDetail.quantity;
+            if (serviceDetail.type === 'rent') {
+                // Lưu số ngày thực tế từ span hiển thị
+                const quantityDisplayEl = row.querySelector('.quantity-display');
+                const quantityDisplayText = quantityDisplayEl ? quantityDisplayEl.textContent : '';
+                const daysMatch = quantityDisplayText.match(/(\d+)/);
+                serviceDetail.quantity = daysMatch ? parseInt(daysMatch[1]) : originalQuantity;
+                serviceDetail.quantityDisplay = serviceDetail.quantity;
+                // unitPrice GIỮ NGUYÊN = giá thuê hợp đồng (từ row.dataset.price), không tính lại từ amount
+            } else {
+                serviceDetail.quantity = originalQuantity;
             }
         }
         
@@ -2804,10 +2809,17 @@ async function showBillDetail(billId) {
             extraInfo = `(SC: ${item.oldReading} - SM: ${item.newReading})`;
             content += `<br><span class="text-xs text-gray-500">${extraInfo}</span>`;
         } else if (item.type === 'rent') {
-            quantity = item.quantityDisplay || 1;
-            // Với tiền nhà, nếu unitPrice bằng 0 thì tính từ amount/quantity
-            if (unitPrice === 0 && item.amount && quantity > 0) {
-                unitPrice = item.amount / quantity;
+            // Tính số ngày thực tế: ưu tiên quantityDisplay, fallback tính từ fromDate/toDate
+            if (item.quantityDisplay) {
+                quantity = item.quantityDisplay;
+            } else if (item.fromDate && item.toDate) {
+                const from = new Date(item.fromDate);
+                const to = new Date(item.toDate);
+                quantity = Math.max(1, Math.round((to - from) / (1000 * 60 * 60 * 24)) + 1);
+            }
+            // Với tiền nhà, luôn hiển thị giá hợp đồng (không phải giá theo ngày)
+            if (contract) {
+                unitPrice = contract.rentPrice || unitPrice;
             }
             // Thêm khoảng thời gian cho tiền nhà - LẤY TỪ FROMDATE/TODATE THỰC TẾ
             if (item.fromDate && item.toDate) {

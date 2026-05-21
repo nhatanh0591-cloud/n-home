@@ -2860,9 +2860,17 @@
                 if (service.type === 'electric' || service.type === 'water_meter') {
                     extraInfo = `(SC: ${service.oldReading} - SM: ${service.newReading})`;
                 } else if (service.type === 'rent') {
-                    quantity = service.quantityDisplay || 1;
-                    if (unitPrice === 0 && service.amount && quantity > 0) {
-                        unitPrice = service.amount / quantity;
+                    // Tính số ngày thực tế: ưu tiên quantityDisplay, fallback tính từ fromDate/toDate
+                    if (service.quantityDisplay) {
+                        quantity = service.quantityDisplay;
+                    } else if (service.fromDate && service.toDate) {
+                        const from = new Date(service.fromDate);
+                        const to = new Date(service.toDate);
+                        quantity = Math.max(1, Math.round((to - from) / (1000 * 60 * 60 * 24)) + 1);
+                    }
+                    // Với tiền nhà, luôn hiển thị giá hợp đồng (không phải giá theo ngày)
+                    if (contract) {
+                        unitPrice = contract.rentPrice || unitPrice;
                     }
                     if (service.fromDate && service.toDate) {
                         const fromShort = service.fromDate.split('-').slice(1).reverse().join('-');
