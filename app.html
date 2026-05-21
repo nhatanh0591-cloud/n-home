@@ -2448,7 +2448,7 @@
                             <div>
                                 <p class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Rent' : 'Tiền nhà'}</p>
                             </div>
-                            <p class="font-bold text-gray-800">${formatCurrency(contract.rentPrice || contract.roomPrice || 0)} / ${currentLanguage === 'en' ? 'month' : 'tháng'}</p>
+                            <p class="font-bold text-gray-800" style="white-space:nowrap;">${formatCurrency(contract.rentPrice || contract.roomPrice || 0)} / ${currentLanguage === 'en' ? 'month' : 'tháng'}</p>
                         </div>
                         
                         <div class="flex justify-between items-center py-3 px-5 bg-gray-50">
@@ -2466,7 +2466,7 @@
                                 <p class="font-medium text-gray-800">${currentLanguage === 'en' ? 'Parking Fee' : 'Tiền xe'}</p>
                                 <p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity:' : 'Số lượng:'} ${contract.vehicleCount || 1}</p>
                             </div>
-                            <p class="font-bold text-gray-800">${formatCurrency(contract.vehiclePrice)} / ${currentLanguage === 'en' ? 'vehicle' : 'xe'}</p>
+                            <p class="font-bold text-gray-800" style="white-space:nowrap;">${formatCurrency(contract.vehiclePrice)} / ${currentLanguage === 'en' ? 'vehicle' : 'xe'}</p>
                         </div>
                         ` : ''}
                         
@@ -2509,7 +2509,7 @@
                                              isWater && serviceDetail.quantity ? `<p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity:' : 'Số lượng:'} ${serviceDetail.quantity}</p>` :
                                              serviceDetail.quantity > 1 ? `<p class="text-xs text-gray-500">${currentLanguage === 'en' ? 'Quantity:' : 'Số lượng:'} ${serviceDetail.quantity}</p>` : ''}
                                         </div>
-                                        <p class="font-bold text-gray-800">${formatCurrency(service.price || 0)} / ${translateUnit(service.unit || 'đơn vị')}</p>
+                                        <p class="font-bold text-gray-800" style="white-space:nowrap;">${formatCurrency(service.price || 0)} / ${translateUnit(service.unit || 'đơn vị')}</p>
                                     </div>
                                     `;
                                 }
@@ -2878,13 +2878,13 @@
             const content = `
                 <div style="border:2px solid #1f2937;padding:10px;background:white;">
                     <div style="text-align:center;margin-bottom:10px;">
-                        <h2 style="font-size:19px;font-weight:700;margin:0;">Hóa Đơn Tiền Nhà Tháng ${periodMonth}-${billYear}</h2>
+                        <h2 style="font-size:16px;font-weight:700;margin:0;white-space:nowrap;">Hóa Đơn Tiền Nhà Tháng ${periodMonth}-${billYear}</h2>
                     </div>
 
                     <div style="background:#f9fafb;padding:7px 9px;border-radius:5px;font-size:12px;margin-bottom:10px;">
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 4px;margin-bottom:2px;">
                             <p style="margin:1px 0;"><span style="color:#6b7280;">Phòng:</span> <strong>${bill.room || contract?.room || 'N/A'}</strong></p>
-                            <p style="margin:1px 0;text-align:right;"><span style="color:#6b7280;">Số hóa đơn:</span> <strong>${invoiceNumber}</strong></p>
+                            <p style="margin:1px 0;text-align:right;white-space:nowrap;overflow:hidden;"><span style="color:#6b7280;">Số hóa đơn:</span> <strong style="font-size:11px;">${invoiceNumber}</strong></p>
                             <p style="margin:1px 0;"><span style="color:#6b7280;">Ngày:</span> <strong>${formatDateVN(createdDate)}</strong></p>
                             <p style="margin:1px 0;text-align:right;"><span style="color:#6b7280;">Hạn cuối:</span> <strong>${dueDateStr}</strong></p>
                         </div>
