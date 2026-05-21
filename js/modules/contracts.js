@@ -199,23 +199,67 @@ function applyContractFilters(contracts = null) {
         }));
     }
 
+    // Stats luôn dựa trên toàn bộ dữ liệu, không phụ thuộc filter
+    updateContractStats(contracts);
+
     // Lấy giá trị bộ lọc
     const buildingFilter = filterBuildingEl.value;
     const roomFilter = filterRoomEl.value;
     const statusFilter = filterStatusEl.value;
     const searchTerm = searchEl.value.toLowerCase();
 
-    // Lọc
+    // Xử lý filter "Còn trống" — hiển thị phòng chưa có ai thuê
+    if (statusFilter === 'vacant') {
+        const buildings = getBuildings();
+        // Tập hợp các phòng đang có hợp đồng active/expiring
+        const occupiedKeys = new Set(
+            contracts
+                .filter(c => c.status === 'active' || c.status === 'expiring')
+                .map(c => `${c.buildingId}__${c.room}`)
+        );
+        // Tạo danh sách phòng trống
+        contractsCache_filtered = [];
+        buildings
+            .filter(b => b.isActive !== false)
+            .filter(b => !buildingFilter || b.id === buildingFilter)
+            .forEach(building => {
+                (building.rooms || []).forEach(room => {
+                    if (roomFilter && room !== roomFilter) return;
+                    if (occupiedKeys.has(`${building.id}__${room}`)) return;
+                    if (searchTerm && !room.toLowerCase().includes(searchTerm) && !building.code.toLowerCase().includes(searchTerm)) return;
+                    contractsCache_filtered.push({
+                        _isVacant: true,
+                        id: `vacant__${building.id}__${room}`,
+                        buildingId: building.id,
+                        buildingCode: building.code,
+                        room,
+                        status: 'vacant'
+                    });
+                });
+            });
+
+        // Sắp xếp theo tòa nhà rồi phòng
+        contractsCache_filtered.sort((a, b) => {
+            if (a.buildingCode !== b.buildingCode) return a.buildingCode.localeCompare(b.buildingCode);
+            return a.room.localeCompare(b.room);
+        });
+
+        currentContractPage = 1;
+        renderContractsPage();
+        return;
+    }
+
+    // Lọc thông thường
     contractsCache_filtered = contracts.filter(contract => {
         if (buildingFilter && contract.buildingId !== buildingFilter) return false;
         if (roomFilter && contract.room !== roomFilter) return false;
         if (statusFilter && contract.status !== statusFilter) return false;
-        
+
         if (searchTerm) {
             const contractNumber = `CT${contract.id.slice(-6).toUpperCase()}`;
             const building = getBuildings().find(b => b.id === contract.buildingId);
             const customer = getCustomers().find(c => c.id === contract.representativeId);
-            
+
             return contractNumber.toLowerCase().includes(searchTerm) ||
                    (customer && customer.name.toLowerCase().includes(searchTerm)) ||
                    (building && building.code.toLowerCase().includes(searchTerm)) ||
@@ -223,43 +267,43 @@ function applyContractFilters(contracts = null) {
         }
         return true;
     });
-    
+
     // Kiểm tra xem có lọc theo tòa nhà cụ thể không
     const isFilteringByBuilding = filterBuildingEl && filterBuildingEl.value && filterBuildingEl.value !== '';
-    
+
     // Sắp xếp theo logic mới
     contractsCache_filtered.sort((a, b) => {
         if (isFilteringByBuilding) {
             // TRƯỜNG HỢP LỌC THEO TÒA NHÀ - SẮP XẾP THEO PHÒNG
             const roomA = a.room;
             const roomB = b.room;
-            
+
             // Hàm helper để phân loại và sắp xếp phòng
             function getRoomSortKey(room) {
                 // Rooftop luôn ở cuối cùng
                 if (room.toLowerCase().includes('rooftop')) {
                     return [9999, room];
                 }
-                
+
                 // Kiểm tra phòng số (101, 102, 201, 202...)
                 const numMatch = room.match(/^(\d{3})$/);
                 if (numMatch) {
                     return [parseInt(numMatch[1]), parseInt(numMatch[1])];
                 }
-                
-                // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...) 
+
+                // Các phòng đặc biệt (G01, 001, M01, Mặt bằng...)
                 // Đặt ở đầu (trước phòng 101)
                 return [0, room];
             }
-            
+
             const [categoryA, valueA] = getRoomSortKey(roomA);
             const [categoryB, valueB] = getRoomSortKey(roomB);
-            
+
             // So sánh theo category trước
             if (categoryA !== categoryB) {
                 return categoryA - categoryB;
             }
-            
+
             // Trong cùng category, so sánh theo value
             if (typeof valueA === 'number' && typeof valueB === 'number') {
                 return valueA - valueB;
@@ -270,19 +314,14 @@ function applyContractFilters(contracts = null) {
             // TRƯỜNG HỢP KHÔNG LỌC - SẮP XẾP THEO THỜI GIAN TẠO (mới nhất trước)
             const getCreatedTime = (contract) => {
                 if (contract.createdAt) {
-                    // Sử dụng safeToDate để xử lý cả 2 trường hợp Firebase timestamp
                     return safeToDate(contract.createdAt).getTime();
-                } else {
                 }
                 return 0;
             };
-            
+
             return getCreatedTime(b) - getCreatedTime(a);
         }
     });
-
-    // Cập nhật thống kê dựa trên data đã lọc
-    updateContractStats(contractsCache_filtered);
 
     // Render trang đầu tiên
     currentContractPage = 1;
@@ -316,6 +355,33 @@ function renderContractsPage() {
     const customers = getCustomers();
 
     pageContracts.forEach(contract => {
+        // Render row phòng trống (từ filter Còn trống)
+        if (contract._isVacant) {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            tr.innerHTML = `
+                <td class="py-4 px-4"></td>
+                <td class="py-4 px-4"></td>
+                <td class="py-4 px-4">
+                    <div class="font-medium text-gray-400 italic">Chưa có người thuê</div>
+                    <div class="text-sm text-gray-500">${contract.buildingCode} - ${contract.room}</div>
+                </td>
+                <td class="py-4 px-4">-</td>
+                <td class="py-4 px-4">-</td>
+                <td class="py-4 px-4 text-center">-</td>
+                <td class="py-4 px-4 text-center">-</td>
+                <td class="py-4 px-4">-</td>
+                <td class="py-4 px-4">-</td>
+                <td class="py-4 px-4 text-center">
+                    <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block bg-gray-100 text-gray-500">
+                        Còn trống
+                    </span>
+                </td>
+            `;
+            contractsListEl.appendChild(tr);
+            return;
+        }
+
         const building = buildings.find(b => b.id === contract.buildingId);
         const customer = customers.find(c => c.id === contract.representativeId);
         const statusInfo = getStatusInfo(contract.status);
