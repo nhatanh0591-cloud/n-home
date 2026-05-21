@@ -787,42 +787,47 @@
                 </div>
 
                 <!-- Content -->
-                <div class="flex-1 overflow-y-auto bg-white px-4 py-4">
+                <div class="flex-1 overflow-y-auto bg-white px-3 py-2">
                     <!-- QR Code Container -->
-                    <div class="bg-white rounded-xl p-4 shadow-sm mb-4">
-                        <div class="border-4 border-green-600 rounded-lg p-3 mb-4 w-64 h-64 mx-auto flex items-center justify-center">
+                    <div class="bg-white rounded-xl p-2 shadow-sm mb-2">
+                        <div class="border-4 border-green-600 rounded-lg p-1 mb-2 w-44 h-44 mx-auto flex items-center justify-center">
                             <img id="payment-qr-image" src="" alt="QR Code" class="w-full h-full object-contain">
                         </div>
-                        
+
                         <!-- Download Button -->
-                        <button onclick="downloadQR()" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold mb-4 flex items-center justify-center hover:bg-green-700 transition-colors">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <button onclick="downloadQR()" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold mb-1 flex items-center justify-center hover:bg-green-700 transition-colors text-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
                             <span id="download-text">💾 Lưu vào thư viện</span>
                         </button>
                     </div>
-                    
+
                     <!-- Payment Info -->
-                    <div class="bg-white rounded-xl p-4 shadow-sm space-y-4">
+                    <div class="bg-white rounded-xl p-3 shadow-sm space-y-3">
                         <div>
-                            <p class="text-sm text-gray-600 mb-1" id="account-name-label">Tên tài khoản</p>
-                            <p id="payment-account-name" class="text-base font-bold text-gray-900"></p>
+                            <p class="text-xs text-gray-600 mb-0.5" id="account-name-label">Tên tài khoản</p>
+                            <p id="payment-account-name" class="text-sm font-bold text-gray-900"></p>
                         </div>
-                        
+
                         <div>
-                            <p class="text-sm text-gray-600 mb-1" id="account-number-label">Số tài khoản</p>
-                            <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                                <p id="payment-account-number" class="text-base font-bold text-gray-900"></p>
-                                <button onclick="copyAccountNumber()" class="text-green-600 font-medium text-sm" id="copy-account-btn">Sao chép</button>
+                            <p class="text-xs text-gray-600 mb-0.5">Ngân hàng</p>
+                            <p id="payment-bank-name" class="text-sm font-bold text-gray-900"></p>
+                        </div>
+
+                        <div>
+                            <p class="text-xs text-gray-600 mb-0.5" id="account-number-label">Số tài khoản</p>
+                            <div class="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                                <p id="payment-account-number" class="text-sm font-bold text-gray-900"></p>
+                                <button onclick="copyAccountNumber()" class="text-green-600 font-medium text-xs" id="copy-account-btn">Sao chép</button>
                             </div>
                         </div>
-                        
+
                         <div>
-                            <p class="text-sm text-gray-600 mb-1" id="amount-label">Số tiền</p>
-                            <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                                <p id="payment-amount" class="text-base font-bold text-gray-900"></p>
-                                <button onclick="copyAmount()" class="text-green-600 font-medium text-sm" id="copy-amount-btn">Sao chép</button>
+                            <p class="text-xs text-gray-600 mb-0.5" id="amount-label">Số tiền</p>
+                            <div class="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                                <p id="payment-amount" class="text-sm font-bold text-gray-900"></p>
+                                <button onclick="copyAmount()" class="text-green-600 font-medium text-xs" id="copy-amount-btn">Sao chép</button>
                             </div>
                         </div>
                     </div>
@@ -915,9 +920,9 @@
         </div>
 
         <!-- Bill Detail Screen -->
-        <div id="bill-detail-screen" class="hidden bg-gray-100 min-h-screen">
+        <div id="bill-detail-screen" class="hidden bg-gray-100 flex flex-col" style="height:100vh;">
             <!-- Header -->
-            <div class="bg-green-600 text-white px-4 py-4 flex items-center justify-between sticky top-0 z-10">
+            <div class="bg-green-600 text-white px-4 py-4 flex items-center justify-between flex-shrink-0">
                 <button onclick="closeBillDetail()" class="w-8 h-8 flex items-center justify-center">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -928,8 +933,8 @@
             </div>
 
             <!-- Content -->
-            <div class="px-4 py-4 pb-20">
-                <div id="bill-detail-content" class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="px-3 pt-2 pb-2 flex-1 flex flex-col overflow-y-auto">
+                <div id="bill-detail-content" class="my-auto">
                     <!-- Bill detail content -->
                 </div>
             </div>
@@ -2710,7 +2715,7 @@
             }
         }
 
-        function showBillDetail(billId) {
+        async function showBillDetail(billId) {
             console.log('🔍 showBillDetail called with ID:', billId);
             console.log('📋 All bills:', bills);
             
@@ -2818,240 +2823,164 @@
                 periodDisplay = 'N/A';
             }
             
-            // Lấy services từ bill (không fallback hardcode)
+            // Lấy services từ bill
             const services = bill.services || [];
-            
-            if (services.length === 0) {
-                console.warn('⚠️ Bill has no services data:', bill.id);
-            }
+            const paidAmount = bill.paidAmount || 0;
+            const remainingAmount = (bill.totalAmount || 0) - paidAmount;
+            const fmtNum = n => new Intl.NumberFormat('vi-VN').format(n);
 
+            // Build service rows giống hệt web admin
+            const serviceRows = services.map((service, index) => {
+                let serviceName = service.serviceName || service.name || `Dịch vụ ${index + 1}`;
+                let unitPrice = service.unitPrice || 0;
+                let quantity = service.quantity !== undefined ? service.quantity : 1;
+                let extraInfo = '';
 
+                if (service.type === 'electric' || service.type === 'water_meter') {
+                    extraInfo = `(SC: ${service.oldReading} - SM: ${service.newReading})`;
+                } else if (service.type === 'rent') {
+                    quantity = service.quantityDisplay || 1;
+                    if (unitPrice === 0 && service.amount && quantity > 0) {
+                        unitPrice = service.amount / quantity;
+                    }
+                    if (service.fromDate && service.toDate) {
+                        const fromShort = service.fromDate.split('-').slice(1).reverse().join('-');
+                        const toShort = service.toDate.split('-').slice(1).reverse().join('-');
+                        extraInfo = `(Từ ${fromShort} đến ${toShort})`;
+                    }
+                } else if (service.type === 'custom' && service.fromDate && service.toDate) {
+                    const fromShort = service.fromDate.split('-').slice(1).reverse().join('-');
+                    const toShort = service.toDate.split('-').slice(1).reverse().join('-');
+                    extraInfo = `(Từ ${fromShort} đến ${toShort})`;
+                }
+
+                const cellContent = extraInfo
+                    ? `${translateBillServiceName(serviceName)}<br><span style="font-size:9px;color:#6b7280;font-style:italic;white-space:nowrap;display:block;overflow:hidden;">${extraInfo}</span>`
+                    : translateBillServiceName(serviceName);
+
+                return `<tr>
+                    <td style="padding:5px 3px;text-align:center;border:1px solid #d1d5db;">${index + 1}</td>
+                    <td style="padding:5px 3px;border:1px solid #d1d5db;word-break:break-word;">${cellContent}</td>
+                    <td style="padding:5px 3px;text-align:right;border:1px solid #d1d5db;">${fmtNum(unitPrice)}</td>
+                    <td style="padding:5px 3px;text-align:right;border:1px solid #d1d5db;">${quantity}</td>
+                    <td style="padding:5px 3px;text-align:right;border:1px solid #d1d5db;font-weight:500;">${fmtNum(service.amount || 0)}</td>
+                </tr>`;
+            }).join('');
+
+            const customerDisplayName = currentUser?.name || 'N/A';
+            const buildingAddress = building?.address || 'N/A';
+            const billYear = createdDate.getFullYear();
+            const periodMonth = bill.period ? String(bill.period).padStart(2, '0') : '??';
+            const invoiceNumber = bill.code || `INV${bill.id?.slice(-6)?.toUpperCase()}`;
+            const dueDateStr = dueDate ? formatDateVN(dueDate) : 'N/A';
+            const remainColor = remainingAmount > 0 ? '#dc2626' : '#16a34a';
 
             const content = `
-                <!-- Header hóa đơn -->
-                <div class="text-center mb-4 pb-3 border-b">
-                    <h2 class="text-lg font-bold">${currentLanguage === 'en' ? `Monthly Bill ${periodDisplay}` : `Hóa Đơn Tháng ${periodDisplay}`}</h2>
-                </div>
-                
-                <!-- Thông tin cơ bản -->
-                <div class="mb-4 text-sm space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Room:' : 'Phòng:'}</span>
-                        <span class="font-semibold">${bill.room || contract?.room}</span>
+                <div style="border:2px solid #1f2937;padding:10px;background:white;">
+                    <div style="text-align:center;margin-bottom:10px;">
+                        <h2 style="font-size:19px;font-weight:700;margin:0;">Hóa Đơn Tiền Nhà Tháng ${periodMonth}-${billYear}</h2>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Bill Number:' : 'Số hóa đơn:'}</span>
-                        <span class="font-semibold text-green-600">${bill.code || `INV${bill.id?.slice(-6)?.toUpperCase()}`}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Created Date:' : 'Ngày tạo:'}</span>
-                        <span class="font-semibold">${formatDateVN(createdDate)}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">${currentLanguage === 'en' ? 'Due Date:' : 'Hạn thanh toán:'}</span>
-                        <span class="font-semibold">${formatDateVN(dueDate)}</span>
-                    </div>
-                </div>
 
-                <!-- Chi tiết dịch vụ -->
-                <div class="mb-4">
-                    <h3 class="font-semibold text-gray-800 mb-3">${currentLanguage === 'en' ? 'Service Details' : 'Chi tiết dịch vụ'}</h3>
-                    <div class="space-y-3">
-                        ${services.map((service, index) => {
-                            const serviceName = service.serviceName || service.name || `Dịch vụ ${index + 1}`;
-                            const displayedUnitPrice = service.unitPrice || service.price || 0;
-                            const quantity = service.quantity !== undefined ? service.quantity : (service.usage !== undefined ? service.usage : 1);
-                            const amount = service.amount !== undefined ? service.amount : (displayedUnitPrice * quantity);
-                            
-                            // TÍNH ĐƠN GIÁ GỐC từ dữ liệu thực tế
-                            let originalUnitPrice = displayedUnitPrice;
-                            if (service.type === 'rent' && service.fromDate && service.toDate && amount > 0) {
-                                // TIỀN NHÀ: Tính ngược từ amount và số ngày THỰC TẾ
-                                const fromDate = new Date(service.fromDate);
-                                const toDate = new Date(service.toDate);
-                                const dayCount = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
-                                
-                                // SỐ NGÀY THỰC TẾ TRONG THÁNG (28/29/30/31)
-                                const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
-                                
-                                originalUnitPrice = Math.round((amount * totalDaysInMonth) / dayCount);
-                            }
-                            
-                            // Tạo ghi chú chi tiết
-                            let detailNote = '';
-                            if (service.type === 'rent') {
-                                // TIỀN NHÀ: Chỉ hiển thị đơn giá gốc + khoảng thời gian với tỷ lệ
-                                detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
-                                if (service.fromDate && service.toDate) {
-                                    const fromDateShort = service.fromDate.split('-').slice(1).reverse().join('-'); // DD-MM
-                                    const toDateShort = service.toDate.split('-').slice(1).reverse().join('-'); // DD-MM
-                                    const dayCount = Math.ceil((new Date(service.toDate) - new Date(service.fromDate)) / (1000 * 60 * 60 * 24)) + 1;
-                                    
-                                    // TÍNH SỐ NGÀY TRONG THÁNG THỰC TẾ (28/29/30/31)  
-                                    const fromDate = new Date(service.fromDate);
-                                    const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
-                                    
-                                    detailNote += `<br>(Từ ${fromDateShort} đến ${toDateShort}) = ${dayCount}/${totalDaysInMonth} ngày`;
-                                }
-                            } else if (service.type === 'electric' && service.oldReading !== undefined && service.newReading !== undefined) {
-                                // TIỀN ĐIỆN: KHÔI PHỤC LOGIC CŨ - Hiển thị đơn giá × số lượng điện + chỉ số
-                                const electricUsage = service.newReading - service.oldReading;
-                                detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${electricUsage}`;
-                                detailNote += `<br>${currentLanguage === 'en' ? 'Reading:' : 'Chỉ số:'} ${service.oldReading} → ${service.newReading}`;
-                            } else if (service.type === 'water_meter' && service.oldReading !== undefined && service.newReading !== undefined) {
-                                // TIỀN NƯỚC: Hiển thị đơn giá × số lượng nước + chỉ số
-                                const waterUsage = service.newReading - service.oldReading;
-                                if (waterUsage > 0) {
-                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${waterUsage}`;
-                                } else {
-                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
-                                }
-                                detailNote += `<br>${currentLanguage === 'en' ? 'Reading:' : 'Chỉ số:'} ${service.oldReading} → ${service.newReading}`;
-                            } else if (service.type === 'custom' && service.fromDate && service.toDate) {
-                                // DỊCH VỤ TÙY CHỈNH: Kiểm tra có phải tròn tháng không
-                                const fromDate = new Date(service.fromDate);
-                                const toDate = new Date(service.toDate);
-                                const isFullMonth = (fromDate.getDate() === 1) && 
-                                    (toDate.getDate() === new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).getDate());
-                                
-                                if (quantity > 1) {
-                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${quantity}`;
-                                } else {
-                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
-                                }
-                                
-                                // CHỈ HIỂN THỊ KHOẢNG THỜI GIAN KHI KHÔNG PHẢI TRÒN THÁNG
-                                if (!isFullMonth) {
-                                    const fromDateShort = service.fromDate.split('-').slice(1).reverse().join('-'); // DD-MM
-                                    const toDateShort = service.toDate.split('-').slice(1).reverse().join('-'); // DD-MM
-                                    const dayCount = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
-                                    
-                                    // TÍNH SỐ NGÀY TRONG THÁNG THỰC TẾ (28/29/30/31)
-                                    const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
-                                    
-                                    detailNote += `<br>(Từ ${fromDateShort} đến ${toDateShort}) = ${dayCount}/${totalDaysInMonth} ngày`;
-                                }
-                            } else {
-                                // DỊCH VỤ KHÁC: Kiểm tra có fromDate/toDate không và có phải tròn tháng không
-                                if (quantity > 1) {
-                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)} × ${quantity}`;
-                                } else {
-                                    detailNote = `${currentLanguage === 'en' ? 'Unit Price:' : 'Đơn giá:'} ${formatCurrency(originalUnitPrice)}`;
-                                }
-                                
-                                // HIỂN THỊ KHOẢNG THỜI GIAN NÉU CÓ VÀ KHÔNG PHẢI TRÒN THÁNG
-                                if (service.fromDate && service.toDate) {
-                                    const fromDate = new Date(service.fromDate);
-                                    const toDate = new Date(service.toDate);
-                                    const isFullMonth = (fromDate.getDate() === 1) && 
-                                        (toDate.getDate() === new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).getDate());
-                                    
-                                    if (!isFullMonth) {
-                                        const fromDateShort = service.fromDate.split('-').slice(1).reverse().join('-'); // DD-MM
-                                        const toDateShort = service.toDate.split('-').slice(1).reverse().join('-'); // DD-MM
-                                        const dayCount = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24)) + 1;
-                                        
-                                        // TÍNH SỐ NGÀY TRONG THÁNG THỰC TẾ (28/29/30/31)
-                                        const totalDaysInMonth = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 0).getDate();
-                                        
-                                        detailNote += `<br>(Từ ${fromDateShort} đến ${toDateShort}) = ${dayCount}/${totalDaysInMonth} ngày`;
-                                    }
-                                }
-                            }
-                            
-                            return `
-                                <div class="bg-gray-50 rounded-lg p-3">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <span class="font-medium text-gray-800">${translateBillServiceName(serviceName)}</span>
-                                        <span class="font-bold text-gray-900">${formatCurrency(amount)}</span>
-                                    </div>
-                                    <div class="text-xs text-gray-500">
-                                        ${detailNote}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
+                    <div style="background:#f9fafb;padding:7px 9px;border-radius:5px;font-size:12px;margin-bottom:10px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 4px;margin-bottom:2px;">
+                            <p style="margin:1px 0;"><span style="color:#6b7280;">Phòng:</span> <strong>${bill.room || contract?.room || 'N/A'}</strong></p>
+                            <p style="margin:1px 0;text-align:right;"><span style="color:#6b7280;">Số hóa đơn:</span> <strong>${invoiceNumber}</strong></p>
+                            <p style="margin:1px 0;"><span style="color:#6b7280;">Ngày:</span> <strong>${formatDateVN(createdDate)}</strong></p>
+                            <p style="margin:1px 0;text-align:right;"><span style="color:#6b7280;">Hạn cuối:</span> <strong>${dueDateStr}</strong></p>
+                        </div>
+                        <p style="margin:1px 0;"><span style="color:#6b7280;">Khách hàng:</span> <strong>${customerDisplayName}</strong></p>
+                        <p style="margin:1px 0;"><span style="color:#6b7280;">Địa chỉ:</span> <strong>${buildingAddress}</strong></p>
                     </div>
-                </div>
 
-                <!-- Tổng kết -->
-                <div class="border-t pt-4 mb-4">
-                    <div class="space-y-2 text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Total:' : 'Tổng cộng:'}</span>
-                            <span class="font-semibold">${formatCurrency(bill.totalAmount || 0)}</span>
+                    <div style="overflow-x:auto;margin-bottom:10px;">
+                        <table style="width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid #1f2937;">
+                            <thead style="font-size:10px;">
+                                <tr style="background-color:#16a34a;color:white;">
+                                    <th style="width:8%;padding:5px 2px;text-align:center;border:1px solid #374151;">STT</th>
+                                    <th style="width:32%;padding:5px 2px;text-align:center;border:1px solid #374151;">Nội dung</th>
+                                    <th style="width:22%;padding:5px 2px;text-align:center;border:1px solid #374151;">Đơn giá (VNĐ)</th>
+                                    <th style="width:13%;padding:5px 2px;text-align:center;border:1px solid #374151;">Số lượng</th>
+                                    <th style="width:25%;padding:5px 2px;text-align:center;border:1px solid #374151;">Thành tiền (VNĐ)</th>
+                                </tr>
+                            </thead>
+                            <tbody style="font-size:12px;">${serviceRows}</tbody>
+                        </table>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:stretch;gap:8px;">
+                        <div style="flex-shrink:0;">
+                            <img id="invoice-qr-img" src="" alt="" style="width:90px;height:90px;object-fit:contain;display:${remainingAmount > 0 ? 'block' : 'none'};"/>
                         </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-600">${currentLanguage === 'en' ? 'Paid:' : 'Đã thanh toán:'}</span>
-                            <span class="font-semibold">${formatCurrency(bill.paidAmount || 0)}</span>
-                        </div>
-                        <div class="flex justify-between items-center py-2 border-t">
-                            <span class="font-bold text-lg ${(bill.status === 'paid' || (bill.paidAmount || 0) >= (bill.totalAmount || 0)) ? 'text-green-600' : 'text-red-600'}">${currentLanguage === 'en' ? 'Remaining:' : 'Còn lại:'}</span>
-                            <span class="font-bold text-xl ${(bill.status === 'paid' || (bill.paidAmount || 0) >= (bill.totalAmount || 0)) ? 'text-green-600' : 'text-red-600'}">${formatCurrency((bill.totalAmount || 0) - (bill.paidAmount || 0))}</span>
+                        <div style="font-size:12px;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
+                            <div style="display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;">
+                                <span style="color:#6b7280;white-space:nowrap;">Tổng cộng:</span>
+                                <span style="text-align:right;font-weight:500;">${formatCurrency(bill.totalAmount || 0)}</span>
+                            </div>
+                            <div style="display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;">
+                                <span style="color:#6b7280;white-space:nowrap;">Đã thanh toán:</span>
+                                <span style="text-align:right;font-weight:500;">${formatCurrency(paidAmount)}</span>
+                            </div>
+                            <div style="border-top:1px solid #e5e7eb;padding-top:4px;display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;">
+                                <span style="font-weight:700;color:${remainColor};white-space:nowrap;">Còn lại:</span>
+                                <span style="text-align:right;font-weight:700;color:${remainColor};">${formatCurrency(remainingAmount)}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Trạng thái thanh toán -->
-                ${(bill.status === 'unpaid' && (bill.paidAmount || 0) < (bill.totalAmount || 0)) ? `
-                    <div class="text-center bg-red-50 rounded-lg p-4">
-                        <div class="text-red-600 mb-2">
-                            <svg class="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                            </svg>
-                        </div>
-                        <p class="font-semibold text-red-600 mb-1">${currentLanguage === 'en' ? 'UNPAID' : 'CHƯA THANH TOÁN'}</p>
-                        <p class="text-sm text-gray-600 mb-3">${currentLanguage === 'en' ? 'Please pay on time' : 'Vui lòng thanh toán đúng hạn'}</p>
-                        <button onclick="showQRPayment('${bill.id}')" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700">
+                ${remainingAmount > 0 ? `
+                    <div style="margin-top:8px;flex-shrink:0;">
+                        <button onclick="showQRPayment('${bill.id}')" style="width:100%;background:#16a34a;color:white;padding:13px 16px;border-radius:8px;font-weight:600;font-size:15px;border:none;cursor:pointer;">
                             ${currentLanguage === 'en' ? 'Pay Now' : 'Thanh toán'}
                         </button>
                     </div>
-                ` : `
-                    <div class="text-center bg-green-50 rounded-lg p-4">
-                        <div class="text-green-600 mb-2">
-                            <svg class="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                        </div>
-                        <p class="font-semibold text-green-600">${currentLanguage === 'en' ? 'PAID' : 'ĐÃ THANH TOÁN'}</p>
-                        <p class="text-sm text-gray-600 mt-1">${currentLanguage === 'en' ? 'Thank you for your timely payment' : 'Cảm ơn bạn đã thanh toán đúng hạn'}</p>
-                    </div>
-                `}
+                ` : ''}
             `;
 
             document.getElementById('bill-detail-content').innerHTML = content;
-            
-            // Hide other screens and show bill detail
+
+            // Load QR thực từ Firebase (giống web admin)
+            if (remainingAmount > 0 && building && building.accountId) {
+                try {
+                    const accountsQuery = query(collection(db, 'accounts'), where('__name__', '==', building.accountId));
+                    const accountsSnap = await getDocs(accountsQuery);
+                    if (!accountsSnap.empty) {
+                        const account = { id: accountsSnap.docs[0].id, ...accountsSnap.docs[0].data() };
+                        if (account.bank !== 'Cash' && account.accountNumber) {
+                            const BANK_ID_MAP = {
+                                'VietcomBank': '970436', 'BIDV': '970418', 'VietinBank': '970415',
+                                'Agribank': '970405', 'ACB': '970416', 'Techcombank': '970407',
+                                'MBBank': '970422', 'TPBank': '970423', 'Sacombank': '970403',
+                                'HDBank': '970437', 'VPBank': '970432', 'SHB': '970443',
+                                'Eximbank': '970431', 'MSB': '970426', 'OCB': '970448', 'Nam A Bank': '970428'
+                            };
+                            const bankId = BANK_ID_MAP[account.bank] || '970416';
+                            let qrContent = 'CHUYEN KHOAN';
+                            if (currentUser?.name) {
+                                qrContent = currentUser.name.toUpperCase()
+                                    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+                                    .replace(/Đ/g, 'D').replace(/đ/g, 'd') + ' CHUYEN KHOAN';
+                            }
+                            const qrUrl = `https://img.vietqr.io/image/${bankId}-${account.accountNumber}-qr_only.jpg?amount=${remainingAmount}&addInfo=${encodeURIComponent(qrContent)}&accountName=${encodeURIComponent(account.accountHolder || 'KHACH HANG')}`;
+                            const qrImg = document.getElementById('invoice-qr-img');
+                            if (qrImg) {
+                                fetch(qrUrl).then(r => r.blob()).then(blob => {
+                                    qrImg.src = URL.createObjectURL(blob);
+                                }).catch(() => { qrImg.src = qrUrl; });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('QR load error:', e);
+                }
+            }
+
             document.getElementById('bills-screen').classList.add('hidden');
             document.getElementById('home-screen').classList.add('hidden');
             document.getElementById('bill-detail-screen').classList.remove('hidden');
-            
-            // Scroll to top of bill detail screen
-            const billDetailScreen = document.getElementById('bill-detail-screen');
-            if (billDetailScreen) {
-                billDetailScreen.scrollTop = 0;
-            }
 
-            // Generate VietQR code if unpaid
-            if (bill.status === 'unpaid') {
-                setTimeout(() => {
-                    const YOUR_BANK_ID = "970416"; // ACB Bank
-                    const YOUR_ACCOUNT_NO = "113366668888"; 
-                    const qrContent = `THANHTOAN PHONG${bill.room} T${bill.period}${new Date().getFullYear()}`;
-                    const qrUrl = `https://img.vietqr.io/image/${YOUR_BANK_ID}-${YOUR_ACCOUNT_NO}-qr_only.jpg?amount=${bill.totalAmount}&addInfo=${encodeURIComponent(qrContent)}`;
-                    
-                    const qrImg = document.createElement('img');
-                    qrImg.src = qrUrl;
-                    qrImg.className = 'w-24 h-24 border rounded-lg';
-                    qrImg.alt = 'QR Code thanh toán';
-                    
-                    const qrContainer = document.getElementById('qr-code-container');
-                    if (qrContainer) {
-                        qrContainer.innerHTML = '';
-                        qrContainer.appendChild(qrImg);
-                    }
-                }, 100);
-            }
+            const billDetailScreen = document.getElementById('bill-detail-screen');
+            if (billDetailScreen) billDetailScreen.scrollTop = 0;
         }
 
         function closeBillDetail() {
@@ -3146,10 +3075,11 @@
                     description: qrContent, // Sử dụng qrContent thay vì description cũ
                     billId: bill.id
                 };
-                
+
                 // Hiển thị màn hình QR payment
                 document.getElementById('payment-qr-image').src = qrUrl;
                 document.getElementById('payment-account-name').textContent = accountName;
+                document.getElementById('payment-bank-name').textContent = account.bank || '';
                 document.getElementById('payment-account-number').textContent = accountNumber;
                 document.getElementById('payment-amount').textContent = formatCurrency(amount);
                 
