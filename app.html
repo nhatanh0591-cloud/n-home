@@ -2040,11 +2040,12 @@
                 );
             
                 let isFirstNotificationLoad = true;
-                
+                const firebaseIdsFirstLoad = new Set(); // Track IDs nhận được trong lần load đầu
+
                 console.log('🔗 Setting up admin notifications listener...');
                 const unsubscribeAdmin = onSnapshot(adminNotificationsQuery, (snapshot) => {
                 console.log('🔔 Firebase snapshot received, total docs:', snapshot.docs.length);
-                
+
                 snapshot.docChanges().forEach((change) => {
                 // console.log('🔔 Document change detected:', change.type, change.doc.id, 'isFirstLoad:', isFirstNotificationLoad);
                 
@@ -2106,7 +2107,12 @@
                     
                     if (change.type === 'added' && isForThisRoom && isForThisCustomer) {
                         // console.log('🔔 New customer notification received:', notificationData.type, notificationData.message);
-                        
+
+                        // Ghi nhận Firebase ID trong lần load đầu để clean stale cache sau
+                        if (isFirstNotificationLoad) {
+                            firebaseIdsFirstLoad.add(change.doc.id);
+                        }
+
                         // Kiểm tra xem notification đã tồn tại chưa (check bằng firebaseId)
                         const existingNotification = notifications.find(n => n.data?.firebaseId === change.doc.id);
                         if (existingNotification) {
@@ -2224,7 +2230,22 @@
                 if (isFirstNotificationLoad) {
                     console.log('✅ First notification load completed');
                     isFirstNotificationLoad = false;
-                    
+
+                    // 🧹 DỌN CACHE: Xóa notifications cũ không còn tồn tại trên Firebase
+                    // (xảy ra khi admin bỏ duyệt nhưng app không nhận được removed event vì offline/reload)
+                    const beforeClean = notifications.length;
+                    notifications = notifications.filter(n => {
+                        const fid = n.data?.firebaseId;
+                        if (!fid) return true; // Giữ lại notification không phải từ Firebase (vd: payment)
+                        return firebaseIdsFirstLoad.has(fid); // Chỉ giữ nếu Firebase vẫn còn doc đó
+                    });
+                    const cleanedCount = beforeClean - notifications.length;
+                    if (cleanedCount > 0) {
+                        console.log(`🧹 Cleaned ${cleanedCount} stale notification(s) no longer in Firebase`);
+                        saveNotificationsToStorage();
+                        renderNotificationsList();
+                    }
+
                     // 🔐 SAU KHI LOAD XONG, ÁP DỤNG LẠI READ STATUS ĐỂ ĐẢM BẢO KHÔNG BỊ MẤT
                     const readStatus = loadReadStatusFromStorage(customerId);
                     let appliedCount = 0;
