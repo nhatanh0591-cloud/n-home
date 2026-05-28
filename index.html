@@ -68,7 +68,7 @@
             console.log('PWA Install prompt event fired');
             e.preventDefault();
             deferredPrompt = e;
-            showInstallPrompt();
+            // Không show ngay - để load handler kiểm tra điều kiện đầy đủ
         });
 
         // Show custom install prompt
@@ -137,15 +137,17 @@
             // Kiểm tra kỹ lưỡng xem app đã được cài chưa
             const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
             const isInWebAppiOS = (window.navigator.standalone === true);
-            const isInstalled = isStandalone || isInWebAppiOS;
+            const isInstalledLocally = !!localStorage.getItem('pwa-admin-installed');
+            const isInstalled = isStandalone || isInWebAppiOS || isInstalledLocally;
             
-            console.log('Install conditions:', { 
-                isMobile, 
-                dismissed, 
+            console.log('Install conditions:', {
+                isMobile,
+                dismissed,
                 isStandalone,
                 isInWebAppiOS,
-                isInstalled, 
-                deferredPrompt: !!deferredPrompt 
+                isInstalledLocally,
+                isInstalled,
+                deferredPrompt: !!deferredPrompt
             });
             
             // KHÔNG hiện popup nếu:
@@ -163,17 +165,15 @@
                     console.log('Timeout reached, deferredPrompt:', !!deferredPrompt);
                     if (deferredPrompt) {
                         showInstallPrompt();
-                    } else {
-                        // Force show install prompt nếu không có beforeinstallprompt
-                        console.log('No beforeinstallprompt, force showing install prompt');
-                        showInstallPrompt();
                     }
+                    // Không force show nếu không có deferredPrompt - nghĩa là app đã cài hoặc Chrome không hỗ trợ
                 }, 2000);
             }
         });
         // Track if app was installed
         window.addEventListener('appinstalled', (evt) => {
             console.log('PWA Admin was installed successfully');
+            localStorage.setItem('pwa-admin-installed', 'true');
             localStorage.removeItem('pwa-admin-install-dismissed');
         });
     </script>
