@@ -1133,3 +1133,30 @@ input[type="text"][pattern="[0-9]{2}-[0-9]{2}-[0-9]{4}"]:hover {
         max-height: calc(100vh - 160px);
     }
 }
+
+/* === FORCE DESKTOP MODE === */
+/* Áp dụng khi tài khoản nhatanh0591@gmail.com đăng nhập trên thiết bị bất kỳ */
+html.force-desktop .desktop-table {
+    display: table !important;
+}
+
+html.force-desktop .mobile-cards {
+    display: none !important;
+}
+
+html.force-desktop .mobile-menu-btn {
+    display: none !important;
+}
+
+html.force-desktop .md\:hidden {
+    display: none !important;
+}
+
+html.force-desktop .block.md\:hidden {
+    display: none !important;
+}
+
+html.force-desktop .space-y-4.block.md\:hidden,
+html.force-desktop .space-y-6.block.md\:hidden {
+    display: none !important;
+}

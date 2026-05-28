@@ -336,9 +336,20 @@ function showLoginForm() {
 /**
  * Hiển thị ứng dụng chính
  */
+const DESKTOP_FORCED_EMAILS = ['nhatanh0591@gmail.com'];
+
+function applyDesktopModeIfNeeded() {
+    const email = (currentUser && currentUser.email) || localStorage.getItem('n-home-user-email');
+    if (email && DESKTOP_FORCED_EMAILS.includes(email)) {
+        const vp = document.querySelector('meta[name=viewport]');
+        if (vp) vp.content = 'width=1280, user-scalable=yes';
+        document.documentElement.classList.add('force-desktop');
+    }
+}
+
 function showMainApp() {
-    // App sẽ hiển thị bình thường, không cần sessionStorage
     console.log("✅ Hiển thị app chính");
+    applyDesktopModeIfNeeded();
 }
 
 /**

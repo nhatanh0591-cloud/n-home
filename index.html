@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script>
+    (function() {
+        try {
+            var email = localStorage.getItem('n-home-user-email');
+            if (email === 'nhatanh0591@gmail.com') {
+                document.querySelector('meta[name=viewport]').content = 'width=1280, user-scalable=yes';
+                document.documentElement.classList.add('force-desktop');
+            }
+        } catch(e) {}
+    })();
+    </script>
     <title>N-Home</title>
     <meta name="description" content="Hệ thống quản lý cho N-Home">
     
