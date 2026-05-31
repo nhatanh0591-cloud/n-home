@@ -1485,7 +1485,7 @@ async function collectBillPayment(billId, amount, paymentDate, accountId = null)
             accountId: finalAccountId,
             title: `Thu tiền phòng ${building?.code || ''} - ${bill.room} - Tháng ${bill.period}`,
             payer: customer?.name || 'Khách hàng',
-            date: transactionDate.toISOString().split('T')[0],
+            date: formatDateForStorage(transactionDate),
             items: items,
             approved: true,
             paymentMethod: 'cash',
@@ -1512,7 +1512,7 @@ async function collectBillPayment(billId, amount, paymentDate, accountId = null)
         const updateData = {
             paidAmount: newPaidAmount,
             status: isFullyPaid ? 'paid' : 'unpaid',
-            paidDate: transactionDate.toISOString().split('T')[0],
+            paidDate: formatDateForStorage(transactionDate),
             updatedAt: serverTimestamp()
         };
         
