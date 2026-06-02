@@ -303,7 +303,7 @@
         
         #qr-payment-screen .content-wrapper {
             height: 100vh;
-            padding-bottom: 80px;
+            padding-bottom: 0;
             padding-top: 0;
         }
         
@@ -787,15 +787,14 @@
                 </div>
 
                 <!-- Content -->
-                <div class="flex-1 overflow-y-auto bg-white px-3 py-2">
+                <div class="flex-1 overflow-hidden bg-gray-50 flex flex-col px-3 pt-2 pb-3 gap-2" style="min-height:0">
                     <!-- QR Code Container -->
-                    <div class="bg-white rounded-xl p-2 shadow-sm mb-2">
-                        <div class="border-4 border-green-600 rounded-lg p-1 mb-2 w-44 h-44 mx-auto flex items-center justify-center">
+                    <div class="bg-white rounded-xl p-2 shadow-sm flex flex-col items-center">
+                        <div class="border-4 border-green-600 rounded-lg p-1 mb-2 mx-auto flex items-center justify-center" style="width:min(230px,62vw);height:min(230px,62vw);">
                             <img id="payment-qr-image" src="" alt="QR Code" class="w-full h-full object-contain">
                         </div>
-
                         <!-- Download Button -->
-                        <button onclick="downloadQR()" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold mb-1 flex items-center justify-center hover:bg-green-700 transition-colors text-sm">
+                        <button onclick="downloadQR()" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold flex items-center justify-center hover:bg-green-700 transition-colors text-sm">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
@@ -804,31 +803,31 @@
                     </div>
 
                     <!-- Payment Info -->
-                    <div class="bg-white rounded-xl p-3 shadow-sm space-y-3">
-                        <div>
-                            <p class="text-xs text-gray-600 mb-0.5" id="account-name-label">Tên tài khoản</p>
-                            <p id="payment-account-name" class="text-sm font-bold text-gray-900"></p>
+                    <div class="bg-white rounded-xl px-3 py-2 shadow-sm flex flex-col gap-1.5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500" id="account-name-label">Tên tài khoản</p>
+                                <p id="payment-account-name" class="text-sm font-bold text-gray-900"></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-gray-500">Ngân hàng</p>
+                                <p id="payment-bank-name" class="text-sm font-bold text-gray-900"></p>
+                            </div>
                         </div>
-
-                        <div>
-                            <p class="text-xs text-gray-600 mb-0.5">Ngân hàng</p>
-                            <p id="payment-bank-name" class="text-sm font-bold text-gray-900"></p>
-                        </div>
-
-                        <div>
-                            <p class="text-xs text-gray-600 mb-0.5" id="account-number-label">Số tài khoản</p>
-                            <div class="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                        <div class="h-px bg-gray-100"></div>
+                        <div class="flex items-center justify-between bg-gray-50 px-2 py-1.5 rounded-lg">
+                            <div>
+                                <p class="text-xs text-gray-500" id="account-number-label">Số tài khoản</p>
                                 <p id="payment-account-number" class="text-sm font-bold text-gray-900"></p>
-                                <button onclick="copyAccountNumber()" class="text-green-600 font-medium text-xs" id="copy-account-btn">Sao chép</button>
                             </div>
+                            <button onclick="copyAccountNumber()" class="text-green-600 font-medium text-xs ml-2" id="copy-account-btn">Sao chép</button>
                         </div>
-
-                        <div>
-                            <p class="text-xs text-gray-600 mb-0.5" id="amount-label">Số tiền</p>
-                            <div class="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                        <div class="flex items-center justify-between bg-gray-50 px-2 py-1.5 rounded-lg">
+                            <div>
+                                <p class="text-xs text-gray-500" id="amount-label">Số tiền</p>
                                 <p id="payment-amount" class="text-sm font-bold text-gray-900"></p>
-                                <button onclick="copyAmount()" class="text-green-600 font-medium text-xs" id="copy-amount-btn">Sao chép</button>
                             </div>
+                            <button onclick="copyAmount()" class="text-green-600 font-medium text-xs ml-2" id="copy-amount-btn">Sao chép</button>
                         </div>
                     </div>
                 </div>
@@ -2975,6 +2974,7 @@
                     const accountsSnap = await getDocs(accountsQuery);
                     if (!accountsSnap.empty) {
                         const account = { id: accountsSnap.docs[0].id, ...accountsSnap.docs[0].data() };
+                        cachedBillAccount = account;
                         if (account.bank !== 'Cash' && account.accountNumber) {
                             const BANK_ID_MAP = {
                                 'VietcomBank': '970436', 'BIDV': '970418', 'VietinBank': '970415',
@@ -2994,7 +2994,9 @@
                             const qrImg = document.getElementById('invoice-qr-img');
                             if (qrImg) {
                                 fetch(qrUrl).then(r => r.blob()).then(blob => {
-                                    qrImg.src = URL.createObjectURL(blob);
+                                    const blobSrc = URL.createObjectURL(blob);
+                                    qrImg.src = blobSrc;
+                                    cachedQrBlob = { url: qrUrl, blobSrc };
                                 }).catch(() => { qrImg.src = qrUrl; });
                             }
                         }
@@ -3019,6 +3021,8 @@
 
         // QR Payment Functions
         let currentPaymentData = null;
+        let cachedBillAccount = null;
+        let cachedQrBlob = { url: null, blobSrc: null };
         
         async function showQRPayment(billId) {
             const bill = bills.find(b => b.id === billId);
@@ -3033,20 +3037,18 @@
                 return;
             }
             
-            // Lấy thông tin tài khoản từ building
-            console.log('🔍 Loading account info for building:', building.id);
-            
             try {
-                const accountsQuery = query(collection(db, 'accounts'), where('__name__', '==', building.accountId));
-                const accountsSnapshot = await getDocs(accountsQuery);
-                
-                if (accountsSnapshot.empty) {
-                    alert('Không tìm thấy thông tin tài khoản');
-                    return;
+                let account = cachedBillAccount;
+                if (!account || account.id !== building.accountId) {
+                    const accountsQuery = query(collection(db, 'accounts'), where('__name__', '==', building.accountId));
+                    const accountsSnapshot = await getDocs(accountsQuery);
+                    if (accountsSnapshot.empty) {
+                        alert('Không tìm thấy thông tin tài khoản');
+                        return;
+                    }
+                    account = { id: accountsSnapshot.docs[0].id, ...accountsSnapshot.docs[0].data() };
+                    cachedBillAccount = account;
                 }
-                
-                const account = { id: accountsSnapshot.docs[0].id, ...accountsSnapshot.docs[0].data() };
-                console.log('✅ Account found:', account);
                 
                 if (account.bank === 'Cash') {
                     alert('Vui lòng thanh toán bằng tiền mặt');
@@ -3105,8 +3107,9 @@
                     billId: bill.id
                 };
 
-                // Hiển thị màn hình QR payment
-                document.getElementById('payment-qr-image').src = qrUrl;
+                // Hiển thị màn hình QR payment - dùng blob đã cache nếu có, không cần tải lại
+                const qrImgEl = document.getElementById('payment-qr-image');
+                qrImgEl.src = (cachedQrBlob.url === qrUrl && cachedQrBlob.blobSrc) ? cachedQrBlob.blobSrc : qrUrl;
                 document.getElementById('payment-account-name').textContent = accountName;
                 document.getElementById('payment-bank-name').textContent = account.bank || '';
                 document.getElementById('payment-account-number').textContent = accountNumber;
