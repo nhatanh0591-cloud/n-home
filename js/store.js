@@ -7,6 +7,9 @@ import { initDB, saveToIndexedDB, loadFromIndexedDB, clearIndexedDB, getIndexedD
  */
 const CACHE_VERSION = '1.0'; // Tăng version khi cần xóa cache cũ
 
+// BroadcastChannel để đồng bộ giữa các tab cùng trình duyệt
+const syncChannel = new BroadcastChannel('n_home_sync');
+
 /**
  * Kho lưu trữ dữ liệu (state) tập trung của toàn bộ ứng dụng.
  * 💾 CHỈ SỬ DỤNG LOCALSTORAGE - KHÔNG REAL-TIME SYNC
@@ -32,7 +35,14 @@ export const state = {
     _cacheLoaded: false
 };
 
-// Không cần listeners trong local-only mode
+// Lắng nghe thay đổi từ tab khác cùng trình duyệt
+syncChannel.onmessage = async (event) => {
+    if (event.data.type === 'DATA_UPDATED') {
+        console.log('📡 Tab khác đã lưu dữ liệu mới, đang tải lại...');
+        await loadFromCache();
+        notifyDataReady();
+    }
+};
 
 /**
  * 💾 Lưu dữ liệu vào IndexedDB
@@ -56,10 +66,13 @@ async function saveToCache() {
         // Lưu vào IndexedDB thay vì localStorage
         await saveToIndexedDB(cacheData);
         state._lastSyncTime = Date.now();
-        
+
         const size = await getIndexedDBSize();
         console.log(`💾 Đã lưu cache vào IndexedDB (${size} MB)`);
-        
+
+        // Thông báo các tab khác cùng trình duyệt để tải lại dữ liệu mới
+        syncChannel.postMessage({ type: 'DATA_UPDATED', timestamp: Date.now() });
+
     } catch (error) {
         console.error('❌ Lỗi khi lưu cache vào IndexedDB:', error);
     }
