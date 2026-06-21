@@ -2674,9 +2674,10 @@
                     const billCode = bill.code || `#INV${bill.id?.slice(-6)?.toUpperCase() || ''}`;
                     
                     // Format tiêu đề hóa đơn - keep data values (month, year) unchanged
-                    const billTitle = currentLanguage === 'en' 
-                        ? `Monthly rent bill ${bill.period} - 2025`
-                        : `Hóa đơn tiền nhà tháng ${bill.period} - 2025`;
+                    const billYear = bill.year || new Date().getFullYear();
+                    const billTitle = currentLanguage === 'en'
+                        ? `Monthly rent bill ${bill.period} - ${billYear}`
+                        : `Hóa đơn tiền nhà tháng ${bill.period} - ${billYear}`;
                     
                     return `
                         <div class="bill-card bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all duration-200" data-bill-id="${bill.id}">
@@ -4444,7 +4445,7 @@
                     if (bill.billDate?.toDate) return bill.billDate.toDate().getTime();
                     if (bill.createdAt?.toDate) return bill.createdAt.toDate().getTime();
                     if (bill.createdAt) return new Date(bill.createdAt).getTime();
-                    return new Date(2025, (parseInt(bill.period) || 11) - 1, 1).getTime();
+                    return new Date(parseInt(bill.year) || new Date().getFullYear(), (parseInt(bill.period) || 11) - 1, 1).getTime();
                 };
                 return getTime(b) - getTime(a);
             });
