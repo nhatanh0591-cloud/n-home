@@ -974,6 +974,10 @@ async function loadCategoryReport() {
         });
 
         // Filter transactions by selected period
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+
         const filteredTransactions = transactions.filter(t => {
             if (!t.date || !t.approved) return false;
 
@@ -983,6 +987,7 @@ async function loadCategoryReport() {
 
             if (transactionYear !== selectedYear) return false;
             if (selectedMonth !== 'all' && transactionMonth !== parseInt(selectedMonth)) return false;
+            if (selectedMonth === 'all' && selectedYear === currentYear && transactionMonth >= currentMonth) return false;
             if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return false;
 
             return true;
@@ -1051,6 +1056,7 @@ async function loadCategoryReport() {
                 console.log('🎯 Final check:', { billMonth, billYear, selectedMonth, selectedYear });
                 if (billYear !== selectedYear) return false;
                 if (selectedMonth !== 'all' && billMonth !== parseInt(selectedMonth)) return false;
+                if (selectedMonth === 'all' && selectedYear === currentYear && billMonth >= currentMonth) return false;
                 console.log('✅ BILL MATCHED!');
                 return true;
             }
