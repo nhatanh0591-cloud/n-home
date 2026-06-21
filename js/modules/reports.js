@@ -93,13 +93,10 @@ export function initReports() {
     // Set current year as default
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
-    
-    if (reportYearEl && !reportYearEl.value) {
-        reportYearEl.value = currentYear;
-    }
-    if (categoryReportYearEl && !categoryReportYearEl.value) {
-        categoryReportYearEl.value = currentYear;
-    }
+
+    if (reportYearEl) reportYearEl.value = currentYear;
+    if (categoryReportYearEl) categoryReportYearEl.value = currentYear;
+    if (monthlyReportYearEl) monthlyReportYearEl.value = currentYear;
     if (categoryReportMonthEl && !categoryReportMonthEl.value) {
         categoryReportMonthEl.value = currentMonth;
     }
@@ -825,6 +822,18 @@ async function loadCategoryReport() {
             }
         });
 
+        // Gộp chi của "Chi phí cố định" vào "Tiền nhà" rồi ẩn đi
+        const fixedCostCat = Object.values(categoryTotals).find(c => c.name.toLowerCase().includes('chi phí cố định'));
+        const houseRentCat = Object.values(categoryTotals).find(c => c.name.toLowerCase().includes('tiền nhà'));
+        if (fixedCostCat && houseRentCat && fixedCostCat.expense > 0) {
+            houseRentCat.expense += fixedCostCat.expense;
+            houseRentCat.income += fixedCostCat.income;
+            houseRentCat.profit = houseRentCat.income - houseRentCat.expense;
+            fixedCostCat.expense = 0;
+            fixedCostCat.income = 0;
+            fixedCostCat.profit = 0;
+        }
+
         // Render table (không có hạng mục đặc biệt nữa)
         renderCategoryReport(categoryTotals);
 
@@ -901,7 +910,7 @@ function renderCategoryReport(categoryTotals) {
         // NỘI DUNG (màu trắng)
         activeCategories.forEach(category => {
             const profitClass = category.profit >= 0 ? 'text-green-600' : 'text-red-600';
-            
+
             html += `
                 <tr class="border bg-white">
                     <td class="py-3 px-4 border">${category.name}</td>
@@ -911,6 +920,20 @@ function renderCategoryReport(categoryTotals) {
                 </tr>
             `;
         });
+
+        // HÀNG TỔNG CỘNG
+        const totalIncome = activeCategories.reduce((s, c) => s + c.income, 0);
+        const totalExpense = activeCategories.reduce((s, c) => s + c.expense, 0);
+        const totalProfit = totalIncome - totalExpense;
+        const totalProfitClass = totalProfit >= 0 ? 'text-green-700' : 'text-red-700';
+        html += `
+            <tr class="border bg-gray-100">
+                <td class="py-3 px-4 font-bold border">Tổng cộng</td>
+                <td class="py-3 px-4 text-right font-bold border text-green-700">${formatMoney(totalIncome)}</td>
+                <td class="py-3 px-4 text-right font-bold border text-red-700">${formatMoney(totalExpense)}</td>
+                <td class="py-3 px-4 text-right font-bold border ${totalProfitClass}">${formatMoney(totalProfit)}</td>
+            </tr>
+        `;
     }
 
     categoryReportTableBody.innerHTML = html;
