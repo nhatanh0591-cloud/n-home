@@ -53,6 +53,17 @@ const monthlyIncomeTfoot = document.getElementById('monthly-income-table-foot');
 // Cache
 let transactionsCache = [];
 
+// Chart state
+let categoryChartInstance = null;
+let currentCategoryView = 'table';
+
+// Hạng mục chính (có thu riêng) — các hạng mục còn lại không có thu → gộp vào Chi phí khác
+const MAIN_CAT_KEYWORDS = ['tiền nhà', 'tiền điện', 'tiền nước', 'hoa hồng'];
+function isMainCategory(catName) {
+    const n = catName.toLowerCase();
+    return MAIN_CAT_KEYWORDS.some(kw => n.includes(kw));
+}
+
 /**
  * Khởi tạo module Reports
  */
@@ -176,10 +187,54 @@ function setupEventListeners() {
     reportYearEl?.addEventListener('change', loadReportData);
     quarterlyReportBuildingEl?.addEventListener('change', loadReportData);
     categoryReportMonthEl?.addEventListener('change', loadCategoryReport);
-    categoryReportYearEl?.addEventListener('change', loadCategoryReport);
-    categoryReportBuildingEl?.addEventListener('change', loadCategoryReport);
+    categoryReportYearEl?.addEventListener('change', async () => {
+        if (currentCategoryView === 'chart') { await populateChartCategoryDropdown(); loadCategoryChart(); }
+        else loadCategoryReport();
+    });
+    categoryReportBuildingEl?.addEventListener('change', async () => {
+        if (currentCategoryView === 'chart') { await populateChartCategoryDropdown(); loadCategoryChart(); }
+        else loadCategoryReport();
+    });
     loadMonthlyReportBtn?.addEventListener('click', loadMonthlyReport);
     printMonthlyReportBtn?.addEventListener('click', printMonthlyReport);
+
+    // Tab switching
+    const tabTable = document.getElementById('category-tab-table');
+    const tabChart = document.getElementById('category-tab-chart');
+    const monthFilterWrap = document.getElementById('category-month-filter-wrap');
+    const tableView = document.getElementById('category-table-view');
+    const chartView = document.getElementById('category-chart-view');
+
+    const chartCategoryWrap = document.getElementById('category-chart-category-wrap');
+    const chartCategoryEl = document.getElementById('category-chart-category');
+
+    tabTable?.addEventListener('click', () => {
+        currentCategoryView = 'table';
+        tabTable.classList.add('bg-white', 'shadow', 'text-gray-800');
+        tabTable.classList.remove('text-gray-500');
+        tabChart.classList.remove('bg-white', 'shadow', 'text-gray-800');
+        tabChart.classList.add('text-gray-500');
+        monthFilterWrap?.classList.remove('hidden');
+        chartCategoryWrap?.classList.add('hidden');
+        tableView?.classList.remove('hidden');
+        chartView?.classList.add('hidden');
+    });
+
+    tabChart?.addEventListener('click', async () => {
+        currentCategoryView = 'chart';
+        tabChart.classList.add('bg-white', 'shadow', 'text-gray-800');
+        tabChart.classList.remove('text-gray-500');
+        tabTable.classList.remove('bg-white', 'shadow', 'text-gray-800');
+        tabTable.classList.add('text-gray-500');
+        monthFilterWrap?.classList.add('hidden');
+        chartCategoryWrap?.classList.remove('hidden');
+        tableView?.classList.add('hidden');
+        chartView?.classList.remove('hidden');
+        await populateChartCategoryDropdown();
+        loadCategoryChart();
+    });
+
+    chartCategoryEl?.addEventListener('change', loadCategoryChart);
 }
 
 /**
@@ -557,6 +612,343 @@ function calculateDateRangeWithExpense(year) {
 }
 
 /**
+ * Helper: parse ngày transaction → {year, month} hoặc null
+ */
+function parseTransactionMonth(t) {
+    if (typeof t.date === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t.date)) {
+            return { year: parseInt(t.date.split('-')[0]), month: parseInt(t.date.split('-')[1]) };
+        } else if (/^\d{2}-\d{2}-\d{4}$/.test(t.date)) {
+            const p = t.date.split('-');
+            return { year: parseInt(p[2]), month: parseInt(p[1]) };
+        } else {
+            const d = new Date(t.date);
+            if (isNaN(d)) return null;
+            return { year: d.getFullYear(), month: d.getMonth() + 1 };
+        }
+    } else {
+        const d = safeToDate(t.date);
+        if (!d) return null;
+        return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    }
+}
+
+/**
+ * Helper: lấy month/year từ bill
+ */
+function parseBillMonth(bill) {
+    if (bill.billMonth && bill.billYear) return { month: parseInt(bill.billMonth), year: parseInt(bill.billYear) };
+    if (bill.period && bill.year) return { month: parseInt(bill.period), year: parseInt(bill.year) };
+    if (bill.period) {
+        const m = bill.period.toString().match(/(\d{1,2})/);
+        if (m) return { month: parseInt(m[1]), year: null };
+    }
+    return null;
+}
+
+/**
+ * Helper: match bill service → categoryId theo từ khóa
+ */
+function matchServiceToCategory(svcName, svcId, categories) {
+    const n = svcName.toLowerCase();
+    for (const cat of categories) {
+        const cn = cat.name.toLowerCase();
+        if ((cn.includes('điện') || cn.includes('tiền điện')) &&
+            (n.includes('điện') || n.includes('electric') || svcId.includes('dien'))) return cat.id;
+        if ((cn.includes('nước') || cn.includes('tiền nước')) &&
+            (n.includes('nước') || n.includes('water') || svcId.includes('nuoc'))) return cat.id;
+        if ((cn.includes('tiền nhà') || cn === 'nhà') &&
+            (n.includes('nhà') || n.includes('dịch vụ') || n.includes('xe') || n.includes('rent') || n.includes('service'))) return cat.id;
+        if (cn.includes('hoa hồng') && (n.includes('cọc') || n.includes('deposit'))) return cat.id;
+    }
+    // Chi phí khác = fallback
+    const other = categories.find(c => c.name.toLowerCase().includes('chi phí khác'));
+    return other?.id || null;
+}
+
+/**
+ * Populate dropdown hạng mục — chỉ hạng mục có dữ liệu theo tòa nhà/năm hiện tại
+ */
+async function populateChartCategoryDropdown() {
+    const sel = document.getElementById('category-chart-category');
+    if (!sel) return;
+
+    const selectedYear = parseInt(categoryReportYearEl?.value) || new Date().getFullYear();
+    const selectedBuilding = categoryReportBuildingEl?.value || 'all';
+    const prevValue = sel.value;
+
+    const transactions = getTransactions();
+    const bills = getBills();
+    const categories = getTransactionCategories().filter(c => {
+        const n = c.name.toLowerCase();
+        return !n.includes('hóa đơn') && !n.includes('chi phí cố định');
+    });
+
+    const catExpense = {}, catIncome = {};
+
+    // Expense từ transactions
+    transactions.forEach(t => {
+        if (!t.approved || t.type !== 'expense') return;
+        if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return;
+        const dm = parseTransactionMonth(t);
+        if (!dm || dm.year !== selectedYear) return;
+        t.items?.forEach(item => {
+            if (item.categoryId) catExpense[item.categoryId] = (catExpense[item.categoryId] || 0) + (parseFloat(item.amount) || 0);
+        });
+    });
+
+    // Income từ transactions (tiền hoa hồng, trả cọc...)
+    transactions.forEach(t => {
+        if (!t.approved || t.type !== 'income') return;
+        if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return;
+        const dm = parseTransactionMonth(t);
+        if (!dm || dm.year !== selectedYear) return;
+        t.items?.forEach(item => {
+            if (item.categoryId && item.categoryId !== 'tien-hoa-don') {
+                catIncome[item.categoryId] = (catIncome[item.categoryId] || 0) + (parseFloat(item.amount) || 0);
+            }
+        });
+    });
+
+    // Income từ bills (điện, nước, nhà...)
+    bills.forEach(bill => {
+        if (bill.status !== 'paid') return;
+        if (selectedBuilding !== 'all' && bill.buildingId !== selectedBuilding) return;
+        const bm = parseBillMonth(bill);
+        if (!bm || (bm.year && bm.year !== selectedYear)) return;
+        bill.services?.forEach(svc => {
+            const svcName = svc.serviceName || svc.name || '';
+            const catId = matchServiceToCategory(svcName, svc.serviceId || '', categories);
+            if (catId) catIncome[catId] = (catIncome[catId] || 0) + (parseFloat(svc.amount) || 0);
+        });
+    });
+
+    // Rebuild dropdown: chỉ hạng mục chính + Chi phí khác
+    const allCats = getTransactionCategories();
+    sel.innerHTML = '<option value="all">Tất cả</option>';
+    allCats
+        .filter(c => {
+            const n = c.name.toLowerCase();
+            if (n.includes('hóa đơn') || n.includes('cố định')) return false;
+            return isMainCategory(n) || n.includes('chi phí khác');
+        })
+        .forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            sel.appendChild(opt);
+        });
+
+    // Giữ lại giá trị cũ nếu còn hợp lệ
+    if (prevValue && [...sel.options].some(o => o.value === prevValue)) sel.value = prevValue;
+}
+
+/**
+ * Load category chart data (12 tháng theo năm)
+ */
+async function loadCategoryChart() {
+    const selectedYear = parseInt(categoryReportYearEl?.value) || new Date().getFullYear();
+    const selectedBuilding = categoryReportBuildingEl?.value || 'all';
+    const selectedCategory = document.getElementById('category-chart-category')?.value || 'all';
+
+    const transactions = getTransactions();
+    const bills = getBills();
+    const categories = getTransactionCategories().filter(c => !c.name.toLowerCase().includes('hóa đơn'));
+
+    const monthlyData = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, income: 0, expense: 0, profit: 0 }));
+
+    if (selectedCategory === 'all') {
+        // Tất cả: dùng transactions
+        transactions.forEach(t => {
+            if (!t.approved) return;
+            if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return;
+            const dm = parseTransactionMonth(t);
+            if (!dm || dm.year !== selectedYear) return;
+            const amount = t.items?.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0) || parseFloat(t.amount) || 0;
+            const idx = dm.month - 1;
+            if (t.type === 'income') monthlyData[idx].income += amount;
+            else if (t.type === 'expense') monthlyData[idx].expense += amount;
+        });
+    } else {
+        // Hạng mục cụ thể: expense từ transactions, income từ bills
+        const selCat = categories.find(c => c.id === selectedCategory);
+        const catName = selCat?.name?.toLowerCase() || '';
+
+        // Kiểm tra có phải "Chi phí khác" (catch-all) không
+        const isChiPhiKhac = catName.includes('chi phí khác');
+
+        // Expense từ transactions
+        transactions.forEach(t => {
+            if (!t.approved || t.type !== 'expense') return;
+            if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return;
+            const dm = parseTransactionMonth(t);
+            if (!dm || dm.year !== selectedYear) return;
+            t.items?.forEach(item => {
+                const itemCatName = (categories.find(c => c.id === item.categoryId)?.name || '').toLowerCase();
+                const match = isChiPhiKhac
+                    ? !isMainCategory(itemCatName) && !itemCatName.includes('hóa đơn') && !itemCatName.includes('cố định')
+                    : item.categoryId === selectedCategory;
+                if (!match) return;
+                const amt = parseFloat(item.amount) || 0;
+                if (amt) monthlyData[dm.month - 1].expense += amt;
+            });
+        });
+
+        // Income từ transactions (hoa hồng, cọc...)
+        transactions.forEach(t => {
+            if (!t.approved || t.type !== 'income') return;
+            if (selectedBuilding !== 'all' && t.buildingId !== selectedBuilding) return;
+            const dm = parseTransactionMonth(t);
+            if (!dm || dm.year !== selectedYear) return;
+            t.items?.forEach(item => {
+                if (item.categoryId !== selectedCategory) return;
+                const amt = parseFloat(item.amount) || 0;
+                if (amt) monthlyData[dm.month - 1].income += amt;
+            });
+        });
+
+        // Income từ bills (điện, nước, nhà...)
+        bills.forEach(bill => {
+            if (bill.status !== 'paid') return;
+            if (selectedBuilding !== 'all' && bill.buildingId !== selectedBuilding) return;
+            const bm = parseBillMonth(bill);
+            if (!bm) return;
+            const billYear = bm.year || selectedYear;
+            if (billYear !== selectedYear) return;
+            bill.services?.forEach(svc => {
+                const svcName = svc.serviceName || svc.name || '';
+                const mappedCatId = matchServiceToCategory(svcName, svc.serviceId || '', categories);
+                if (mappedCatId !== selectedCategory) return;
+                const amt = parseFloat(svc.amount) || 0;
+                if (amt) monthlyData[bm.month - 1].income += amt;
+            });
+        });
+    }
+
+    monthlyData.forEach(m => { m.profit = m.income - m.expense; });
+
+    // Nếu đang xem năm hiện tại: chỉ hiện đến tháng trước (tháng hiện tại chưa đủ số liệu)
+    const now = new Date();
+    const cutoffIdx = (selectedYear === now.getFullYear()) ? now.getMonth() - 1 : 11; // 0-indexed, getMonth() = tháng hiện tại - 1
+
+    let lastIdx = -1;
+    monthlyData.forEach((m, i) => {
+        if (i > cutoffIdx) return;
+        if (m.income > 0 || m.expense > 0) lastIdx = i;
+    });
+    const displayData = lastIdx >= 0 ? monthlyData.slice(0, lastIdx + 1) : [];
+
+    const yearTotals = displayData.reduce((acc, m) => {
+        acc.income += m.income; acc.expense += m.expense; return acc;
+    }, { income: 0, expense: 0 });
+    yearTotals.profit = yearTotals.income - yearTotals.expense;
+
+    renderCategoryChart(displayData, selectedYear, yearTotals);
+}
+
+/**
+ * Render biểu đồ thu chi theo tháng
+ */
+function renderCategoryChart(monthlyData, year, totals) {
+    // Render summary cards
+    const summaryEl = document.getElementById('category-chart-summary');
+    if (summaryEl && totals) {
+        const profitColor = totals.profit >= 0 ? 'text-green-600' : 'text-red-600';
+        const profitBg = totals.profit >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+        summaryEl.innerHTML = `
+            <div class="border rounded-lg p-3 bg-green-50 border-green-200 text-center">
+                <div class="text-xs text-gray-500 mb-1">Tổng thu</div>
+                <div class="text-base font-bold text-green-600">${formatMoney(totals.income)}đ</div>
+            </div>
+            <div class="border rounded-lg p-3 bg-red-50 border-red-200 text-center">
+                <div class="text-xs text-gray-500 mb-1">Tổng chi</div>
+                <div class="text-base font-bold text-red-600">${formatMoney(totals.expense)}đ</div>
+            </div>
+            <div class="border rounded-lg p-3 ${profitBg} text-center">
+                <div class="text-xs text-gray-500 mb-1">Lãi/Lỗ</div>
+                <div class="text-base font-bold ${profitColor}">${formatMoney(totals.profit)}đ</div>
+            </div>
+        `;
+    }
+    const canvas = document.getElementById('category-chart');
+    if (!canvas) return;
+
+    if (categoryChartInstance) {
+        categoryChartInstance.destroy();
+        categoryChartInstance = null;
+    }
+
+    const fmt = (v) => {
+        if (v >= 1e9) return (v / 1e9).toFixed(1) + ' tỷ';
+        if (v >= 1e6) return (v / 1e6).toFixed(0) + ' tr';
+        if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K';
+        return v.toString();
+    };
+
+    categoryChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: monthlyData.map(m => `T${m.month}`),
+            datasets: [
+                {
+                    label: 'Tổng thu',
+                    data: monthlyData.map(m => m.income),
+                    backgroundColor: 'rgba(34, 197, 94, 0.75)',
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 1,
+                    order: 2
+                },
+                {
+                    label: 'Tổng chi',
+                    data: monthlyData.map(m => m.expense),
+                    backgroundColor: 'rgba(239, 68, 68, 0.75)',
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 1,
+                    order: 2
+                },
+                {
+                    label: 'Lãi/Lỗ',
+                    data: monthlyData.map(m => m.profit),
+                    type: 'line',
+                    borderColor: 'rgba(99, 102, 241, 1)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointHoverRadius: 7,
+                    fill: true,
+                    tension: 0.35,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top' },
+                title: {
+                    display: true,
+                    text: `Thu chi theo tháng — Năm ${year}`,
+                    font: { size: 14 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: ${Math.round(ctx.raw).toLocaleString('de-DE')}đ`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { callback: v => fmt(v) },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                }
+            }
+        }
+    });
+}
+
+/**
  * Load category report data
  */
 async function loadCategoryReport() {
@@ -832,6 +1224,20 @@ async function loadCategoryReport() {
             fixedCostCat.expense = 0;
             fixedCostCat.income = 0;
             fixedCostCat.profit = 0;
+        }
+
+        // Gộp hạng mục không có thu vào "Chi phí khác"
+        const otherCostCat = Object.values(categoryTotals).find(c => c.name.toLowerCase().includes('chi phí khác'));
+        if (otherCostCat) {
+            Object.values(categoryTotals).forEach(cat => {
+                if (cat === otherCostCat || cat.income > 0) return;
+                const n = cat.name.toLowerCase();
+                if (n.includes('hóa đơn') || n.includes('cố định') || isMainCategory(n)) return;
+                otherCostCat.expense += cat.expense;
+                otherCostCat.profit = otherCostCat.income - otherCostCat.expense;
+                cat.expense = 0;
+                cat.profit = 0;
+            });
         }
 
         // Render table (không có hạng mục đặc biệt nữa)
