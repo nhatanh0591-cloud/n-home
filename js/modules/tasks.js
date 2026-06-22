@@ -743,16 +743,22 @@ function openTaskModal(taskData = null) {
 /**
  * Handle task form submit
  */
+let isSubmittingTask = false;
 async function handleTaskFormSubmit(e) {
     e.preventDefault();
-    
+    if (isSubmittingTask) return;
+
     const taskData = {
         title: taskTitleEl.value.trim(),
         buildingId: taskBuildingEl.value,
         room: taskRoomEl.value.trim(),
         status: 'pending'
     };
-    
+
+    const saveBtn = taskForm.querySelector('button[type="submit"]');
+    isSubmittingTask = true;
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Đang lưu...'; }
+
     try {
         const taskId = taskIdEl.value;
         const mediaInput = document.getElementById('task-media-input');
@@ -817,6 +823,9 @@ async function handleTaskFormSubmit(e) {
     } catch (error) {
         console.error('Error saving task:', error);
         showToast('Lỗi khi lưu công việc: ' + error.message, 'error');
+    } finally {
+        isSubmittingTask = false;
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Lưu'; }
     }
 }
 
