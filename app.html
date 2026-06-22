@@ -3587,13 +3587,19 @@
             }
         }
 
+        let isSubmittingIssue = false;
         window.submitIssue = async function() {
+            if (isSubmittingIssue) return;
             const description = document.getElementById('issue-description').value.trim();
-            
+
             if (!description) {
                 alert('Vui lòng nhập mô tả sự cố');
                 return;
             }
+
+            isSubmittingIssue = true;
+            const submitBtn = document.getElementById('submit-issue-btn');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang gửi...'; }
 
             try {
                 const contract = contracts[0];
@@ -3726,7 +3732,9 @@
             } catch (error) {
                 console.error('Error creating issue:', error);
                 showToast('Lỗi gửi sự cố. Vui lòng thử lại.', 'error');
-                throw error;
+            } finally {
+                isSubmittingIssue = false;
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t('submitIssue'); }
             }
         };
 
