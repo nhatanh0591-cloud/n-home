@@ -5,7 +5,7 @@
 import { initializeStore, getBuildings, refreshStore } from './store.js';
 import { initNavigation, showSection } from './navigation.js';
 import { showToast } from './utils.js';
-import { initAuth, addLogoutButton, getCurrentUser, hideUnauthorizedMenus, logoutAdmin } from './auth.js';
+import { initAuth, addLogoutButton, getCurrentUser, getCurrentUserRole, hideUnauthorizedMenus, logoutAdmin } from './auth.js';
 import { initSyncUI } from './sync-ui.js';
 
 // --- 2. NHẬP CÁC MODULE CHỨC NĂNG ---
@@ -109,10 +109,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         console.log("Main: 🛠️ Đã khởi tạo tất cả module.");
         
-        // 🔐 BƯỚC 8: Thêm nút đăng xuất và ẩn menu không có quyền  
+        // 🔐 BƯỚC 8: Thêm nút đăng xuất và ẩn menu không có quyền
         addLogoutButton();
         hideUnauthorizedMenus();
-        
+
+        // Viewer mặc định vào trang Sự cố/Công việc thay vì Bảng tin
+        const _roleAfterAuth = getCurrentUserRole();
+        if (_roleAfterAuth && _roleAfterAuth.role === 'viewer') {
+            showSection('tasks', loaders['tasks']);
+        }
+
         // 🔄 BƯỚC 9: Khởi tạo Sync UI
         initSyncUI();
         

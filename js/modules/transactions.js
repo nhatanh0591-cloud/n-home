@@ -2,6 +2,7 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
 import { getTransactions, getBuildings, getCustomers, getContracts, getAccounts, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
+import { getCurrentUser, getCurrentUserRole } from '../auth.js';
 import { 
     showToast, openModal, closeModal, 
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
@@ -203,11 +204,33 @@ export function initTransactions() {
 }
 
 /**
+ * Ẩn các nút không dành cho viewer trong màn hình thu chi
+ */
+function setupViewerTransactionUI() {
+    const userRole = getCurrentUserRole();
+    const isViewer = userRole && userRole.role === 'viewer';
+    const hideIds = [
+        'export-transactions-btn',
+        'import-transactions-btn',
+        'bulk-approve-transactions-btn',
+        'bulk-unapprove-transactions-btn',
+        'bulk-delete-transactions-btn',
+        'select-all-transactions',
+        'clear-selection-transactions-btn'
+    ];
+    hideIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = isViewer ? 'none' : '';
+    });
+}
+
+/**
  * Tải, lọc, và chuẩn bị dữ liệu thu chi
  */
 export function loadTransactions() {
     loadTransactionFilters();
     applyTransactionFilters();
+    setupViewerTransactionUI();
 }
 
 /**
@@ -240,6 +263,14 @@ async function loadTransactionCategories() {
  */
 function applyTransactionFilters() {
     let transactions = getTransactions();
+
+    // Viewer chỉ thấy phiếu do mình tạo
+    const _userRole = getCurrentUserRole();
+    if (_userRole && _userRole.role === 'viewer') {
+        const _cu = getCurrentUser();
+        const _email = (_cu && _cu.email) || localStorage.getItem('n-home-user-email') || '';
+        transactions = transactions.filter(t => (t.createdBy && t.createdBy.email) === _email);
+    }
 
     // Lấy giá trị bộ lọc
     const building = filterBuildingEl?.value || '';
@@ -456,7 +487,10 @@ function renderTransactionsTable(transactions) {
     const customers = getCustomers();
     const accounts = getAccounts();
     const categories = transactionCategoriesCache;
-    
+
+    const _roleForRender = getCurrentUserRole();
+    const _isViewerRender = _roleForRender && _roleForRender.role === 'viewer';
+
     transactionsToShow.forEach(t => {
         const building = buildings.find(b => b.id === t.buildingId);
         const customer = customers.find(c => c.id === t.customerId);
@@ -495,18 +529,19 @@ function renderTransactionsTable(transactions) {
         const tr = document.createElement('tr');
         tr.className = 'border-b hover:bg-gray-50';
         tr.innerHTML = `
-            <td class="py-4 px-4">
+            <td class="py-4 px-4" ${_isViewerRender ? 'style="display:none"' : ''}>
                 <input type="checkbox" class="transaction-checkbox w-4 h-4 cursor-pointer" data-id="${t.id}" data-approved="${t.approved || false}">
             </td>
             <td class="py-4 px-4">
                 <div class="flex gap-3">
+                    ${_isViewerRender ? '' : `
                     <button data-id="${t.id}" class="toggle-transaction-approve-btn w-8 h-8 rounded flex items-center justify-center ${t.approved ? 'bg-gray-400' : 'bg-green-500'}" title="${t.approved ? 'Bỏ duyệt' : 'Duyệt'}">
-                        ${t.approved ? 
+                        ${t.approved ?
                             '<svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>' :
                             '<svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>'
                         }
-                    </button>
-                    ${t.approved ? 
+                    </button>`}
+                    ${t.approved ?
                         '<button data-id="' + t.id + '" class="w-8 h-8 rounded bg-gray-300 flex items-center justify-center cursor-not-allowed" title="Không thể sửa phiếu đã duyệt" disabled>' +
                             '<svg class="w-4 h-4 text-gray-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>' +
                         '</button>' :
@@ -514,7 +549,7 @@ function renderTransactionsTable(transactions) {
                             '<svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>' +
                         '</button>'
                     }
-                    ${t.approved ? 
+                    ${t.approved ?
                         '<button data-id="' + t.id + '" class="w-8 h-8 rounded bg-gray-300 flex items-center justify-center cursor-not-allowed" title="Không thể xóa phiếu đã duyệt" disabled>' +
                             '<svg class="w-4 h-4 text-gray-500 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>' +
                         '</button>' :
@@ -533,9 +568,11 @@ function renderTransactionsTable(transactions) {
             <td class="py-4 px-4">${accountDisplay}</td>
         `;
             // Thêm event listener cho checkbox để cập nhật bulk buttons
-            const checkbox = tr.querySelector('.transaction-checkbox');
-            checkbox.addEventListener('change', updateBulkApprovalButtons);
-            
+            if (!_isViewerRender) {
+                const checkbox = tr.querySelector('.transaction-checkbox');
+                if (checkbox) checkbox.addEventListener('change', updateBulkApprovalButtons);
+            }
+
             transactionsListEl.appendChild(tr);
         });
         
@@ -562,10 +599,11 @@ function renderTransactionsTable(transactions) {
                 const mobileCard = document.createElement('div');
                 mobileCard.className = 'mobile-card';
                 mobileCard.innerHTML = `
+                    ${_isViewerRender ? '' : `
                     <div class="flex items-center gap-3 mb-3 pb-3 border-b">
                         <input type="checkbox" class="transaction-checkbox-mobile w-5 h-5 cursor-pointer" data-id="${t.id}" data-approved="${t.approved || false}" ${isChecked ? 'checked' : ''}>
                         <span class="text-xs text-gray-500 flex-1">Chọn để xóa nhiều</span>
-                    </div>
+                    </div>`}
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Tên phiếu:</span>
                         <span class="mobile-card-value font-bold text-lg">${t.title || 'N/A'}</span>
@@ -601,21 +639,22 @@ function renderTransactionsTable(transactions) {
                         </span>
                     </div>
                     <div class="mobile-card-actions">
+                        ${_isViewerRender ? '' : `
                         <button data-id="${t.id}" class="toggle-transaction-approve-btn ${t.approved ? 'bg-gray-400' : 'bg-green-500'} hover:opacity-90 text-white">
-                            ${t.approved ? 
+                            ${t.approved ?
                                 '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>' :
                                 '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>'
                             }
                             ${t.approved ? 'Bỏ duyệt' : 'Duyệt'}
-                        </button>
-                        ${t.approved ? 
+                        </button>`}
+                        ${t.approved ?
                             '<button class="bg-gray-300 text-gray-500 cursor-not-allowed" disabled>Sửa</button>' :
                             '<button data-id="' + t.id + '" class="edit-transaction-btn bg-gray-500 hover:bg-gray-600 text-white">' +
                                 '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>' +
                                 'Sửa' +
                             '</button>'
                         }
-                        ${t.approved ? 
+                        ${t.approved ?
                             '<button class="bg-gray-300 text-gray-500 cursor-not-allowed" disabled>Xóa</button>' :
                             '<button data-id="' + t.id + '" class="delete-transaction-btn bg-red-500 hover:bg-red-600 text-white">' +
                                 '<svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>' +
@@ -777,19 +816,33 @@ async function handleBodyClick(e) {
     }
     // Nút "Sửa"
     else if (target.classList.contains('edit-transaction-btn')) {
-        // Kiểm tra phiếu đã duyệt chưa
         const transaction = getTransactions().find(t => t.id === id);
         if (transaction && transaction.approved) {
             return showToast('Không thể sửa phiếu đã duyệt!', 'error');
+        }
+        const _roleEdit = getCurrentUserRole();
+        if (_roleEdit && _roleEdit.role === 'viewer') {
+            const _cuEdit = getCurrentUser();
+            const _emailEdit = (_cuEdit && _cuEdit.email) || localStorage.getItem('n-home-user-email') || '';
+            if (!transaction || transaction.createdBy?.email !== _emailEdit) {
+                return showToast('Bạn không có quyền sửa phiếu này!', 'error');
+            }
         }
         openTransactionModal({ transactionId: id });
     }
     // Nút "Xóa"
     else if (target.classList.contains('delete-transaction-btn')) {
-        // Kiểm tra phiếu đã duyệt chưa
         const transaction = getTransactions().find(t => t.id === id);
         if (transaction && transaction.approved) {
             return showToast('Không thể xóa phiếu đã duyệt!', 'error');
+        }
+        const _roleDelete = getCurrentUserRole();
+        if (_roleDelete && _roleDelete.role === 'viewer') {
+            const _cuDelete = getCurrentUser();
+            const _emailDelete = (_cuDelete && _cuDelete.email) || localStorage.getItem('n-home-user-email') || '';
+            if (!transaction || transaction.createdBy?.email !== _emailDelete) {
+                return showToast('Bạn không có quyền xóa phiếu này!', 'error');
+            }
         }
         const confirmed = await showConfirm('Bạn có chắc muốn xóa phiếu này?', 'Xác nhận xóa');
         if (confirmed) {
@@ -798,18 +851,26 @@ async function handleBodyClick(e) {
     }
     // Nút "Duyệt/Bỏ duyệt"
     else if (target.classList.contains('toggle-transaction-approve-btn')) {
+        const _roleCheck = getCurrentUserRole();
+        if (_roleCheck && _roleCheck.role === 'viewer') return showToast('Bạn không có quyền duyệt phiếu!', 'error');
         await toggleTransactionApproval(id);
     }
     // Nút "Xóa nhiều"
     else if (target.id === 'bulk-delete-transactions-btn') {
+        const _roleCheck = getCurrentUserRole();
+        if (_roleCheck && _roleCheck.role === 'viewer') return showToast('Bạn không có quyền thao tác này!', 'error');
         await bulkDelete();
     }
     // Nút "Duyệt hàng loạt"
     else if (target.id === 'bulk-approve-transactions-btn') {
+        const _roleCheck = getCurrentUserRole();
+        if (_roleCheck && _roleCheck.role === 'viewer') return showToast('Bạn không có quyền duyệt phiếu!', 'error');
         await bulkApproveTransactions(true);
     }
     // Nút "Bỏ duyệt hàng loạt"
     else if (target.id === 'bulk-unapprove-transactions-btn') {
+        const _roleCheck = getCurrentUserRole();
+        if (_roleCheck && _roleCheck.role === 'viewer') return showToast('Bạn không có quyền bỏ duyệt phiếu!', 'error');
         await bulkApproveTransactions(false);
     }
     // Nút "Xuất Excel"
@@ -1106,10 +1167,16 @@ async function handleTransactionFormSubmit(e) {
                 transactionData.approved = oldTransaction.approved; // Giữ nguyên trạng thái duyệt
             }
         } else {
-            // Transaction mới mặc định đã duyệt
-            transactionData.approved = true;
+            const _creatorUser = getCurrentUser();
+            const _creatorRole = getCurrentUserRole();
+            // Admin tạo → tự duyệt luôn. Viewer tạo → chờ admin duyệt
+            transactionData.approved = _creatorRole && _creatorRole.role === 'admin';
             transactionData.createdAt = serverTimestamp();
             transactionData.code = `P${type === 'income' ? 'T' : 'C'}${Date.now().toString().slice(-8)}`;
+            transactionData.createdBy = {
+                email: (_creatorUser && _creatorUser.email) || localStorage.getItem('n-home-user-email') || '',
+                name: _creatorRole ? _creatorRole.name : ''
+            };
         }
 
         if (id) {

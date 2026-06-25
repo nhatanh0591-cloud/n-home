@@ -155,9 +155,9 @@ function hideRestrictedModulesForViewer() {
         'services',           // 1. Phí dịch vụ
         'transactionCategories', // 2. Hạng mục thu chi
         'accounts',           // 3. Sổ quỹ
-        'contracts',          // 4. Hợp đồng thuê
-        'transactions',       // 5. Thu chi
-        'notifications'       // 6. Thông báo
+        // 'contracts'        // Viewer được phép đồng bộ hợp đồng thuê
+        // 'transactions'     // Viewer được phép đồng bộ thu chi của mình
+        'notifications'       // 4. Thông báo
     ];
     
     // Ẩn từng module

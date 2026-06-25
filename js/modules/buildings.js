@@ -96,7 +96,7 @@ export function initBuildings() {
  */
 export function loadBuildings() {
     if (buildingsSection?.classList.contains('hidden')) return;
-    
+
     let buildings = getBuildings(); // Lấy dữ liệu mới nhất từ store
     updateBuildingStats(buildings);
 

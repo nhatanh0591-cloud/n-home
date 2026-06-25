@@ -92,11 +92,10 @@ export function initAccounts() {
  */
 export async function loadAccounts() {
     if (accountsSection.classList.contains('hidden')) return;
-    
+
     try {
         // Dùng data từ store thay vì Firebase
         accountsCache = getAccounts();
-        
         renderAccounts();
         
     } catch (error) {

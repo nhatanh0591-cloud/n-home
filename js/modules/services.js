@@ -146,7 +146,7 @@ async function syncServiceBuildingData() {
  */
 export function loadServices() {
     if (servicesSection?.classList.contains('hidden')) return;
-    
+
     const allServices = getServices();
     const allBuildings = getBuildings();
     

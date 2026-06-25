@@ -34,19 +34,18 @@ const PERMISSIONS = {
         reports: { view: true, export: true }
     },
     viewer: {
-        // Quản lý chỉ được XEM 3 thứ
-        dashboard: true, // Được xem dashboard
-        buildings: { view: true }, // Được xem tòa nhà (để load dropdown)
-        services: false, // Không xem dịch vụ
-        accounts: false, // Không xem sổ quỹ
-        transactionCategories: false, // Không xem hạng mục
-        customers: { view: true, add: true, edit: false, delete: false }, // XEM và THÊM khách hàng (không sửa/xóa)
-        contracts: { view: true, add: true, edit: false, delete: false }, // XEM và THÊM hợp đồng (không sửa/xóa)
-        bills: { view: true, add: true, edit: false, delete: false, approve: false }, // XEM và THÊM hóa đơn (không sửa/xóa/duyệt)
-        transactions: false, // Không xem phiếu thu chi
-        tasks: { view: true, add: false, edit: false, delete: false }, // CHỈ XEM sự cố
-        notifications: false, // Không xem thông báo
-        reports: false // Không xem báo cáo
+        dashboard: false, // Không xem bảng tin
+        buildings: { view: true }, // Chỉ XEM tòa nhà
+        services: { view: true }, // Chỉ XEM phí dịch vụ
+        accounts: { view: true }, // Chỉ XEM sổ quỹ
+        transactionCategories: { view: true }, // Chỉ XEM hạng mục thu chi
+        customers: { view: true, add: true, edit: false, delete: false },
+        contracts: { view: true, add: true, edit: false, delete: false },
+        bills: { view: true, add: true, edit: false, delete: false, approve: false },
+        transactions: { view: true, add: true, edit: true, delete: true }, // Chỉ xem/thêm/sửa/xóa phiếu do mình tạo
+        tasks: { view: true, add: false, edit: false, delete: false },
+        notifications: false,
+        reports: false
     }
 };
 
@@ -537,21 +536,67 @@ export function hideUnauthorizedMenus() {
 
     // CHỈ ẨN MENU CỤ THỂ CHO VIEWER
     if (userRole.role === 'viewer') {
+        // Inject CSS vĩnh viễn — ẩn các nút dù render bất kỳ lúc nào
+        if (!document.getElementById('viewer-restrict-styles')) {
+            const style = document.createElement('style');
+            style.id = 'viewer-restrict-styles';
+            style.textContent = `
+                /* Viewer chỉ được xem các section này, không sửa/xóa/thêm */
+                .edit-building-btn, .delete-building-btn,
+                #add-building-btn, #import-buildings-btn, #export-buildings-btn,
+                #bulk-delete-buildings-btn, #clear-selection-buildings-btn,
+                .edit-service-btn, .delete-service-btn,
+                #add-service-btn, #bulk-delete-services-btn, #clear-selection-services-btn,
+                .edit-account-btn, .delete-account-btn,
+                #add-account-btn, #bulk-delete-accounts-btn, #clear-selection-accounts-btn,
+                .edit-transaction-category-btn, .delete-transaction-category-btn,
+                #add-transaction-category-btn, #bulk-delete-transaction-categories-btn {
+                    display: none !important;
+                }
+                /* Ẩn cột checkbox + cột Thao tác trống cho viewer */
+                /* Buildings: checkbox=col1, Mã=col2, Thao tác=col3 */
+                #buildings-section .desktop-table th:first-child,
+                #buildings-section .desktop-table td:first-child,
+                #buildings-section .desktop-table th:nth-child(3),
+                #buildings-section .desktop-table td:nth-child(3) { display: none !important; }
+                /* Services: checkbox=col1, Thao tác=col2 */
+                #services-section .desktop-table th:first-child,
+                #services-section .desktop-table td:first-child,
+                #services-section .desktop-table th:nth-child(2),
+                #services-section .desktop-table td:nth-child(2) { display: none !important; }
+                /* Accounts: checkbox=col1, Thao tác=col2 */
+                #accounts-section .desktop-table th:first-child,
+                #accounts-section .desktop-table td:first-child,
+                #accounts-section .desktop-table th:nth-child(2),
+                #accounts-section .desktop-table td:nth-child(2) { display: none !important; }
+                /* Transaction-categories: checkbox=col1, Thao tác=col2 */
+                #transaction-categories-section .desktop-table th:first-child,
+                #transaction-categories-section .desktop-table td:first-child,
+                #transaction-categories-section .desktop-table th:nth-child(2),
+                #transaction-categories-section .desktop-table td:nth-child(2) { display: none !important; }
+                /* Transactions: ẩn checkbox=col1, GIỮ Thao tác=col2 cho viewer tự sửa/xóa phiếu */
+                #transactions-section .desktop-table th:first-child,
+                #transactions-section .desktop-table td:first-child { display: none !important; }
+                /* Ẩn card Lợi nhuận — viewer chỉ cần xem Tổng thu và Tổng chi */
+                #transactions-profit-card { display: none !important; }
+                /* Đổi grid thành 2 cột để 2 card còn lại căn đều */
+                #transactions-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+            `;
+            document.head.appendChild(style);
+        }
         console.log("🔍 Đang ẩn menu cho viewer...");
         
-        // Dashboard được phép cho viewer
+        // Viewer không cần xem Bảng tin
         const dashboardBtn = document.getElementById('dashboard-btn');
         if (dashboardBtn) {
-            dashboardBtn.style.display = 'block';
-            console.log("✅ Dashboard được hiển thị cho viewer");
+            dashboardBtn.style.display = 'none';
         }
-        
-        // Ẩn toàn bộ menu "Danh mục dữ liệu" 
-        const dataMenuContainer = document.querySelector('.dropdown-menu:first-of-type');
-        if (dataMenuContainer) {
-            dataMenuContainer.style.display = 'none';
-            console.log("✅ Đã ẩn menu Danh mục dữ liệu");
-        }
+
+        // Ẩn Phí dịch vụ, Hạng mục thu chi, Sổ quỹ khỏi sidebar
+        ['services-btn', 'transaction-categories-btn', 'accounts-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
         
         // GIỮ menu "Hợp đồng thuê" cho viewer (quanly@gmail.com có quyền xem và thêm hợp đồng)
         const contractsBtn = document.getElementById('contracts-btn');
@@ -560,13 +605,10 @@ export function hideUnauthorizedMenus() {
             console.log("✅ Giữ menu Hợp đồng thuê cho viewer");
         }
         
-        // Ẩn menu "Thu chi" (id="finance-btn") 
+        // Hiện menu "Thu chi" cho viewer (được phép nhập phiếu của mình)
         const financeBtn = document.getElementById('finance-btn');
         if (financeBtn) {
-            financeBtn.style.display = 'none';
-            console.log("✅ Đã ẩn menu Thu chi");
-        } else {
-            console.log("❌ KHÔNG TÌM THẤY menu Thu chi (finance-btn)!");
+            financeBtn.style.display = 'block';
         }
         
         // Ẩn notifications và reports
@@ -621,29 +663,38 @@ export function hideActionButtons(module) {
             const isAddContractBtn = btn.id === 'add-contract-btn';
             const isAddCustomerInContractBtn = btn.id === 'add-customer-from-contract';
             const isAddBillBtn = btn.id === 'add-bill-btn';
-            
-            if (!isLogo && !isAddTaskBtn && !isAddContractBtn && !isAddCustomerInContractBtn && !isAddBillBtn && 
+            const isAddTransactionBtn = btn.id === 'add-transaction-btn'; // Viewer được phép thêm phiếu của mình
+            const isAddTransactionItemBtn = btn.id === 'add-transaction-item-btn'; // Nút thêm hạng mục trong modal
+
+            if (!isLogo && !isAddTaskBtn && !isAddContractBtn && !isAddCustomerInContractBtn && !isAddBillBtn && !isAddTransactionBtn && !isAddTransactionItemBtn &&
                 (btn.textContent.includes('+') || btn.title?.includes('Thêm') || btn.title?.includes('thêm'))) {
                 btn.style.display = 'none';
                 console.log("🚫 Đã ẩn nút:", btn.textContent || btn.title);
             }
         });
         
-        // Ẩn tất cả nút sửa (màu xám)  
+        // Ẩn tất cả nút sửa (màu xám)
         const editButtons = document.querySelectorAll('.bg-gray-500, .bg-gray-600, [title="Sửa"], [title*="sửa"], .edit-customer-btn, .edit-contract-btn, .edit-bill-btn');
-        editButtons.forEach(btn => btn.style.display = 'none');
-        
+        editButtons.forEach(btn => {
+            // Không ẩn bất kỳ button nào trong transactions section/modal — viewer tự quản lý
+            if (btn.closest('#transactions-section') || btn.closest('#transaction-modal')) return;
+            btn.style.display = 'none';
+        });
+
         // Ẩn tất cả nút xóa (màu đỏ) - NHƯNG KHÔNG ẩn nút đăng xuất và KHÔNG ẩn status badge
         const deleteButtons = document.querySelectorAll('.bg-red-500, .bg-red-600, [title="Xóa"], [title*="xóa"], .delete-customer-btn, .delete-contract-btn, .delete-bill-btn');
         deleteButtons.forEach(btn => {
+            // Không ẩn bất kỳ button nào trong transactions section/modal — viewer tự quản lý
+            if (btn.closest('#transactions-section') || btn.closest('#transaction-modal')) return;
+
             // Kiểm tra xem có phải nút đăng xuất không (có icon logout)
             const isLogoutButton = btn.innerHTML.includes('M3 3a1 1 0') || // SVG logout path
                                    btn.classList.contains('user-info') ||
                                    btn.closest('.user-info');
-            
+
             // CHỈ ẨN NẾU LÀ BUTTON hoặc có onclick (KHÔNG ẨN span/badge status)
             const isButton = btn.tagName === 'BUTTON' || btn.hasAttribute('onclick') || btn.classList.contains('delete-customer-btn');
-            
+
             if (!isLogoutButton && isButton) {
                 btn.style.display = 'none';
             }
@@ -834,11 +885,11 @@ export function hideActionButtons(module) {
         
         // Sẽ ẩn phần upload khi modal được mở (xử lý trong event listener)
         
-        // Ẩn cột "Thao tác" header và toàn bộ cột (trừ tasks table)
+        // Ẩn cột "Thao tác" header và toàn bộ cột (trừ tasks và transactions)
         const tables = document.querySelectorAll('table');
         tables.forEach(table => {
-            // Bỏ qua tasks table - manager được phép thao tác tasks
-            if (table.closest('#tasks-section')) return;
+            // Bỏ qua tasks và transactions - viewer được phép thao tác
+            if (table.closest('#tasks-section') || table.closest('#transactions-section')) return;
             
             const headers = table.querySelectorAll('th');
             headers.forEach((th, index) => {
