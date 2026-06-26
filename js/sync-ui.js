@@ -153,8 +153,8 @@ function hideRestrictedModulesForViewer() {
     const restrictedModules = [
         // 'buildings',        // Bỏ comment - viewer cần buildings để load dropdown
         'services',           // 1. Phí dịch vụ
-        'transactionCategories', // 2. Hạng mục thu chi
-        'accounts',           // 3. Sổ quỹ
+        // 'transactionCategories', // Viewer cần hạng mục để chọn khi thêm thu chi
+        // 'accounts',           // Viewer cần sổ quỹ để chọn khi thêm thu chi
         // 'contracts'        // Viewer được phép đồng bộ hợp đồng thuê
         // 'transactions'     // Viewer được phép đồng bộ thu chi của mình
         'notifications'       // 4. Thông báo

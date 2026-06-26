@@ -550,7 +550,8 @@ export function hideUnauthorizedMenus() {
                 .edit-account-btn, .delete-account-btn,
                 #add-account-btn, #bulk-delete-accounts-btn, #clear-selection-accounts-btn,
                 .edit-transaction-category-btn, .delete-transaction-category-btn,
-                #add-transaction-category-btn, #bulk-delete-transaction-categories-btn {
+                #add-transaction-category-btn, #bulk-delete-transaction-categories-btn,
+                #add-new-transaction-category-btn, .delete-category-btn {
                     display: none !important;
                 }
                 /* Ẩn cột checkbox + cột Thao tác trống cho viewer */

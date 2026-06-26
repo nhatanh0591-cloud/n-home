@@ -886,7 +886,7 @@ async function handleBodyClick(e) {
     
     // Nút "Thêm hạng mục"
     else if (target.id === 'add-transaction-item-btn') {
-        renderTransactionCategories(); // Tải lại danh sách
+        await loadTransactionCategories(); // Reload từ store để lấy data mới nhất
         // Đặt z-index rất cao
         selectTransactionCategoryModal.style.zIndex = '999999';
         selectTransactionCategoryModal.style.position = 'fixed';
