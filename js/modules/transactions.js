@@ -1634,11 +1634,11 @@ function handleTransactionRoomChange() {
 
 function renderTransactionCategories() {
     if (!transactionCategoriesListEl) return;
-    
+
     transactionCategoriesListEl.innerHTML = '';
     transactionCategoriesCache.forEach(cat => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50';
+        tr.className = 'hover:bg-gray-50 cursor-pointer';
         tr.innerHTML = `
             <td class="py-3 px-3">${cat.name}</td>
             <td class="py-3 px-3">
@@ -1646,6 +1646,16 @@ function renderTransactionCategories() {
                 <button type="button" class="delete-category-btn bg-red-500 text-white px-3 py-1 rounded" data-id="${cat.id}">Xóa</button>
             </td>
         `;
+        // Click vào bất kỳ chỗ nào trên row cũng chọn được (quan trọng cho mobile)
+        tr.addEventListener('click', (e) => {
+            if (e.target.classList.contains('delete-category-btn')) return;
+            const category = transactionCategoriesCache.find(c => c.id === cat.id);
+            if (category) {
+                currentTransactionItems.push({ categoryId: category.id, name: category.name, amount: 0 });
+                renderTransactionItems();
+                closeModal(selectTransactionCategoryModal);
+            }
+        });
         transactionCategoriesListEl.appendChild(tr);
     });
 }
