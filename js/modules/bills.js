@@ -650,7 +650,13 @@ async function handleBodyClick(e) {
     // Nút "Duyệt/Bỏ duyệt"
     else if (target.classList.contains('toggle-bill-approve-btn')) {
         console.log('🖱️ Approve button clicked for bill ID:', id);
-        await toggleBillApproval(id);
+        const billForApprove = getBills().find(b => b.id === id);
+        // Hóa đơn thanh lý chưa duyệt → mở modal tính hoàn cọc
+        if (billForApprove && billForApprove.isTerminationBill && !billForApprove.approved) {
+            await openDepositReturnModal(billForApprove);
+        } else {
+            await toggleBillApproval(id);
+        }
     }
     // Nút "Thu tiền/Hủy thu"
     else if (target.classList.contains('toggle-bill-status-btn')) {
@@ -1082,6 +1088,253 @@ async function deleteBill(billId) {
     }
 }
 
+// ─── HOÀN CỌC KHI DUYỆT THANH LÝ ────────────────────────────────────────────
+
+async function openDepositReturnModal(bill) {
+    const contract = getContracts().find(c => c.id === bill.contractId);
+    if (!contract) {
+        showToast('Không tìm thấy thông tin hợp đồng!', 'error');
+        return;
+    }
+
+    const building = getBuildings().find(b => b.id === bill.buildingId);
+    const customer = getCustomers().find(c => c.id === bill.customerId);
+    const deposit = contract.deposit || 0;
+
+    // Lấy chỉ số điện và đơn giá từ hóa đơn gần nhất
+    const previousBills = getBills()
+        .filter(b => b.buildingId === bill.buildingId && b.room === bill.room && !b.isTerminationBill)
+        .sort((a, b) => new Date(b.billDate) - new Date(a.billDate));
+
+    let lastElectricReading = 0;
+    let electricUnitPrice = 0;
+
+    if (previousBills.length > 0) {
+        const lastBill = previousBills[0];
+        const elecSvc = lastBill.services?.find(s => s.type === 'electric');
+        if (elecSvc) {
+            lastElectricReading = elecSvc.newReading || 0;
+            electricUnitPrice = elecSvc.unitPrice || 0;
+        }
+    }
+
+    // Fallback: lấy từ hợp đồng nếu chưa có hóa đơn nào
+    if (!electricUnitPrice && contract.serviceDetails?.length) {
+        const services = getServices();
+        for (const sd of contract.serviceDetails) {
+            const svc = services.find(s => s.id === sd.serviceId);
+            if (svc && (svc.type === 'electric' || svc.name?.toLowerCase().includes('điện'))) {
+                lastElectricReading = sd.initialReading || 0;
+                electricUnitPrice = svc.unitPrice || svc.price || 0;
+                break;
+            }
+        }
+    }
+
+    // Tạo modal
+    document.getElementById('deposit-return-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'deposit-return-modal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">🏠 Duyệt thanh lý & Hoàn cọc</h3>
+
+            <div class="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Phòng</span>
+                    <span class="font-semibold">${building?.code || ''} - ${bill.room}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Khách hàng</span>
+                    <span class="font-semibold">${customer?.name || ''}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Tiền cọc hợp đồng</span>
+                    <span class="font-semibold text-blue-600">${formatMoney(deposit)}đ</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Chỉ số điện HĐ trước</span>
+                    <span class="font-semibold">${lastElectricReading} kWh</span>
+                </div>
+            </div>
+
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Chỉ số điện lúc trả phòng <span class="text-red-500">*</span></label>
+                    <input id="dr-final-reading" type="number" min="${lastElectricReading}"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Nhập chỉ số cuối (ví dụ: 1599)">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí sửa chữa phòng (đ)</label>
+                    <input id="dr-repair-cost" type="number" min="0" value="0"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="0">
+                </div>
+            </div>
+
+            <div class="bg-blue-50 rounded-xl p-4 mb-5 space-y-2 text-sm">
+                <div class="flex justify-between text-gray-600">
+                    <span>Điện tiêu thụ</span>
+                    <span id="dr-units">— kWh</span>
+                </div>
+                <div class="flex justify-between text-gray-600">
+                    <span>Tiền điện phát sinh</span>
+                    <span id="dr-elec-cost">—đ</span>
+                </div>
+                <div class="flex justify-between text-gray-600">
+                    <span>Chi phí sửa phòng</span>
+                    <span id="dr-repair-display">0đ</span>
+                </div>
+                <div class="flex justify-between font-medium text-gray-700 border-t border-blue-200 pt-2">
+                    <span>Tổng khấu trừ</span>
+                    <span id="dr-deduction">—đ</span>
+                </div>
+                <div class="flex justify-between font-bold text-green-700 text-base">
+                    <span>Hoàn cọc cho khách</span>
+                    <span id="dr-return">—đ</span>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="dr-cancel" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-200 transition">Hủy</button>
+                <button id="dr-confirm" disabled
+                    class="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                    Duyệt & Tạo phiếu chi
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const finalInput = modal.querySelector('#dr-final-reading');
+    const repairInput = modal.querySelector('#dr-repair-cost');
+    const confirmBtn = modal.querySelector('#dr-confirm');
+
+    function recalc() {
+        const finalReading = parseInt(finalInput.value) || 0;
+        const repairCost = parseInt(repairInput.value) || 0;
+
+        if (!finalInput.value || finalReading < lastElectricReading) {
+            modal.querySelector('#dr-units').textContent = '— kWh';
+            modal.querySelector('#dr-elec-cost').textContent = '—đ';
+            modal.querySelector('#dr-repair-display').textContent = `${formatMoney(repairCost)}đ`;
+            modal.querySelector('#dr-deduction').textContent = '—đ';
+            modal.querySelector('#dr-return').textContent = '—đ';
+            confirmBtn.disabled = true;
+            return;
+        }
+
+        const units = finalReading - lastElectricReading;
+        const elecCost = units * electricUnitPrice;
+        const totalDeduction = elecCost + repairCost;
+        const returnAmount = deposit - totalDeduction;
+
+        modal.querySelector('#dr-units').textContent = `${units} kWh`;
+        modal.querySelector('#dr-elec-cost').textContent = `${formatMoney(elecCost)}đ`;
+        modal.querySelector('#dr-repair-display').textContent = `${formatMoney(repairCost)}đ`;
+        modal.querySelector('#dr-deduction').textContent = `${formatMoney(totalDeduction)}đ`;
+        modal.querySelector('#dr-return').textContent = `${formatMoney(returnAmount)}đ`;
+        confirmBtn.disabled = false;
+    }
+
+    finalInput.addEventListener('input', recalc);
+    repairInput.addEventListener('input', recalc);
+
+    modal.querySelector('#dr-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+    confirmBtn.addEventListener('click', async () => {
+        const finalReading = parseInt(finalInput.value) || 0;
+        const repairCost = parseInt(repairInput.value) || 0;
+        const units = finalReading - lastElectricReading;
+        const elecCost = units * electricUnitPrice;
+        const returnAmount = deposit - elecCost - repairCost;
+
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Đang xử lý...';
+
+        try {
+            await approveTerminationWithDepositReturn(bill, contract, building, customer, {
+                finalReading, repairCost,
+                electricUnits: units, electricCost: elecCost,
+                depositReturn: returnAmount
+            });
+            modal.remove();
+        } catch (err) {
+            showToast('Lỗi: ' + err.message, 'error');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Duyệt & Tạo phiếu chi';
+        }
+    });
+
+    setTimeout(() => finalInput.focus(), 100);
+}
+
+async function approveTerminationWithDepositReturn(bill, contract, building, customer, calcData) {
+    const { finalReading, repairCost, electricUnits, electricCost, depositReturn } = calcData;
+
+    // Tìm hạng mục "Tiền hoa hồng"
+    const categories = getTransactionCategories();
+    const hoaHongCat = categories.find(c => c.name === 'Tiền hoa hồng');
+
+    // Tìm sổ quỹ MB Bank - DANG NHAT ANH
+    const accounts = getAccounts();
+    const mbAccount = accounts.find(a => {
+        const bank = (a.bank || '').toLowerCase().replace(/\s/g, '');
+        const holder = (a.accountHolder || '').toLowerCase().replace(/\s/g, '');
+        return (bank.includes('mb') || bank.includes('mbbank')) && holder.includes('dangnhatanh');
+    });
+
+    if (!mbAccount) {
+        throw new Error('Không tìm thấy sổ quỹ MB Bank - DANG NHAT ANH trong hệ thống!');
+    }
+
+    // Lấy chữ cuối tên khách hàng
+    const customerLastName = (customer?.name || '').split(' ').filter(Boolean).pop() || '';
+
+    // Tạo phiếu chi Trả cọc (Chưa duyệt)
+    const txCode = `PC${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}`;
+    const txData = {
+        type: 'expense',
+        code: txCode,
+        buildingId: bill.buildingId,
+        room: bill.room,
+        customerId: bill.customerId,
+        billId: bill.id,
+        accountId: mbAccount.id,
+        title: `Trả cọc ${bill.room}`,
+        payer: `P${bill.room} - ${customerLastName} - ${building?.code || ''}`,
+        date: getCurrentDateString(),
+        items: [{
+            name: `Trả cọc phòng ${bill.room}`,
+            amount: depositReturn,
+            categoryId: hoaHongCat?.id || ''
+        }],
+        approved: false,
+        isDepositReturn: true,
+        depositReturnDetails: {
+            finalReading, electricUnits, electricCost,
+            repairCost, deposit: contract.deposit || 0, depositReturn
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+
+    const txRef = await addDoc(collection(db, 'transactions'), txData);
+
+    const state = getState();
+    state.transactions.unshift({ ...txData, id: txRef.id, createdAt: new Date(), updatedAt: new Date() });
+    saveToCache();
+    document.dispatchEvent(new CustomEvent('store:transactions:updated'));
+
+    // Duyệt hóa đơn thanh lý
+    await toggleBillApproval(bill.id);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function toggleBillApproval(billId) {
     console.log('🔄 toggleBillApproval called with billId:', billId);
     const bill = getBills().find(b => b.id === billId);
@@ -1110,18 +1363,26 @@ async function toggleBillApproval(billId) {
         if (bill.isTerminationBill && newApproved) {
             updateData.status = 'terminated';
         }
-        
+        // 🔄 Bỏ duyệt hóa đơn thanh lý → reset về unpaid
+        if (bill.isTerminationBill && !newApproved) {
+            updateData.status = 'unpaid';
+        }
+
         await setDoc(doc(db, 'bills', billId), updateData, { merge: true });
-        
+
         // Update localStorage
         const localUpdateData = {
             approved: newApproved,
             updatedAt: new Date()
         };
-        
+
         // 🔥 Nếu là hóa đơn thanh lý và được duyệt → chuyển status thành 'terminated'
         if (bill.isTerminationBill && newApproved) {
             localUpdateData.status = 'terminated';
+        }
+        // 🔄 Bỏ duyệt hóa đơn thanh lý → reset về unpaid
+        if (bill.isTerminationBill && !newApproved) {
+            localUpdateData.status = 'unpaid';
         }
         
         updateInLocalStorage('bills', billId, localUpdateData);
@@ -1164,6 +1425,24 @@ async function toggleBillApproval(billId) {
         } else {
             // Bỏ duyệt hóa đơn - XÓA thông báo duyệt cũ thay vì tạo thông báo mới
             console.log('❌ Bill unapproved! Deleting old approved notification...');
+
+            // Nếu là hóa đơn thanh lý → xóa phiếu chi Trả cọc liên quan
+            if (bill.isTerminationBill) {
+                try {
+                    const txQuery = query(collection(db, 'transactions'), where('billId', '==', billId));
+                    const txSnapshot = await getDocs(txQuery);
+                    for (const txDoc of txSnapshot.docs) {
+                        await deleteDoc(doc(db, 'transactions', txDoc.id));
+                        deleteFromLocalStorage('transactions', txDoc.id);
+                    }
+                    if (txSnapshot.docs.length > 0) {
+                        document.dispatchEvent(new CustomEvent('store:transactions:updated'));
+                        console.log(`✅ Đã xóa ${txSnapshot.docs.length} phiếu chi Trả cọc của bill ${billId}`);
+                    }
+                } catch (txErr) {
+                    console.error('❌ Lỗi xóa phiếu chi Trả cọc:', txErr);
+                }
+            }
             
             try {
                 // Tìm và xóa thông báo duyệt cũ cho billId này từ Firebase

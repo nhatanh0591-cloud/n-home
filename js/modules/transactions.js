@@ -1382,7 +1382,7 @@ async function deleteTransaction(id) {
                 paidDate: null,
                 updatedAt: serverTimestamp()
             }, { merge: true });
-            
+
             // ✅ CẬP NHẬT LOCALSTORAGE CHO BILL
             updateInLocalStorage('bills', t.billId, {
                 status: 'unpaid',
@@ -1390,11 +1390,28 @@ async function deleteTransaction(id) {
                 paidDate: null
             });
             console.log(`✅ Đã cập nhật bill ${t.billId} trong localStorage về unpaid`);
-            
+
             // ✅ DISPATCH EVENT ĐỂ UI BILLS CẬP NHẬT
             window.dispatchEvent(new CustomEvent('store:bills:updated'));
-            
+
             showToast('Đã xóa phiếu thu, cập nhật hóa đơn và xóa thông báo!');
+        } else if (t.type === 'expense' && t.isDepositReturn && t.billId) {
+            // Phiếu chi Trả cọc bị xóa → bỏ duyệt hóa đơn thanh lý liên quan
+            await setDoc(doc(db, 'bills', t.billId), {
+                approved: false,
+                status: 'unpaid',
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            updateInLocalStorage('bills', t.billId, {
+                approved: false,
+                status: 'unpaid'
+            });
+            console.log(`✅ Đã bỏ duyệt hóa đơn thanh lý ${t.billId} do xóa phiếu chi Trả cọc`);
+
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
+
+            showToast('Đã xóa phiếu chi, hóa đơn thanh lý trở về chưa duyệt!');
         } else {
             showToast(`Đã xóa phiếu ${t.type === 'income' ? 'thu' : 'chi'} và thông báo liên quan!`);
         }
