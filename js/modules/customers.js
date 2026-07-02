@@ -1,6 +1,6 @@
 // js/modules/customers.js
 
-import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
+import { db, addDoc, setDoc, doc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
 import { getCustomers, getContracts, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showConfirm } from '../utils.js';
 
@@ -523,11 +523,21 @@ async function handleCustomerFormSubmit(e) {
         };
 
         if (id) {
+            // Nếu ô nào bị xóa trắng thì phải xóa hẳn field đó trên Firebase (deleteField),
+            // nếu không setDoc({merge:true}) sẽ chỉ bỏ qua field đó và giữ nguyên giá trị cũ
+            if (!birthYear) customerData.birthYear = deleteField();
+            if (!idNumber) customerData.idNumber = deleteField();
+            if (!permanentAddress) customerData.permanentAddress = deleteField();
+
             // Update Firebase
             await setDoc(doc(db, 'customers', id), customerData, { merge: true });
-            
-            // Update localStorage
-            updateInLocalStorage('customers', id, customerData);
+
+            // Update localStorage - dùng undefined để xóa field khỏi bản ghi local tương ứng
+            const localData = { ...customerData };
+            if (!birthYear) localData.birthYear = undefined;
+            if (!idNumber) localData.idNumber = undefined;
+            if (!permanentAddress) localData.permanentAddress = undefined;
+            updateInLocalStorage('customers', id, localData);
             showToast('Cập nhật khách hàng thành công!');
         } else {
             // Create Firebase
