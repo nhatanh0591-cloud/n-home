@@ -1,6 +1,6 @@
 // js/modules/contracts.js
 
-import { db, addDoc, setDoc, doc, deleteDoc, updateDoc, collection, serverTimestamp } from '../firebase.js';
+import { db, addDoc, setDoc, doc, deleteDoc, updateDoc, collection, serverTimestamp, deleteField } from '../firebase.js';
 import { getContracts, getBuildings, getCustomers, getServices, getBills, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { 
     showToast, openModal, closeModal, 
@@ -33,6 +33,7 @@ const expiredContractsEl = document.getElementById('expired-contracts');
 const filterBuildingEl = document.getElementById('filter-building');
 const filterRoomEl = document.getElementById('filter-room');
 const filterStatusEl = document.getElementById('filter-status');
+const filterSignatureEl = document.getElementById('filter-signature');
 const searchEl = document.getElementById('contract-search');
 const selectAllCheckbox = document.getElementById('select-all-contracts');
 
@@ -131,6 +132,7 @@ export function initContracts() {
     filterBuildingEl.addEventListener('change', handleBuildingFilterChange);
     filterRoomEl.addEventListener('change', () => { currentContractPage = 1; applyContractFilters(); });
     filterStatusEl.addEventListener('change', () => { currentContractPage = 1; applyContractFilters(); });
+    filterSignatureEl.addEventListener('change', () => { currentContractPage = 1; applyContractFilters(); });
     searchEl.addEventListener('input', () => { currentContractPage = 1; applyContractFilters(); });
 
     // Lắng nghe phân trang
@@ -206,10 +208,17 @@ function applyContractFilters(contracts = null) {
     const buildingFilter = filterBuildingEl.value;
     const roomFilter = filterRoomEl.value;
     const statusFilter = filterStatusEl.value;
+    const signatureFilter = filterSignatureEl.value;
     const searchTerm = searchEl.value.toLowerCase();
 
     // Xử lý filter "Còn trống" — hiển thị phòng chưa có ai thuê
     if (statusFilter === 'vacant') {
+        if (signatureFilter) {
+            contractsCache_filtered = [];
+            currentContractPage = 1;
+            renderContractsPage();
+            return;
+        }
         const buildings = getBuildings();
         // Tập hợp các phòng đang có hợp đồng active/expiring
         const occupiedKeys = new Set(
@@ -254,6 +263,8 @@ function applyContractFilters(contracts = null) {
         if (buildingFilter && contract.buildingId !== buildingFilter) return false;
         if (roomFilter && contract.room !== roomFilter) return false;
         if (statusFilter && contract.status !== statusFilter) return false;
+        if (signatureFilter === 'signed' && !contract.signatureData) return false;
+        if (signatureFilter === 'unsigned' && contract.signatureData) return false;
 
         if (searchTerm) {
             const contractNumber = `CT${contract.id.slice(-6).toUpperCase()}`;
@@ -430,6 +441,10 @@ function renderContractsPage() {
                     <button data-id="${contract.id}" class="delete-contract-btn w-8 h-8 rounded bg-red-500 hover:bg-red-600 flex items-center justify-center" title="Xóa">
                         <svg class="w-4 h-4 text-white pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
                     </button>
+                    ${contract.signatureData ? `
+                    <button data-id="${contract.id}" class="revoke-signature-btn w-8 h-8 rounded bg-purple-500 hover:bg-purple-600 flex items-center justify-center" title="Thu hồi chữ ký">
+                        <svg class="w-4 h-4 text-white pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </button>` : ''}
                 </div>
             </td>
             <td class="py-4 px-4">
@@ -438,16 +453,27 @@ function renderContractsPage() {
                     <div class="text-sm text-gray-500">${building ? building.code : 'N/A'} - ${contract.room || 'Chưa có phòng'}</div>
                 </div>
             </td>
-            <td class="py-4 px-4">${formatDateDisplay(contract.startDate)}</td>
-            <td class="py-4 px-4">${formatDateDisplay(contract.endDate)}</td>
+            <td class="py-4 px-4 text-center">
+                <div class="text-sm whitespace-nowrap">${formatDateDisplay(contract.startDate)}</div>
+                <div class="text-gray-400 text-xs">↓</div>
+                <div class="text-sm whitespace-nowrap">${formatDateDisplay(contract.endDate)}</div>
+            </td>
             <td class="py-4 px-4 text-center">${peopleCount}</td>
-            <td class="py-4 px-4 text-center">${vehicleCount}</td>
             <td class="py-4 px-4 whitespace-nowrap">${formatMoney(contract.rentPrice)} VNĐ</td>
             <td class="py-4 px-4 whitespace-nowrap">${formatMoney(contract.deposit || 0)} VNĐ</td>
             <td class="py-4 px-4 text-center">
                 <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block ${statusInfo.className}">
                     ${statusInfo.text}
                 </span>
+            </td>
+            <td class="py-4 px-4 text-center">
+                ${contract.signatureData ? `
+                <span data-id="${contract.id}" class="download-signed-contract-btn cursor-pointer px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block bg-green-100 text-green-800 hover:bg-green-200 transition-colors" title="Tải hợp đồng đã ký">
+                    Đã ký
+                </span>` : `
+                <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block bg-gray-100 text-gray-500">
+                    Chưa ký
+                </span>`}
             </td>
         `;
         contractsListEl.appendChild(tr);
@@ -471,12 +497,12 @@ function renderContractsPage() {
                     <span class="mobile-card-value">${building ? building.code : 'N/A'} - ${contract.room || 'Chưa có phòng'}</span>
                 </div>
                 <div class="mobile-card-row">
-                    <span class="mobile-card-label">Thời gian:</span>
+                    <span class="mobile-card-label">Thời hạn:</span>
                     <span class="mobile-card-value">${formatDateDisplay(contract.startDate)} → ${formatDateDisplay(contract.endDate)}</span>
                 </div>
                 <div class="mobile-card-row">
-                    <span class="mobile-card-label">Số người/xe:</span>
-                    <span class="mobile-card-value">${peopleCount} người / ${vehicleCount} xe</span>
+                    <span class="mobile-card-label">Số người:</span>
+                    <span class="mobile-card-value">${peopleCount} người</span>
                 </div>
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Giá thuê:</span>
@@ -492,6 +518,18 @@ function renderContractsPage() {
                         <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block ${statusInfo.className}">
                             ${statusInfo.text}
                         </span>
+                    </span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">Chữ ký:</span>
+                    <span class="mobile-card-value">
+                        ${contract.signatureData ? `
+                        <span data-id="${contract.id}" class="download-signed-contract-btn cursor-pointer px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block bg-green-100 text-green-800" title="Tải hợp đồng đã ký">
+                            Đã ký
+                        </span>` : `
+                        <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap inline-block bg-gray-100 text-gray-500">
+                            Chưa ký
+                        </span>`}
                     </span>
                 </div>
                 <div class="mobile-card-actions">
@@ -510,6 +548,11 @@ function renderContractsPage() {
                         <svg class="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
                         Xóa
                     </button>
+                    ${contract.signatureData ? `
+                    <button data-id="${contract.id}" class="revoke-signature-btn bg-purple-500 hover:bg-purple-600 text-white">
+                        <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Thu hồi chữ ký
+                    </button>` : ''}
                 </div>
             `;
             mobileListEl.appendChild(mobileCard);
@@ -627,6 +670,287 @@ function handleBuildingFilterChange() {
     applyContractFilters();
 }
 
+// --- IN / TẢI HỢP ĐỒNG PDF (copy y nguyên logic từ app.html khách hàng) ---
+const LANDLORD_SIG = './assets/landlord-sig.jpg';
+
+function buildA4ContractHtml(contract, building, customer, tenantSigDataUrl) {
+    const startDateRaw = contract.startDate;
+    let signDay = '......', signMonth = '......', signYear = '..........';
+    if (startDateRaw) {
+        const d = startDateRaw.toDate ? startDateRaw.toDate() : new Date(startDateRaw);
+        if (!isNaN(d)) {
+            signDay = String(d.getDate()).padStart(2, '0');
+            signMonth = String(d.getMonth() + 1).padStart(2, '0');
+            signYear = d.getFullYear();
+        }
+    }
+    const fmtDate = (raw) => {
+        if (!raw) return '..............';
+        const d = raw.toDate ? raw.toDate() : new Date(raw);
+        return isNaN(d) ? '...............' : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    };
+    const startDateStr = fmtDate(contract.startDate);
+    const endDateStr = fmtDate(contract.endDate);
+    let durationMonths = '..........';
+    if (contract.startDate && contract.endDate) {
+        const s = contract.startDate.toDate ? contract.startDate.toDate() : new Date(contract.startDate);
+        const e = contract.endDate.toDate ? contract.endDate.toDate() : new Date(contract.endDate);
+        if (!isNaN(s) && !isNaN(e)) {
+            const m = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+            durationMonths = m > 0 ? m : '..........';
+        }
+    }
+    const tenantName = customer?.name ? customer.name.toUpperCase() : '............................................................................';
+    const tenantBirthYear = customer?.birthYear || '............................................................................';
+    const tenantIdNumber = customer?.idNumber || '............................................................................';
+    const tenantAddress = customer?.permanentAddress || '............................................................................';
+    const tenantPhone = customer?.phone || '............................................................................';
+    const roomCode = contract.room || '........................';
+    const getFloor = (code) => {
+        if (!code || code.includes('.')) return '........................';
+        const c = String(code).trim();
+        if (/^rooftop$/i.test(c)) return 'Sân Thượng';
+        const first = c.charAt(0);
+        if (first >= '1' && first <= '9') return `Tầng ${first}`;
+        return 'Tầng trệt';
+    };
+    const floor = getFloor(roomCode);
+    const fmtMoney = (n) => n ? new Intl.NumberFormat('vi-VN').format(n) : '............................';
+    const rentPrice = fmtMoney(contract.rentPrice || contract.roomPrice);
+    const deposit = fmtMoney(contract.deposit);
+    let servicesRows = '';
+    if (contract.serviceDetails && contract.serviceDetails.length > 0) {
+        const services = getServices();
+        contract.serviceDetails.forEach(detail => {
+            const svc = services.find(s => s.id === detail.serviceId);
+            if (!svc) return;
+            const svcName = svc.name || '';
+            const priceStr = new Intl.NumberFormat('vi-VN').format(svc.price || 0);
+            const nl = svcName.toLowerCase();
+            const unit = (svc.unit || '').toLowerCase();
+            if (nl.includes('điện') || unit === 'kwh') {
+                servicesRows += `- ${svcName}: ${priceStr} VNĐ/kWh (theo chỉ số công tơ).\n`;
+            } else if (unit === 'm3' || unit === 'm³') {
+                servicesRows += `- ${svcName}: ${priceStr} VNĐ/m³ (theo chỉ số đồng hồ).\n`;
+            } else if (nl.includes('xe') || nl.includes('parking')) {
+                servicesRows += `- ${svcName}: ${priceStr} VNĐ/xe/tháng.\n`;
+            } else if (unit === 'person' || (nl.includes('nước') && unit !== 'm3' && unit !== 'm³')) {
+                servicesRows += `- ${svcName}: ${priceStr} VNĐ/người.\n`;
+            } else {
+                servicesRows += `- ${svcName}: ${priceStr} VNĐ/phòng.\n`;
+            }
+        });
+    }
+    const address = building?.address || '337/38A Lê Văn Sỹ, Phường Tân Sơn Hòa, TP. Hồ Chí Minh';
+
+    const mb3 = 'margin-bottom:1pt;';
+    const mb6 = 'margin-bottom:4pt;';
+    const ind = 'margin-left:18pt;margin-bottom:1pt;';
+    const hd = 'margin-top:3pt;margin-bottom:1pt;';
+    const sp = '<div style="height:10pt;"></div>';
+    if (!servicesRows) servicesRows = '- Điện: 4.000 VNĐ/kWh (theo chỉ số công tơ).\n- Nước: 100.000 VNĐ/người.\n- Dịch vụ chung (rác, Internet): 100.000 VNĐ/phòng.\n';
+    let servicesHtml = servicesRows.split('\n').filter(l => l.trim()).map(line =>
+        `<p style="${ind}${mb3}">${line.trim()}</p>`
+    ).join('\n');
+    const tenantSigHtml = tenantSigDataUrl
+        ? `<img src="${tenantSigDataUrl}" style="height:75pt;max-width:100%;object-fit:contain;display:block;margin:14pt auto 0;">`
+        : '';
+
+    return `
+<div style="margin-bottom:2pt;">
+  <p style="text-align:center;font-weight:700;font-size:14pt;letter-spacing:0.5px;margin-bottom:2pt;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+  <p style="text-align:center;font-weight:700;margin-bottom:2pt;">Độc lập – Tự do – Hạnh phúc</p>
+  <p style="text-align:center;margin-bottom:2pt;">─────────────────────────────────</p>
+  <p style="text-align:center;font-weight:700;font-size:15pt;margin-bottom:3pt;">HỢP ĐỒNG THUÊ PHÒNG</p>
+</div>
+<p style="font-style:italic;${mb3}">- Căn cứ Bộ Luật Dân sự 2015 (số 91/2015/QH13); Luật Nhà ở 2023 (số 27/2023/QH15); Luật Cư trú 2020; Bộ Luật Tố tụng Dân sự 2015 và các văn bản pháp luật liên quan;</p>
+<p style="font-style:italic;${mb3}">- Căn cứ vào nhu cầu và thỏa thuận của hai bên;</p>
+${sp}
+<p style="font-style:italic;${mb3}">Hôm nay, ngày ${signDay} tháng ${signMonth} năm ${signYear}, tại TP. Hồ Chí Minh, hai bên cùng ký kết hợp đồng thuê phòng với các điều khoản sau:</p>
+${sp}
+
+<p style="font-weight:700;${hd}">I. BÊN CHO THUÊ (Bên A):</p>
+<p style="${mb3}"><strong>Ông:</strong> ĐẶNG NHẬT ANH</p>
+<p style="${mb3}"><strong>Sinh năm:</strong> 1991</p>
+<p style="${mb3}"><strong>CCCD:</strong> 072091000145</p>
+<p style="${mb3}"><strong>Địa chỉ thường trú:</strong> Khu Phố 4, Thị Trấn Châu Thành, Châu Thành, Tây Ninh</p>
+<p style="${mb3}"><strong>Địa chỉ cho thuê:</strong> ${address}</p>
+${sp}
+
+<p style="font-weight:700;${hd}">II. BÊN THUÊ (Bên B):</p>
+<p style="${mb3}"><strong>Ông/Bà:</strong> ${tenantName}</p>
+<p style="${mb3}"><strong>Sinh năm:</strong> ${tenantBirthYear}</p>
+<p style="${mb3}"><strong>CCCD:</strong> ${tenantIdNumber}</p>
+<p style="${mb3}"><strong>Địa chỉ thường trú:</strong> ${tenantAddress}</p>
+<p style="${mb3}"><strong>Số điện thoại:</strong> ${tenantPhone}</p>
+${sp}
+
+<p style="${mb3}">Hai bên thống nhất gọi chung là "Các Bên" và cùng đồng ý thực hiện hợp đồng như sau:</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 1. ĐỐI TƯỢNG HỢP ĐỒNG</p>
+<p style="font-weight:700;${mb3}">1.1 Tài sản cho thuê:</p>
+<p style="${mb3}">01 phòng tại tòa nhà số ${address}</p>
+<p style="${mb3}">- Mã phòng: ${roomCode} &nbsp;&nbsp; Tầng: ${floor}</p>
+<p style="${mb3}"><strong>1.2 Mục đích thuê:</strong> Để ở.</p>
+<p style="${mb3}"><strong>1.3 Thời hạn thuê:</strong> ${durationMonths} tháng, từ ngày ${startDateStr} đến hết ngày ${endDateStr}</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 2. TIỀN ĐẶT CỌC</p>
+<p style="font-style:italic;${mb3}">(Căn cứ Điều 328 Bộ Luật Dân sự 2015)</p>
+<p style="${mb3}"><strong>2.1</strong> Bên B đặt cọc cho Bên A số tiền: <strong>${deposit} (VNĐ)</strong> làm bảo đảm thực hiện hợp đồng. Tiền cọc không sinh lãi và được Bên A giữ đến khi hợp đồng chấm dứt.</p>
+<p style="${mb3}"><strong>2.2</strong> Tiền cọc không được Bên B sử dụng để khấu trừ hay bù trừ bất kỳ khoản nghĩa vụ nào trong thời gian thuê, bao gồm tiền thuê, tiền điện, tiền nước, phí dịch vụ, chi phí sửa chữa, bồi thường thiệt hại hoặc bất kỳ khoản nào khác phát sinh theo hợp đồng này. Bên B phải thanh toán toàn bộ các nghĩa vụ trên một cách độc lập và đầy đủ trước khi tiền cọc được hoàn trả.</p>
+<p style="${mb3}"><strong>2.3</strong> Tiền cọc được hoàn trả trong vòng 3 ngày sau khi chấm dứt hợp đồng, với điều kiện:</p>
+<p style="${ind}">- Bên B bàn giao phòng đúng hiện trạng và tiêu chuẩn hoàn trả theo Điều 7 của hợp đồng này.</p>
+<p style="${ind}${mb3}">- Bên B đã thanh toán đầy đủ tiền thuê, điện, nước và các chi phí phát sinh.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 3. GIÁ THUÊ VÀ PHỤ PHÍ</p>
+<p style="${mb3}"><strong>3.1 Giá thuê:</strong> <strong>${rentPrice} (VNĐ)/tháng.</strong></p>
+<p style="font-weight:700;${mb3}">3.2 Phụ phí hàng tháng:</p>
+${servicesHtml}
+
+<p style="font-weight:700;margin-top:0;margin-bottom:1pt;page-break-before:always;">ĐIỀU 4. PHƯƠNG THỨC THANH TOÁN VÀ HẬU QUẢ VI PHẠM</p>
+<p style="${mb3}"><strong>4.1</strong> Bên B thanh toán tiền thuê từ ngày 1 đến ngày 3 dương lịch hàng tháng bằng tiền mặt hoặc chuyển khoản vào tài khoản do Bên A chỉ định. Hóa đơn và thông tin thanh toán được cung cấp qua hệ thống tra cứu trực tuyến của Bên A, Bên B có thể tra cứu bất kỳ lúc nào bằng số điện thoại đã đăng ký trong hợp đồng. Bên B có trách nhiệm chủ động tra cứu và thanh toán đúng hạn; việc không tra cứu hóa đơn không được coi là lý do miễn trừ nghĩa vụ thanh toán.</p>
+<p style="${mb3}"><strong>4.2</strong> Bên B xác nhận và đồng ý rằng nếu vi phạm thời hạn thanh toán quá ngày 03 dương lịch, hợp đồng này tự động chấm dứt vào 00:01 ngày 04 dương lịch cùng tháng mà không cần thêm bất kỳ thông báo hay thủ tục nào. Trường hợp Bên B có thỏa thuận gia hạn thanh toán với Bên A, thỏa thuận đó chỉ có hiệu lực khi được Bên A xác nhận bằng văn bản hoặc tin nhắn Zalo/SMS; thời hạn gia hạn không vượt quá ngày Bên A chấp thuận và không làm thay đổi các điều khoản còn lại của hợp đồng. Thông báo qua Zalo hoặc SMS đến số điện thoại Bên B đã đăng ký có hiệu lực ngay khi gửi, không phụ thuộc vào việc Bên B có đọc hay không. Sau thời điểm chấm dứt, Bên B không còn tư cách pháp lý để tiếp tục cư trú, và việc tiếp tục lưu trú cấu thành hành vi chiếm hữu bất hợp pháp tài sản của Bên A. Bên A có quyền thực hiện toàn bộ các biện pháp sau:</p>
+<p style="${ind}"><strong>a.</strong> Đơn phương chấm dứt hợp đồng ngay lập tức. Bên B mất toàn bộ tiền cọc và không được hoàn trả dưới bất kỳ hình thức nào. Ngoài ra, Bên B vẫn có nghĩa vụ thanh toán đầy đủ toàn bộ các khoản phát sinh đến ngày thực tế bàn giao phòng, bao gồm: tiền thuê tháng vi phạm; tiền điện tính theo chỉ số công tơ thực tế; tiền nước và phí dịch vụ theo tháng hiện hành; mọi chi phí thiệt hại khác do Bên B gây ra (nếu có).</p>
+<p style="${ind}"><strong>b.</strong> Tạm dừng toàn bộ dịch vụ tiện ích do Bên A cung cấp bao gồm điện, nước, internet và vô hiệu hóa toàn bộ phương thức truy cập (khóa vân tay, khóa từ, mã số).</p>
+<p style="${ind}"><strong>c.</strong> Yêu cầu Bên B tự dọn toàn bộ tài sản cá nhân và bàn giao phòng trong vòng 24 giờ kể từ thời điểm hợp đồng chấm dứt.</p>
+<p style="${ind}"><strong>d.</strong> Trình báo Công an phường/xã nơi tọa lạc tòa nhà về hành vi chiếm hữu bất hợp pháp của Bên B và yêu cầu cơ quan công an hỗ trợ cưỡng chế bàn giao phòng theo quy định pháp luật. Bên B cam kết hợp tác đầy đủ với cơ quan công an trong quá trình giải quyết.</p>
+<p style="${ind}${mb3}"><strong>e.</strong> Khởi kiện ra Tòa án nhân dân có thẩm quyền tại TP. Hồ Chí Minh để yêu cầu cưỡng chế bàn giao phòng và thu hồi toàn bộ các khoản tiền nêu tại điểm a. Toàn bộ án phí và chi phí tố tụng do Bên B chịu.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 5. NGHĨA VỤ CỦA CÁC BÊN</p>
+<p style="font-weight:700;${mb3}">5.1 Nghĩa vụ của Bên A:</p>
+<p style="${ind}"><strong>a.</strong> Bàn giao phòng đúng theo hợp đồng và đảm bảo cho Bên B sử dụng ổn định, không bị can thiệp trong suốt thời hạn thuê, với điều kiện Bên B thực hiện đúng nghĩa vụ hợp đồng và không vi phạm quy định pháp luật.</p>
+<p style="${ind}"><strong>b.</strong> Hướng dẫn Bên B thực hiện đăng ký tạm trú theo Luật Cư trú 2020.</p>
+<p style="${ind}${mb6}"><strong>c.</strong> Chịu trách nhiệm sửa chữa các hư hỏng phát sinh do sự cố kỹ thuật, kết cấu tòa nhà mà không phải do lỗi của Bên B gây ra.</p>
+<p style="font-weight:700;${mb3}">5.2 Nghĩa vụ của Bên B:</p>
+<p style="${ind}"><strong>a.</strong> Sử dụng phòng đúng mục đích đã thỏa thuận (để ở).</p>
+<p style="${ind}"><strong>b.</strong> Thuê đủ thời hạn theo Điều 1.3 và thanh toán đầy đủ, đúng hạn các khoản tiền theo hợp đồng. Trường hợp chấm dứt hợp đồng trước hạn, Bên B chịu hậu quả theo Điều 6.2.</p>
+<p style="${ind}"><strong>c.</strong> Không chuyển nhượng hợp đồng cho bên thứ ba khi chưa được Bên A đồng ý bằng văn bản.</p>
+<p style="${ind}"><strong>d.</strong> Chấp hành quy định về phòng cháy chữa cháy, an ninh trật tự; không tàng trữ ma túy, chất gây nghiện, vũ khí, vật liệu nổ; không tổ chức cờ bạc, mại dâm.</p>
+<p style="${ind}"><strong>e.</strong> Toàn bộ trách nhiệm pháp lý đối với mọi hành vi vi phạm pháp luật xảy ra trong phòng thuê (bao gồm nhưng không giới hạn: tàng trữ/sử dụng ma túy, mại dâm, cờ bạc, gây rối trật tự công cộng...) thuộc về Bên B. Bên A chỉ cho thuê phòng và không có quyền kiểm soát hoạt động cá nhân bên trong phòng khi cửa đóng. Mọi hậu quả pháp lý phát sinh từ hành vi vi phạm của Bên B, Bên B phải tự chịu trước pháp luật; Bên A không liên đới chịu trách nhiệm.</p>
+<p style="${ind}"><strong>f.</strong> Giữ gìn vệ sinh phòng và khu vực chung, không gây ảnh hưởng đến người thuê khác.</p>
+<p style="${ind}${mb3}"><strong>g.</strong> Không tự ý thay đổi, cải tạo cấu trúc phòng khi chưa được Bên A đồng ý bằng văn bản.</p>
+
+<p style="font-weight:700;margin-top:0;margin-bottom:1pt;page-break-before:always;">ĐIỀU 6. CHẤM DỨT HỢP ĐỒNG</p>
+<p style="font-style:italic;${mb3}">(Căn cứ Điều 156, 157 Luật Nhà ở 2023 và Điều 420, 428 Bộ Luật Dân sự 2015)</p>
+<p style="font-weight:700;${mb3}">6.1 Hợp đồng chấm dứt đương nhiên khi:</p>
+<p style="${ind}">- Hết thời hạn thuê.</p>
+<p style="${ind}${mb6}">- Hai bên thỏa thuận chấm dứt. Bên A hoàn trả tiền cọc theo Điều 2.3.</p>
+<p style="font-weight:700;${mb3}">6.2 Bên A được đơn phương chấm dứt hợp đồng khi:</p>
+<p style="${ind}">- Bên B không thanh toán tiền thuê hoặc bất kỳ khoản tiền nào theo hợp đồng sau ngày 3 dương lịch hàng tháng.</p>
+<p style="${ind}">- Bên B tự ý chấm dứt hợp đồng trước hạn mà không có căn cứ theo Điều 6.3.</p>
+<p style="${mb6}"><strong>Hậu quả:</strong> Bên B mất toàn bộ tiền cọc và phải thanh toán đầy đủ các khoản sau trước khi được phép bàn giao phòng và nhận lại tài sản cá nhân: tiền thuê đến ngày chấm dứt; tiền điện tính theo chỉ số công tơ thực tế đến ngày bàn giao (không phụ thuộc kỳ hóa đơn); tiền nước và phí dịch vụ theo tháng hiện hành; mọi chi phí phát sinh khác theo hợp đồng.</p>
+<p style="font-weight:700;${mb3}">6.3 Bên B được đơn phương chấm dứt hợp đồng (không chịu phạt) khi:</p>
+<p style="${ind}">- Phòng thuê xảy ra sự cố nghiêm trọng về kết cấu hoặc hệ thống (sụt lún, thấm dột nặng, mất điện/nước kéo dài) mà Bên A nhận được thông báo nhưng không khắc phục trong vòng 10 ngày, khiến phòng không còn đáp ứng điều kiện sinh sống tối thiểu.</p>
+<p style="${ind}">- Bên A tự ý thu hồi phòng, xâm phạm quyền sử dụng hợp pháp của Bên B trong thời hạn thuê mà không có căn cứ theo hợp đồng này. Điều khoản này không áp dụng đối với các hành động Bên A thực hiện đúng thẩm quyền tại Điều 4.2 khi Bên B đã vi phạm nghĩa vụ thanh toán.</p>
+<p style="${mb3}"><strong>Hậu quả:</strong> Bên A hoàn trả toàn bộ tiền cọc cho Bên B. Bên B vẫn có nghĩa vụ thanh toán đầy đủ tiền thuê, điện, nước, phí dịch vụ phát sinh đến ngày thực tế bàn giao phòng.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 7. BÀN GIAO PHÒNG VÀ TIÊU CHUẨN HOÀN TRẢ</p>
+<p style="font-weight:700;${mb3}">7.1 Xác nhận hiện trạng lúc nhận phòng:</p>
+<p style="${mb3}">Tại thời điểm nhận phòng, Bên A và Bên B cùng ghi nhận hiện trạng toàn bộ phòng bằng ảnh và/hoặc video quay toàn bộ các hạng mục (tường, trần, sàn, thiết bị vệ sinh, nội thất, hệ thống điện nước...). Bộ ảnh/video này được gửi từ số điện thoại Bên A sang số điện thoại Bên B đã đăng ký trong hợp đồng qua Zalo. Việc Bên B không phản hồi hoặc xác nhận trong vòng 24 giờ kể từ khi nhận được coi là Bên B đã đồng ý với toàn bộ hiện trạng đó. Bộ ảnh/video này là tài liệu pháp lý duy nhất xác định tiêu chuẩn hoàn trả phòng, có giá trị tương đương biên bản ký tay và được hai bên đồng ý sử dụng làm chứng cứ trong mọi tranh chấp phát sinh.</p>
+<p style="font-weight:700;${mb3}">7.2 Tiêu chuẩn hoàn trả phòng:</p>
+<p style="${mb3}">Khi chấm dứt hợp đồng, Bên B có nghĩa vụ hoàn trả phòng đúng 100% hiện trạng theo bộ ảnh/video bàn giao tại Điều 7.1. Bên B xác nhận và đồng ý trước rằng các hư hỏng dưới đây không được coi là hao mòn tự nhiên và Bên B có trách nhiệm sửa chữa hoặc bồi thường chi phí khắc phục trước khi bàn giao phòng:</p>
+<p style="${ind}"><strong>a.</strong> Tường, trần: vết đinh, vết dán, vết sơn xịt, vết bút, vết bẩn do sinh hoạt không được vệ sinh, ố vàng do khói thuốc hoặc ẩm mốc không được xử lý. Nếu có → Bên B phải sơn lại toàn bộ mặt tường/trần đó về đúng màu ban đầu.</p>
+<p style="${ind}"><strong>b.</strong> Sàn: trầy xước nặng do kéo lê đồ vật, bong tróc, vỡ gạch do va đập mạnh, ố bẩn do không vệ sinh định kỳ. Nếu có → Bên B chịu chi phí sửa hoặc thay thế phần bị hư hỏng.</p>
+<p style="${ind}"><strong>c.</strong> Nhà vệ sinh, bồn cầu, lavabo, vòi sen: cặn bám, ố vàng, mốc do không vệ sinh định kỳ. Đây là trách nhiệm vệ sinh cơ bản của người thuê, không phải hao mòn tự nhiên – Bên B có nghĩa vụ chà rửa sạch và bàn giao đúng hiện trạng ban đầu.</p>
+<p style="${ind}"><strong>d.</strong> Nội thất, thiết bị (tủ lạnh, máy lạnh, tủ quần áo, bàn ghế, nệm...): hư hỏng do sử dụng sai cách, va đập, bất cẩn, mất phụ kiện hoặc không hoạt động do lỗi của Bên B → Bên B sửa hoặc thay thế thiết bị tương đương. Hư hỏng do lỗi kỹ thuật hoặc tuổi thọ thiết bị thuộc trách nhiệm Bên A.</p>
+<p style="${ind}${mb6}"><strong>e.</strong> Toàn bộ phòng: phải được vệ sinh sạch sẽ, không còn rác, không mùi hôi, không để lại đồ cá nhân.</p>
+<p style="font-weight:700;${mb3}">7.3 Hậu quả nếu không hoàn trả đúng tiêu chuẩn:</p>
+<p style="${ind}"><strong>a.</strong> Bên B phải tự sửa chữa, vệ sinh và đưa phòng về đúng tiêu chuẩn trước ngày chấm dứt hợp đồng.</p>
+<p style="${ind}"><strong>b.</strong> Nếu Bên B không thực hiện, Bên A có quyền thuê người sửa chữa, vệ sinh và khấu trừ toàn bộ chi phí từ tiền cọc. Nếu chi phí vượt tiền cọc, Bên B phải bồi thường phần chênh lệch.</p>
+<p style="${ind}${mb3}"><strong>c.</strong> Bên A có quyền khởi kiện ra Tòa án nhân dân có thẩm quyền tại TP. Hồ Chí Minh để đòi bồi thường nếu Bên B không tự nguyện thực hiện.</p>
+
+<p style="font-weight:700;margin-top:0;margin-bottom:1pt;page-break-before:always;">7.4 Bàn giao phòng:</p>
+<p style="${mb3}">Bên B phải bàn giao phòng cho Bên A trước 23:59 của ngày cuối cùng trong thời hạn thuê quy định tại Điều 1.3. Nếu không bàn giao đúng hạn, Bên A có quyền trình báo Công an phường/xã nơi tọa lạc tòa nhà để yêu cầu hỗ trợ cưỡng chế bàn giao phòng theo quy định pháp luật, toàn bộ chi phí phát sinh do Bên B chịu.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 8. KHU VỰC CHUNG VÀ AN NINH TÒA NHÀ</p>
+<p style="font-weight:700;${mb3}">8.1 Quy định khu vực chung:</p>
+<p style="${ind}"><strong>a.</strong> Bên B chỉ được sử dụng phòng thuê của mình. Mọi tài sản, đồ đạc cá nhân (xe đạp, thùng đồ, túi xách...) không được để ở hành lang, cầu thang, sân hoặc bất kỳ khu vực chung nào trong tòa nhà.</p>
+<p style="${ind}"><strong>b.</strong> Nếu Bên B tự ý để đồ ở khu vực chung, Bên A có quyền yêu cầu dọn dẹp ngay. Nếu Bên B không thực hiện trong vòng 24 giờ, Bên A có quyền di chuyển tài sản đó và không chịu trách nhiệm về hư hỏng hay mất mát.</p>
+<p style="${ind}${mb6}"><strong>c.</strong> Mọi tài sản để ở khu vực chung ngoài ý muốn của Bên A, nếu bị mất, hư hỏng do bất kỳ nguyên nhân nào, Bên B hoàn toàn tự chịu trách nhiệm. Bên A không bồi thường.</p>
+<p style="font-weight:700;${mb3}">8.2 An ninh ra vào tòa nhà:</p>
+<p style="${ind}"><strong>a.</strong> Tòa nhà sử dụng khóa vân tay tại lối ra vào chính. Bên B chỉ được sử dụng vân tay đã đăng ký của mình để ra vào.</p>
+<p style="${ind}${mb3}"><strong>b.</strong> Bên B tự chịu trách nhiệm đối với mọi người do mình đưa vào tòa nhà. Mọi mất mát, hư hỏng, trộm cắp tài sản của phòng khác, mất xe hoặc bất kỳ vi phạm pháp luật nào phát sinh từ người do Bên B đưa vào, Bên B chịu toàn bộ trách nhiệm bồi thường cho bên bị thiệt hại và chịu mọi hậu quả pháp lý. Bên A không liên đới.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 9. MIỄN TRÁCH NHIỆM</p>
+<p style="${mb3}"><strong>9.1</strong> Bên A không chịu trách nhiệm về tai nạn, thương tích, mất mát tài sản xảy ra trong phạm vi thuê không do lỗi của Bên A gây ra.</p>
+<p style="${mb3}"><strong>9.2</strong> Bên A không chịu bất kỳ trách nhiệm pháp lý nào liên quan đến hành vi vi phạm pháp luật của Bên B và những người do Bên B đưa vào tòa nhà.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 10. LUẬT ÁP DỤNG VÀ GIẢI QUYẾT TRANH CHẤP</p>
+<p style="font-style:italic;${mb3}">(Căn cứ Bộ Luật Tố tụng Dân sự 2015)</p>
+<p style="${mb3}"><strong>10.1</strong> Hợp đồng được điều chỉnh bởi pháp luật Việt Nam.</p>
+<p style="${mb3}"><strong>10.2</strong> Tranh chấp được ưu tiên giải quyết bằng thương lượng, hòa giải.</p>
+<p style="${mb3}"><strong>10.3</strong> Nếu không giải quyết được trong 30 ngày kể từ khi phát sinh tranh chấp, vụ việc sẽ được đưa ra Tòa án nhân dân có thẩm quyền tại TP. Hồ Chí Minh theo quy định của Bộ Luật Tố tụng Dân sự 2015.</p>
+<p style="${mb3}"><strong>10.4</strong> Hợp đồng vẫn có hiệu lực trong thời gian tố tụng, trừ phần nội dung đang bị tranh chấp.</p>
+${sp}
+
+<p style="font-weight:700;${hd}">ĐIỀU 11. ĐIỀU KHOẢN CHUNG</p>
+<p style="${mb3}"><strong>11.1</strong> Hai bên xác nhận đã tự nguyện ký kết, không bị ép buộc, đã đọc và hiểu rõ toàn bộ nội dung hợp đồng, cam kết thực hiện đầy đủ các điều khoản đã thỏa thuận.</p>
+<p style="${mb3}"><strong>11.2</strong> Mọi thông tin, tài liệu trao đổi trong quá trình thực hiện hợp đồng được bảo mật, không tiết lộ cho bên thứ ba khi chưa có sự đồng ý của bên còn lại.</p>
+<p style="${mb3}"><strong>11.3</strong> Nếu một điều khoản bị tuyên vô hiệu, các điều khoản còn lại vẫn có giá trị pháp lý đầy đủ.</p>
+<p style="${mb3}"><strong>11.4</strong> Hợp đồng được lập thành 02 (hai) bản gốc có giá trị pháp lý như nhau, mỗi bên giữ 01 (một) bản.</p>
+${sp}
+
+<p style="text-align:center;margin-top:2pt;margin-bottom:2pt;">TP. Hồ Chí Minh, ngày ${signDay} tháng ${signMonth} năm ${signYear}</p>
+<table style="width:100%;margin-top:8pt;border-collapse:collapse;">
+  <tr style="page-break-inside:avoid;break-inside:avoid;">
+    <td style="width:44%;text-align:center;vertical-align:top;padding:0;">
+      <p style="text-align:center;font-weight:700;${mb3}">BÊN CHO THUÊ (Bên A)</p>
+      <p style="text-align:center;font-style:italic;${mb3}">(Ký, ghi rõ họ tên)</p>
+      <img src="${LANDLORD_SIG}" style="height:95pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">
+    </td>
+    <td style="width:12%;"></td>
+    <td style="width:44%;text-align:center;vertical-align:top;padding:0;">
+      <p style="text-align:center;font-weight:700;${mb3}">BÊN THUÊ (Bên B)</p>
+      <p style="text-align:center;font-style:italic;${mb3}">(Ký, ghi rõ họ tên)</p>
+      ${tenantSigHtml}
+    </td>
+  </tr>
+</table>`;
+}
+
+/**
+ * Tải/in hợp đồng đã ký ra PDF chuẩn A4 — y hệt bản khách hàng thấy trong app
+ */
+function downloadContractPDF(contractId) {
+    const contract = getContracts().find(c => c.id === contractId);
+    if (!contract) {
+        showToast('Không tìm thấy hợp đồng!', 'error');
+        return;
+    }
+    const building = getBuildings().find(b => b.id === contract.buildingId);
+    const customer = getCustomers().find(c => c.id === contract.representativeId);
+    const tenantSig = contract.signatureData?.signatureImage || null;
+
+    const printRoot = document.getElementById('_print_root');
+    printRoot.innerHTML = buildA4ContractHtml(contract, building, customer, tenantSig);
+
+    const originalTitle = document.title;
+    const roomCode = contract.room || '';
+    const buildingCode = building?.code || '';
+    document.title = `Hợp Đồng Thuê Phòng ${roomCode} - ${buildingCode}`.trim();
+
+    const imgs = Array.from(printRoot.querySelectorAll('img'));
+    const doPrint = () => {
+        window.print();
+        document.title = originalTitle;
+        setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+    };
+    if (imgs.length === 0) { doPrint(); return; }
+    let pending = imgs.length;
+    imgs.forEach(img => {
+        if (img.complete && img.naturalWidth > 0) { if (--pending === 0) doPrint(); }
+        else { img.onload = img.onerror = () => { if (--pending === 0) doPrint(); }; }
+    });
+}
+
 /**
  * Xử lý sự kiện click
  */
@@ -656,6 +980,13 @@ async function handleBodyClick(e) {
         handleExport();
         return;
     }
+    // Badge "Đã ký" - bấm để tải hợp đồng đã ký ra PDF
+    const downloadSignedBtn = target.classList.contains('download-signed-contract-btn') ? target : target.closest('.download-signed-contract-btn');
+    if (downloadSignedBtn) {
+        downloadContractPDF(downloadSignedBtn.dataset.id);
+        return;
+    }
+
     // Nút "Xóa nhiều" - kiểm tra cả target và closest
     if (target.id === 'bulk-delete-contracts-btn' || target.closest('#bulk-delete-contracts-btn')) {
         e.preventDefault();
@@ -692,6 +1023,26 @@ async function handleBodyClick(e) {
         return;
     }
     
+    // Nút "Thu hồi chữ ký"
+    const revokeBtn = target.classList.contains('revoke-signature-btn') ? target : target.closest('.revoke-signature-btn');
+    if (revokeBtn) {
+        const contractId = revokeBtn.dataset.id;
+        const confirmed = await showConfirm('Thu hồi chữ ký của khách? Khách sẽ phải ký lại hợp đồng.', 'Xác nhận thu hồi chữ ký');
+        if (confirmed) {
+            try {
+                await updateDoc(doc(db, 'contracts', contractId), { signatureData: deleteField() });
+                const allContracts = getContracts();
+                const idx = allContracts.findIndex(c => c.id === contractId);
+                if (idx !== -1) { allContracts[idx].signatureData = null; }
+                document.dispatchEvent(new CustomEvent('store:contracts:updated'));
+                showToast('Đã thu hồi chữ ký thành công!');
+            } catch (error) {
+                showToast('Lỗi thu hồi chữ ký: ' + error.message, 'error');
+            }
+        }
+        return;
+    }
+
     // Checkbox mobile
     if (target.classList.contains('contract-checkbox')) {
         const contractId = target.dataset.id;

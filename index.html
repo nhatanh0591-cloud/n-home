@@ -885,6 +885,13 @@
                                         <option value="vacant">Còn trống</option>
                                     </select>
                                 </div>
+                                <div class="flex-1">
+                                    <select id="filter-signature" class="w-full p-2.5 border rounded-lg bg-gray-50 text-gray-700">
+                                        <option value="">Chữ ký</option>
+                                        <option value="signed">Đã ký</option>
+                                        <option value="unsigned">Chưa ký</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="flex gap-4">
                                 <div class="flex-1">
@@ -903,13 +910,12 @@
                                         </th>
                                         <th class="py-3 px-4">Thao tác</th>
                                         <th class="py-3 px-4">Khách hàng</th>
-                                        <th class="py-3 px-4">Bắt đầu</th>
-                                        <th class="py-3 px-4">Kết thúc</th>
+                                        <th class="py-3 px-4 whitespace-nowrap">Thời hạn</th>
                                         <th class="py-3 px-4">Số người</th>
-                                        <th class="py-3 px-4">Số xe</th>
                                         <th class="py-3 px-4 whitespace-nowrap">Giá thuê</th>
                                         <th class="py-3 px-4 whitespace-nowrap">Tiền cọc</th>
                                         <th class="py-3 px-4">Trạng thái</th>
+                                        <th class="py-3 px-4 whitespace-nowrap">Chữ ký</th>
                                     </tr>
                                 </thead>
                                 <tbody id="contracts-list">
@@ -3810,6 +3816,45 @@
                 right: -20px;
             }
         }
+
+        /* ===== PRINT / PDF HỢP ĐỒNG (giống hệt app.html khách hàng) ===== */
+        #_print_root { display: none; }
+        @media print {
+            @page { size: A4; margin: 19mm 20mm 8mm 20mm; }
+            html, body { background: #fff !important; }
+            body * { visibility: hidden !important; }
+            #_print_root { display: block !important; }
+            #_print_root, #_print_root * {
+                visibility: visible !important;
+                color: #000 !important;
+            }
+            #_print_root {
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                font-family: 'Times New Roman', Times, serif !important;
+                font-size: 11pt !important;
+                line-height: 1.2 !important;
+            }
+            #_print_root p { margin: 0; text-align: justify; }
+            /* Vô hiệu hóa rule "bảng cuộn ngang trên mobile" (styles.css) vì khổ A4 in ra
+               có bề ngang < 768px nên trình duyệt tưởng là màn hình mobile */
+            #_print_root table {
+                display: table !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                overflow: visible !important;
+            }
+            #_print_root table thead,
+            #_print_root table tbody {
+                display: table-row-group !important;
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+            #_print_root table tr { display: table-row !important; }
+            #_print_root table td, #_print_root table th { display: table-cell !important; }
+        }
     </style>
 
     <script>
@@ -3997,7 +4042,7 @@
         </div>
     </div>
 
+    <div id="_print_root"></div>
 
-    
 </body>
 </html>
