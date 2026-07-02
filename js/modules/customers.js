@@ -435,6 +435,9 @@ async function handleBodyClick(e) {
         customerModalTitle.textContent = 'Thêm Khách hàng';
         customerForm.reset();
         document.getElementById('customer-id').value = '';
+        document.getElementById('customer-birth-year').value = '';
+        document.getElementById('customer-id-number').value = '';
+        document.getElementById('customer-permanent-address').value = '';
         openModal(customerModal);
     }
     // Nút "Sửa"
@@ -445,6 +448,9 @@ async function handleBodyClick(e) {
             document.getElementById('customer-id').value = customer.id;
             document.getElementById('customer-name').value = customer.name;
             document.getElementById('customer-phone').value = customer.phone;
+            document.getElementById('customer-birth-year').value = customer.birthYear || '';
+            document.getElementById('customer-id-number').value = customer.idNumber || '';
+            document.getElementById('customer-permanent-address').value = customer.permanentAddress || '';
             openModal(customerModal);
         }
     }
@@ -497,6 +503,9 @@ async function handleCustomerFormSubmit(e) {
     const id = document.getElementById('customer-id').value;
     const name = document.getElementById('customer-name').value.trim();
     const phone = document.getElementById('customer-phone').value.trim();
+    const birthYear = document.getElementById('customer-birth-year').value.trim();
+    const idNumber = document.getElementById('customer-id-number').value.trim();
+    const permanentAddress = document.getElementById('customer-permanent-address').value.trim();
 
     if (!name || !phone) {
         showToast('Vui lòng nhập đầy đủ thông tin!', 'error');
@@ -507,6 +516,9 @@ async function handleCustomerFormSubmit(e) {
         const customerData = {
             name,
             phone,
+            ...(birthYear && { birthYear }),
+            ...(idNumber && { idNumber }),
+            ...(permanentAddress && { permanentAddress }),
             updatedAt: serverTimestamp()
         };
 

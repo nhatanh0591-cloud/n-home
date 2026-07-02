@@ -2384,13 +2384,27 @@
                 <button id="close-quick-customer-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
             </div>
             <form id="quick-customer-form" class="p-4 space-y-4">
-                <div>
-                    <label for="quick-customer-name" class="block mb-2 text-sm font-medium">Họ tên</label>
-                    <input type="text" id="quick-customer-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập họ tên khách hàng" required>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="quick-customer-name" class="block mb-2 text-sm font-medium">Họ tên</label>
+                        <input type="text" id="quick-customer-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập họ tên" required>
+                    </div>
+                    <div>
+                        <label for="quick-customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
+                        <input type="tel" id="quick-customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập SĐT" required>
+                    </div>
+                    <div>
+                        <label for="quick-customer-birth-year" class="block mb-2 text-sm font-medium">Năm sinh</label>
+                        <input type="number" id="quick-customer-birth-year" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="VD: 1995" min="1900" max="2099">
+                    </div>
+                    <div>
+                        <label for="quick-customer-id-number" class="block mb-2 text-sm font-medium">Số CCCD</label>
+                        <input type="text" id="quick-customer-id-number" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Số CCCD">
+                    </div>
                 </div>
                 <div>
-                    <label for="quick-customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
-                    <input type="tel" id="quick-customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
+                    <label for="quick-customer-permanent-address" class="block mb-2 text-sm font-medium">Địa chỉ thường trú</label>
+                    <input type="text" id="quick-customer-permanent-address" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập địa chỉ thường trú">
                 </div>
                 <div class="pt-2 flex justify-end gap-3">
                     <button type="button" id="cancel-quick-customer-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
@@ -2408,13 +2422,27 @@
             </div>
             <form id="customer-form" class="p-5 space-y-4">
                 <input type="hidden" id="customer-id">
-                <div>
-                    <label for="customer-name" class="block mb-2 text-sm font-medium">Họ tên</label>
-                    <input type="text" id="customer-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập họ tên khách hàng" required>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="customer-name" class="block mb-2 text-sm font-medium">Họ tên</label>
+                        <input type="text" id="customer-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập họ tên khách hàng" required>
+                    </div>
+                    <div>
+                        <label for="customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
+                        <input type="tel" id="customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
+                    </div>
+                    <div>
+                        <label for="customer-birth-year" class="block mb-2 text-sm font-medium">Năm sinh</label>
+                        <input type="number" id="customer-birth-year" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="VD: 1995" min="1900" max="2099">
+                    </div>
+                    <div>
+                        <label for="customer-id-number" class="block mb-2 text-sm font-medium">Số CCCD</label>
+                        <input type="text" id="customer-id-number" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số CCCD">
+                    </div>
                 </div>
                 <div>
-                    <label for="customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
-                    <input type="tel" id="customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
+                    <label for="customer-permanent-address" class="block mb-2 text-sm font-medium">Địa chỉ thường trú</label>
+                    <input type="text" id="customer-permanent-address" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập địa chỉ thường trú">
                 </div>
                 <div class="pt-4 flex justify-end gap-3">
                     <button type="button" id="cancel-customer-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>

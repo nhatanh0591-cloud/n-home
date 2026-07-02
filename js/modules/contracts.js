@@ -1082,6 +1082,9 @@ async function handleQuickCustomerSubmit(e) {
     e.preventDefault();
     const name = document.getElementById('quick-customer-name').value.trim();
     const phone = document.getElementById('quick-customer-phone').value.trim();
+    const birthYear = document.getElementById('quick-customer-birth-year').value.trim();
+    const idNumber = document.getElementById('quick-customer-id-number').value.trim();
+    const permanentAddress = document.getElementById('quick-customer-permanent-address').value.trim();
 
     if (!name || !phone) {
         return showToast('Vui lòng nhập đủ tên và SĐT!', 'error');
@@ -1091,6 +1094,9 @@ async function handleQuickCustomerSubmit(e) {
         const customerData = {
             name,
             phone,
+            ...(birthYear && { birthYear }),
+            ...(idNumber && { idNumber }),
+            ...(permanentAddress && { permanentAddress }),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         };
