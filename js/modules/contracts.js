@@ -916,10 +916,19 @@ ${sp}
 </table>`;
 }
 
+function _waitContractFontsReady() {
+    return Promise.all([
+        document.fonts.load('400 11pt Tinos'),
+        document.fonts.load('700 11pt Tinos'),
+        document.fonts.load('italic 400 11pt Tinos'),
+        document.fonts.load('italic 700 11pt Tinos')
+    ]).catch(() => {});
+}
+
 /**
  * Tải/in hợp đồng đã ký ra PDF chuẩn A4 — y hệt bản khách hàng thấy trong app
  */
-function downloadContractPDF(contractId) {
+async function downloadContractPDF(contractId) {
     const contract = getContracts().find(c => c.id === contractId);
     if (!contract) {
         showToast('Không tìm thấy hợp đồng!', 'error');
@@ -938,17 +947,19 @@ function downloadContractPDF(contractId) {
     document.title = `Hợp Đồng Thuê Phòng ${roomCode} - ${buildingCode}`.trim();
 
     const imgs = Array.from(printRoot.querySelectorAll('img'));
-    const doPrint = () => {
-        window.print();
-        document.title = originalTitle;
-        setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
-    };
-    if (imgs.length === 0) { doPrint(); return; }
-    let pending = imgs.length;
-    imgs.forEach(img => {
-        if (img.complete && img.naturalWidth > 0) { if (--pending === 0) doPrint(); }
-        else { img.onload = img.onerror = () => { if (--pending === 0) doPrint(); }; }
+    const imgsReady = new Promise(resolve => {
+        if (imgs.length === 0) return resolve();
+        let pending = imgs.length;
+        imgs.forEach(img => {
+            if (img.complete && img.naturalWidth > 0) { if (--pending === 0) resolve(); }
+            else { img.onload = img.onerror = () => { if (--pending === 0) resolve(); }; }
+        });
     });
+
+    await Promise.all([imgsReady, _waitContractFontsReady()]);
+    window.print();
+    document.title = originalTitle;
+    setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
 }
 
 /**

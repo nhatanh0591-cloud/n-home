@@ -3817,6 +3817,59 @@
             }
         }
 
+        /* ===== FONT CHO IN HỢP ĐỒNG =====
+           Tinos = bản clone metric-compatible của Times New Roman (cùng độ rộng ký tự).
+           Tự host để mọi thiết bị (kể cả Android không có Times New Roman) render ra
+           đúng số dòng/số trang như trên desktop, tránh chữ ký hợp đồng bị vỡ layout. */
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-regular-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-regular-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bold-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bold-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-italic-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-italic-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bolditalic-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bolditalic-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+
         /* ===== PRINT / PDF HỢP ĐỒNG (giống hệt app.html khách hàng) ===== */
         #_print_root { display: none; }
         @media print {
@@ -3833,7 +3886,7 @@
                 top: 0 !important;
                 left: 0 !important;
                 width: 100% !important;
-                font-family: 'Times New Roman', Times, serif !important;
+                font-family: 'Tinos', 'Times New Roman', Times, serif !important;
                 font-size: 11pt !important;
                 line-height: 1.2 !important;
             }

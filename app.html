@@ -453,6 +453,59 @@
             touch-action: none;
         }
 
+        /* ===== FONT CHO IN HỢP ĐỒNG =====
+           Tinos = bản clone metric-compatible của Times New Roman (cùng độ rộng ký tự).
+           Tự host để mọi thiết bị (kể cả Android không có Times New Roman) render ra
+           đúng số dòng/số trang như trên desktop, tránh chữ ký hợp đồng bị vỡ layout. */
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-regular-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-regular-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bold-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: normal; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bold-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-italic-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 400; font-display: swap;
+            src: url('/assets/fonts/tinos-italic-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bolditalic-vn.woff2') format('woff2');
+            unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+        }
+        @font-face {
+            font-family: 'Tinos';
+            font-style: italic; font-weight: 700; font-display: swap;
+            src: url('/assets/fonts/tinos-bolditalic-latin.woff2') format('woff2');
+            unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2122, U+2191, U+2193, U+2212, U+2215;
+        }
+
         /* ===== PRINT / PDF ===== */
         #_print_root { display: none; }
         @media print {
@@ -469,7 +522,7 @@
                 top: 0 !important;
                 left: 0 !important;
                 width: 100% !important;
-                font-family: 'Times New Roman', Times, serif !important;
+                font-family: 'Tinos', 'Times New Roman', Times, serif !important;
                 font-size: 11pt !important;
                 line-height: 1.2 !important;
             }
@@ -724,23 +777,7 @@
                             </div>
                         </div>
 
-                        <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
-                            <p class="text-sm font-semibold text-gray-700 mb-3">Họ (viết tay)</p>
-                            <div class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50" style="height:180px;">
-                                <canvas id="sign-ho-canvas" style="width:100%;height:180px;touch-action:none;border-radius:8px;display:block;"></canvas>
-                                <button onclick="clearHo()" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
-                                <p id="sign-ho-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none select-none">✍️ Viết họ tại đây</p>
-                            </div>
-                        </div>
-
-                        <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
-                            <p class="text-sm font-semibold text-gray-700 mb-3">Tên (viết tay)</p>
-                            <div class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50" style="height:180px;">
-                                <canvas id="sign-ten-canvas" style="width:100%;height:180px;touch-action:none;border-radius:8px;display:block;"></canvas>
-                                <button onclick="clearTen()" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
-                                <p id="sign-ten-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none select-none">✍️ Viết tên tại đây</p>
-                            </div>
-                        </div>
+                        <div id="contract-sign-words-container"></div>
 
                         <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
                             <label class="flex items-start gap-3 cursor-pointer">
@@ -3952,6 +3989,7 @@
         window.openContractScreen = openContractScreen;
         window.closeContractScreen = closeContractScreen;
         window.clearSignature = clearSignature;
+        window.clearWord = clearWord;
         window.updateSignBtn = updateSignBtn;
         window.confirmSign = confirmSign;
         window.downloadContractPDF = downloadContractPDF;
@@ -5314,8 +5352,7 @@
         // ─────────────────────────────────────────────────────────
         const LANDLORD_SIG = './assets/landlord-sig.jpg';
         let signaturePad = null;
-        let signHoPad = null;
-        let signTenPad = null;
+        let signWordPads = [];
         let contractSignedData = null;
 
         async function loadContractLibs() {
@@ -5398,21 +5435,22 @@
             document.getElementById('contract-screen').classList.add('hidden');
             document.body.style.overflow = '';
             if (signaturePad) { signaturePad.off(); signaturePad = null; }
-            if (signHoPad)    { signHoPad.off();    signHoPad = null; }
-            if (signTenPad)   { signTenPad.off();   signTenPad = null; }
+            signWordPads.forEach(pad => pad && pad.off());
+            signWordPads = [];
         }
 
-        function _initPad(canvasId, placeholderId, storeKey) {
+        function _initPad(canvasId, placeholderId) {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return null;
             const wrapper = canvas.parentElement;
             canvas.width = wrapper.offsetWidth;
             canvas.height = parseInt(canvas.style.height) || 180;
             const pad = new SignaturePad(canvas, {
-                minWidth: 0.3,
-                maxWidth: 1.05,
+                minWidth: 0.36,
+                maxWidth: 1.26,
                 penColor: '#1a237e',
-                velocityFilterWeight: 0.4
+                velocityFilterWeight: 0.55,
+                minDistance: 2
             });
             pad.addEventListener('beginStroke', () => {
                 const el = document.getElementById(placeholderId);
@@ -5422,29 +5460,48 @@
             return pad;
         }
 
+        function _getSignWords() {
+            const fullName = (customerData?.name || currentUser?.name || '').trim();
+            const words = fullName.split(/\s+/).filter(Boolean);
+            return words.length > 0 ? words : ['Họ và tên'];
+        }
+
+        function renderSignWordBoxes() {
+            const words = _getSignWords();
+            const container = document.getElementById('contract-sign-words-container');
+            container.innerHTML = words.map((word, i) => `
+                <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
+                    <p class="text-sm font-semibold text-gray-700 mb-3">Viết tay chữ "<span class="text-green-700">${word}</span>"</p>
+                    <div class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50" style="height:180px;">
+                        <canvas id="sign-word-${i}-canvas" style="width:100%;height:180px;touch-action:none;border-radius:8px;display:block;"></canvas>
+                        <button onclick="clearWord(${i})" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
+                        <p id="sign-word-${i}-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none select-none">✍️ Viết "${word}" tại đây</p>
+                    </div>
+                </div>
+            `).join('');
+            return words;
+        }
+
         function initSignaturePad() {
             signaturePad = _initPad('signature-canvas', 'sign-placeholder');
-            signHoPad    = _initPad('sign-ho-canvas',  'sign-ho-placeholder');
-            signTenPad   = _initPad('sign-ten-canvas', 'sign-ten-placeholder');
+            const words = renderSignWordBoxes();
+            signWordPads = words.map((word, i) => _initPad(`sign-word-${i}-canvas`, `sign-word-${i}-placeholder`));
         }
 
         function clearSignature() {
             if (signaturePad) { signaturePad.clear(); document.getElementById('sign-placeholder').style.opacity = '1'; updateSignBtn(); }
         }
-        function clearHo() {
-            if (signHoPad) { signHoPad.clear(); document.getElementById('sign-ho-placeholder').style.opacity = '1'; updateSignBtn(); }
-        }
-        function clearTen() {
-            if (signTenPad) { signTenPad.clear(); document.getElementById('sign-ten-placeholder').style.opacity = '1'; updateSignBtn(); }
+        function clearWord(i) {
+            const pad = signWordPads[i];
+            if (pad) { pad.clear(); document.getElementById(`sign-word-${i}-placeholder`).style.opacity = '1'; updateSignBtn(); }
         }
 
         function updateSignBtn() {
             const btn = document.getElementById('confirm-sign-btn');
             const checked = document.getElementById('contract-agree-checkbox').checked;
             const hasSig = signaturePad && !signaturePad.isEmpty();
-            const hasHo  = signHoPad  && !signHoPad.isEmpty();
-            const hasTen = signTenPad && !signTenPad.isEmpty();
-            if (checked && hasSig && hasHo && hasTen) {
+            const hasAllWords = signWordPads.length > 0 && signWordPads.every(pad => pad && !pad.isEmpty());
+            if (checked && hasSig && hasAllWords) {
                 btn.disabled = false;
                 btn.style.background = 'linear-gradient(135deg,#1e6b3a,#23904f)';
                 btn.style.cursor = 'pointer';
@@ -5517,13 +5574,14 @@
             return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
         }
 
-        async function _buildSignatureWith3Canvas(sigUrl, hoUrl, tenUrl) {
-            const [sig, ho, ten] = await Promise.all([_loadImg(sigUrl), _loadImg(hoUrl), _loadImg(tenUrl)]);
+        async function _buildSignatureWithWords(sigUrl, wordUrls) {
+            const [sig, ...words] = await Promise.all([_loadImg(sigUrl), ...wordUrls.map(_loadImg)]);
             const gap = 10;
-            const nameGap = -13.6; // các canvas họ/tên đã có sẵn viền trắng ~12px mỗi bên nên cần kéo lại gần nhau
-            const nameW = ho.width + nameGap + ten.width;
+            const nameGap = -13.6; // các canvas chữ đã có sẵn viền trắng ~12px mỗi bên nên cần kéo lại gần nhau
+            const nameW = words.reduce((sum, img) => sum + img.width, 0) + nameGap * (words.length - 1);
             const w = Math.max(sig.width, nameW, 280);
-            const h = sig.height + gap + Math.max(ho.height, ten.height);
+            const nameH = Math.max(...words.map(img => img.height));
+            const h = sig.height + gap + nameH;
             const out = document.createElement('canvas');
             out.width = w; out.height = h;
             const ctx = out.getContext('2d');
@@ -5531,11 +5589,13 @@
             ctx.fillRect(0, 0, w, h);
             // chữ ký căn giữa trên cùng
             ctx.drawImage(sig, Math.round((w - sig.width) / 2), 0);
-            // họ + tên cạnh nhau, căn giữa bên dưới
-            const nameOffsetX = Math.round((w - nameW) / 2);
+            // các chữ cạnh nhau, căn giữa bên dưới
+            let x = Math.round((w - nameW) / 2);
             const nameY = sig.height + gap;
-            ctx.drawImage(ho,  nameOffsetX, nameY);
-            ctx.drawImage(ten, nameOffsetX + ho.width + nameGap, nameY);
+            words.forEach(img => {
+                ctx.drawImage(img, x, nameY);
+                x += img.width + nameGap;
+            });
             return out.toDataURL('image/png');
         }
 
@@ -5546,6 +5606,10 @@
             }
             if (!signaturePad || signaturePad.isEmpty()) {
                 showToast('Vui lòng ký tên trước khi xác nhận', 'error');
+                return;
+            }
+            if (signWordPads.length === 0 || signWordPads.some(pad => !pad || pad.isEmpty())) {
+                showToast('Vui lòng viết tay đầy đủ họ tên trước khi xác nhận', 'error');
                 return;
             }
             if (!document.getElementById('contract-agree-checkbox').checked) {
@@ -5559,9 +5623,8 @@
 
             try {
                 const croppedSig = _cropSignatureToContent(document.getElementById('signature-canvas'));
-                const croppedHo  = _cropSignatureToContent(document.getElementById('sign-ho-canvas'));
-                const croppedTen = _cropSignatureToContent(document.getElementById('sign-ten-canvas'));
-                const signatureImage = await _buildSignatureWith3Canvas(croppedSig, croppedHo, croppedTen);
+                const croppedWords = signWordPads.map((_, i) => _cropSignatureToContent(document.getElementById(`sign-word-${i}-canvas`)));
+                const signatureImage = await _buildSignatureWithWords(croppedSig, croppedWords);
                 const contract = contracts[0];
                 const signatureData = {
                     signatureImage,
@@ -5590,7 +5653,16 @@
             }
         }
 
-        function downloadContractPDF(btn) {
+        function _waitContractFontsReady() {
+            return Promise.all([
+                document.fonts.load('400 11pt Tinos'),
+                document.fonts.load('700 11pt Tinos'),
+                document.fonts.load('italic 400 11pt Tinos'),
+                document.fonts.load('italic 700 11pt Tinos')
+            ]).catch(() => {});
+        }
+
+        async function downloadContractPDF(btn) {
             const contract = contracts[0];
             const building = buildings.find(b => b.id === contract?.buildingId);
             const tenantSig = contractSignedData?.signatureImage || null;
@@ -5604,17 +5676,19 @@
             document.title = `Hợp Đồng Thuê Phòng ${roomCode} - ${buildingCode}`.trim();
 
             const imgs = Array.from(printRoot.querySelectorAll('img'));
-            const doPrint = () => {
-                window.print();
-                document.title = originalTitle;
-                setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
-            };
-            if (imgs.length === 0) { doPrint(); return; }
-            let pending = imgs.length;
-            imgs.forEach(img => {
-                if (img.complete && img.naturalWidth > 0) { if (--pending === 0) doPrint(); }
-                else { img.onload = img.onerror = () => { if (--pending === 0) doPrint(); }; }
+            const imgsReady = new Promise(resolve => {
+                if (imgs.length === 0) return resolve();
+                let pending = imgs.length;
+                imgs.forEach(img => {
+                    if (img.complete && img.naturalWidth > 0) { if (--pending === 0) resolve(); }
+                    else { img.onload = img.onerror = () => { if (--pending === 0) resolve(); }; }
+                });
             });
+
+            await Promise.all([imgsReady, _waitContractFontsReady()]);
+            window.print();
+            document.title = originalTitle;
+            setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
         }
 
         function injectSignatureIntoContract() {
