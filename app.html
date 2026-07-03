@@ -5577,7 +5577,7 @@
         async function _buildSignatureWithWords(sigUrl, wordUrls) {
             const [sig, ...words] = await Promise.all([_loadImg(sigUrl), ...wordUrls.map(_loadImg)]);
             const gap = 10;
-            const nameGap = -13.6; // các canvas chữ đã có sẵn viền trắng ~12px mỗi bên nên cần kéo lại gần nhau
+            const nameGap = -11.56; // các canvas chữ đã có sẵn viền trắng ~12px mỗi bên nên cần kéo lại gần nhau (đã giảm lực kéo 15% để chữ giãn cách hơn)
             const nameW = words.reduce((sum, img) => sum + img.width, 0) + nameGap * (words.length - 1);
             const w = Math.max(sig.width, nameW, 280);
             const nameH = Math.max(...words.map(img => img.height));
@@ -6152,14 +6152,14 @@ ${sp}
 
   <div style="display:flex;justify-content:space-between;margin-top:10px;">
     <div style="width:45%;text-align:center;">
-      <p style="font-weight:700;">BÊN CHO THUÊ (Bên A)</p>
+      <p style="font-weight:700;" id="sig-label-a"><span class="sig-main">BÊN CHO THUÊ</span> <span class="sig-sub">(Bên A)</span></p>
       <p style="font-style:italic;font-size:12px;">(Ký, ghi rõ họ tên)</p>
       <div style="height:130px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;">
         <img src="${LANDLORD_SIG}" style="width:100%;height:130px;object-fit:contain;object-position:center;">
       </div>
     </div>
     <div style="width:45%;text-align:center;">
-      <p style="font-weight:700;">BÊN THUÊ (Bên B)</p>
+      <p style="font-weight:700;" id="sig-label-b"><span class="sig-main">BÊN THUÊ</span> <span class="sig-sub">(Bên B)</span></p>
       <p style="font-style:italic;font-size:12px;">(Ký, ghi rõ họ tên)</p>
       <div id="contract-ben-b-sig" style="height:130px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;">
         <!-- chữ ký inject vào đây khi tải PDF -->
@@ -6167,7 +6167,26 @@ ${sp}
     </div>
   </div>
 </div>`;
+            syncSigLabelWrap();
         }
+
+        function syncSigLabelWrap() {
+            const mainA = document.querySelector('#sig-label-a .sig-main');
+            const subA = document.querySelector('#sig-label-a .sig-sub');
+            const mainB = document.querySelector('#sig-label-b .sig-main');
+            const subB = document.querySelector('#sig-label-b .sig-sub');
+            if (!mainA || !subA || !mainB || !subB) return;
+            subA.style.display = ''; subB.style.display = '';
+            const wrapped = subA.getBoundingClientRect().top > mainA.getBoundingClientRect().top + 1 ||
+                            subB.getBoundingClientRect().top > mainB.getBoundingClientRect().top + 1;
+            if (wrapped) { subA.style.display = 'block'; subB.style.display = 'block'; }
+        }
+
+        let _sigLabelResizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(_sigLabelResizeTimer);
+            _sigLabelResizeTimer = setTimeout(syncSigLabelWrap, 150);
+        });
 
         function updateContractCardFromData() {
             const contract = contracts[0];
