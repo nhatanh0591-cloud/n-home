@@ -334,7 +334,9 @@ function applyTransactionFilters() {
         if (building && t.buildingId !== building) return false;
         if (room && t.room !== room) return false;
         if (type && t.type !== type) return false;
-        if (account && t.accountId !== account) return false; // ✅ SỬA: t.accountId thay vì t.account
+        if (account === '__unassigned__') {
+            if (t.accountId) return false;
+        } else if (account && t.accountId !== account) return false; // ✅ SỬA: t.accountId thay vì t.account
         if (approval) {
             if (approval === 'approved' && !t.approved) return false;
             if (approval === 'pending' && t.approved) return false;
@@ -793,7 +795,7 @@ function loadTransactionFilters() {
     // Load accounts vào filter
     const accounts = getAccounts();
     const currentAccount = filterAccountEl.value;
-    filterAccountEl.innerHTML = '<option value="">Sổ quỹ</option>';
+    filterAccountEl.innerHTML = '<option value="">Sổ quỹ</option><option value="__unassigned__">Chưa xác định</option>';
     accounts.forEach(account => {
         let displayText = account.bank === 'Cash' ? 'Tiền mặt' : `${account.bank} - ${account.accountHolder || account.accountNumber || 'Chưa rõ'}`;
         filterAccountEl.innerHTML += `<option value="${account.id}">${displayText}</option>`;
