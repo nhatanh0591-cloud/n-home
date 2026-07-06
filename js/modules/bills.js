@@ -1101,9 +1101,10 @@ async function openDepositReturnModal(bill) {
     const customer = getCustomers().find(c => c.id === bill.customerId);
     const deposit = contract.deposit || 0;
 
-    // Lấy chỉ số điện và đơn giá từ hóa đơn gần nhất
+    // Lấy chỉ số điện và đơn giá từ hóa đơn gần nhất CỦA CHÍNH HỢP ĐỒNG NÀY
+    // (không lấy theo phòng, vì phòng có thể đã có khách mới với hợp đồng/hóa đơn khác)
     const previousBills = getBills()
-        .filter(b => b.buildingId === bill.buildingId && b.room === bill.room && !b.isTerminationBill)
+        .filter(b => b.contractId === bill.contractId && !b.isTerminationBill)
         .sort((a, b) => new Date(b.billDate) - new Date(a.billDate));
 
     let lastElectricReading = 0;
@@ -1138,62 +1139,64 @@ async function openDepositReturnModal(bill) {
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4';
     modal.innerHTML = `
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">🏠 Duyệt thanh lý & Hoàn cọc</h3>
+            <h3 class="text-lg font-bold text-gray-800 mb-4">🏠 Thanh lý Hợp Đồng Thuê</h3>
 
-            <div class="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 text-sm">
-                <div class="flex justify-between">
-                    <span class="text-gray-500">Phòng</span>
-                    <span class="font-semibold">${building?.code || ''} - ${bill.room}</span>
+            <div class="border-2 border-gray-800 rounded-lg p-4 mb-4">
+                <div class="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Phòng</span>
+                        <span class="font-semibold">${bill.room}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Khách hàng</span>
+                        <span class="font-semibold">${customer?.name || ''}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Tiền cọc hợp đồng</span>
+                        <span class="font-semibold text-blue-600">${formatMoney(deposit)}đ</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Chỉ số điện của hóa đơn trước</span>
+                        <span class="font-semibold">${lastElectricReading} kWh</span>
+                    </div>
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">Khách hàng</span>
-                    <span class="font-semibold">${customer?.name || ''}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">Tiền cọc hợp đồng</span>
-                    <span class="font-semibold text-blue-600">${formatMoney(deposit)}đ</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-500">Chỉ số điện HĐ trước</span>
-                    <span class="font-semibold">${lastElectricReading} kWh</span>
-                </div>
-            </div>
 
-            <div class="space-y-3 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Chỉ số điện lúc trả phòng <span class="text-red-500">*</span></label>
-                    <input id="dr-final-reading" type="number" min="${lastElectricReading}"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Nhập chỉ số cuối (ví dụ: 1599)">
+                <div class="space-y-3 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Chỉ số điện lúc trả phòng (kWh)</label>
+                        <input id="dr-final-reading" type="number" min="${lastElectricReading}"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Nhập chỉ số cuối (ví dụ: 1599)">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí sửa chữa phòng (Vnđ)</label>
+                        <input id="dr-repair-cost" type="number" min="0" value="0"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="0">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Chi phí sửa chữa phòng (đ)</label>
-                    <input id="dr-repair-cost" type="number" min="0" value="0"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0">
-                </div>
-            </div>
 
-            <div class="bg-blue-50 rounded-xl p-4 mb-5 space-y-2 text-sm">
-                <div class="flex justify-between text-gray-600">
-                    <span>Điện tiêu thụ</span>
-                    <span id="dr-units">— kWh</span>
-                </div>
-                <div class="flex justify-between text-gray-600">
-                    <span>Tiền điện phát sinh</span>
-                    <span id="dr-elec-cost">—đ</span>
-                </div>
-                <div class="flex justify-between text-gray-600">
-                    <span>Chi phí sửa phòng</span>
-                    <span id="dr-repair-display">0đ</span>
-                </div>
-                <div class="flex justify-between font-medium text-gray-700 border-t border-blue-200 pt-2">
-                    <span>Tổng khấu trừ</span>
-                    <span id="dr-deduction">—đ</span>
-                </div>
-                <div class="flex justify-between font-bold text-green-700 text-base">
-                    <span>Hoàn cọc cho khách</span>
-                    <span id="dr-return">—đ</span>
+                <div class="bg-blue-50 rounded-xl p-4 space-y-2 text-sm">
+                    <div class="flex justify-between text-gray-600">
+                        <span>Điện tiêu thụ</span>
+                        <span id="dr-units">— kWh</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                        <span>Tiền điện chưa thanh toán</span>
+                        <span id="dr-elec-cost">—đ</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                        <span>Chi phí sửa phòng</span>
+                        <span id="dr-repair-display">0đ</span>
+                    </div>
+                    <div class="flex justify-between font-medium text-gray-700 border-t border-blue-200 pt-2">
+                        <span>Tổng khấu trừ</span>
+                        <span id="dr-deduction">—đ</span>
+                    </div>
+                    <div class="flex justify-between font-bold text-green-700 text-base">
+                        <span>Hoàn cọc còn lại</span>
+                        <span id="dr-return">—đ</span>
+                    </div>
                 </div>
             </div>
 
@@ -1201,7 +1204,7 @@ async function openDepositReturnModal(bill) {
                 <button id="dr-cancel" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-200 transition">Hủy</button>
                 <button id="dr-confirm" disabled
                     class="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
-                    Duyệt & Tạo phiếu chi
+                    Duyệt
                 </button>
             </div>
         </div>
@@ -1265,7 +1268,7 @@ async function openDepositReturnModal(bill) {
         } catch (err) {
             showToast('Lỗi: ' + err.message, 'error');
             confirmBtn.disabled = false;
-            confirmBtn.textContent = 'Duyệt & Tạo phiếu chi';
+            confirmBtn.textContent = 'Duyệt';
         }
     });
 
@@ -1274,6 +1277,12 @@ async function openDepositReturnModal(bill) {
 
 async function approveTerminationWithDepositReturn(bill, contract, building, customer, calcData) {
     const { finalReading, repairCost, electricUnits, electricCost, depositReturn } = calcData;
+
+    // Nếu không có tiền hoàn cọc thì chỉ duyệt hóa đơn, không tạo phiếu chi
+    if (depositReturn === 0) {
+        await toggleBillApproval(bill.id);
+        return;
+    }
 
     // Tìm hạng mục "Tiền hoa hồng"
     const categories = getTransactionCategories();
