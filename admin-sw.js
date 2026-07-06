@@ -1,7 +1,7 @@
 // admin-sw.js
 // Service Worker cho N-Home PWA
 
-const CACHE_NAME = 'n-home-admin-v5';
+const CACHE_NAME = 'n-home-admin-v6';
 const urlsToCache = [
     '/index.html',
     '/styles.css',
