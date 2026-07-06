@@ -922,19 +922,8 @@ async function handleBodyClick(e) {
             loadTransactionCategories(); // Tải lại
         }
     }
-    // Click chọn 1 loại thu chi
-    else if (target.classList.contains('select-category-btn')) {
-        const category = transactionCategoriesCache.find(c => c.id === id);
-        if (category) {
-            currentTransactionItems.push({
-                categoryId: category.id,
-                name: category.name,
-                amount: 0
-            });
-            renderTransactionItems();
-            closeModal(selectTransactionCategoryModal);
-        }
-    }
+    // Click chọn 1 loại thu chi - đã xử lý bởi listener trên từng <tr> trong renderTransactionCategories(),
+    // không xử lý lại ở đây để tránh thêm hạng mục 2 lần (bubble từ nút lên tr rồi lên body).
 
     // Save inline new category
     else if (target.classList && target.classList.contains('save-inline-category-btn')) {
