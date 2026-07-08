@@ -282,6 +282,7 @@
             transform: translateX(-50%);
             background: #f0f9ff;
             height: 100vh;
+            height: 100dvh; /* dùng chiều cao khả dụng thực tế trên mobile, tránh bị thanh toolbar Safari che mất phần dưới */
             overflow: hidden;
         }
         
@@ -303,6 +304,7 @@
         
         #qr-payment-screen .content-wrapper {
             height: 100vh;
+            height: 100dvh;
             padding-bottom: 0;
             padding-top: 0;
         }
@@ -767,17 +769,21 @@
 
                     <!-- Unsigned state -->
                     <div id="contract-unsigned-area">
-                        <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
-                            <p class="text-sm font-semibold text-gray-700 mb-1">Chữ ký của Bên B (Bên thuê)</p>
-                            <p class="text-xs text-gray-500 mb-3">Dùng ngón tay ký trực tiếp vào ô bên dưới</p>
-                            <div class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50" style="height:180px;">
-                                <canvas id="signature-canvas" style="width:100%;height:180px;touch-action:none;border-radius:8px;display:block;"></canvas>
-                                <button onclick="clearSignature()" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
-                                <p id="sign-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none select-none">✍️ Ký tên tại đây</p>
+                        <div id="sign-upload-panel">
+                            <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
+                                <p class="text-sm font-semibold text-gray-700 mb-1">Ảnh chữ ký của Bên B (Bên thuê)</p>
+                                <p class="text-xs text-gray-500 mb-3">Ký tên lên giấy trắng, chụp riêng phần chữ ký (không dính chữ/dòng kẻ khác), ảnh rõ nét.</p>
+                                <div id="signature-upload-placeholder" class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-2 cursor-pointer" style="height:180px;" onclick="document.getElementById('signature-upload-input').click()">
+                                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
+                                    <p class="text-sm text-gray-400">Nhấn vào đây để tải ảnh chữ ký lên</p>
+                                </div>
+                                <div id="signature-upload-preview-area" class="hidden relative border-2 border-dashed border-gray-300 rounded-lg" style="height:180px;">
+                                    <img id="signature-upload-preview" src="" alt="" class="w-full h-full object-contain rounded-lg" style="background:repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 50% / 16px 16px;">
+                                    <button type="button" onclick="clearUploadedSignature()" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
+                                </div>
+                                <input type="file" id="signature-upload-input" accept="image/*" capture="environment" class="hidden" onchange="handleSignatureUpload(event)">
                             </div>
                         </div>
-
-                        <div id="contract-sign-words-container"></div>
 
                         <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
                             <label class="flex items-start gap-3 cursor-pointer">
@@ -980,23 +986,29 @@
                 </div>
 
                 <!-- Content -->
-                <div class="flex-1 overflow-hidden bg-gray-50 flex flex-col px-3 pt-2 pb-3 gap-2" style="min-height:0">
+                <div id="qr-content-area" class="flex-1 overflow-hidden bg-gray-50 flex flex-col px-3 pt-2 pb-3 gap-2" style="min-height:0">
                     <!-- QR Code Container -->
-                    <div class="bg-white rounded-xl p-2 shadow-sm flex flex-col items-center">
-                        <div class="border-4 border-green-600 rounded-lg p-1 mb-2 mx-auto flex items-center justify-center" style="width:min(230px,62vw);height:min(230px,62vw);">
+                    <div id="qr-code-card" class="bg-white rounded-xl p-2 shadow-sm flex flex-col items-center flex-shrink-0">
+                        <div id="qr-code-box" class="border-4 border-green-600 rounded-lg p-1 mb-2 mx-auto flex items-center justify-center" style="width:min(276px,74vw);height:min(276px,74vw);">
                             <img id="payment-qr-image" src="" alt="QR Code" class="w-full h-full object-contain">
                         </div>
                         <!-- Download Button -->
-                        <button onclick="downloadQR()" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold flex items-center justify-center hover:bg-green-700 transition-colors text-sm">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <button id="qr-download-btn" onclick="downloadQR()" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold flex items-center justify-center hover:bg-green-700 transition-colors text-sm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
-                            <span id="download-text">💾 Lưu vào thư viện</span>
+                            <span id="download-text">Tải xuống ảnh QR chuyển khoản</span>
                         </button>
                     </div>
 
                     <!-- Payment Info -->
-                    <div class="bg-white rounded-xl px-3 py-2 shadow-sm flex flex-col gap-1.5">
+                    <div id="qr-payment-info-card" class="bg-white rounded-xl px-3 py-2 shadow-sm flex flex-col gap-1.5 flex-shrink-0" style="border:2px solid #1f2937;">
+                        <div class="flex items-center gap-1.5 pb-1.5 mb-0.5 border-b-2 border-gray-900">
+                            <svg class="w-4 h-4 text-gray-900 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a1.5 1.5 0 001.5-1.5V6.75a1.5 1.5 0 00-1.5-1.5h-15a1.5 1.5 0 00-1.5 1.5v10.5a1.5 1.5 0 001.5 1.5z"/>
+                            </svg>
+                            <p class="text-sm font-bold text-gray-900 uppercase tracking-wide" id="account-info-header">Thông tin tài khoản nhận</p>
+                        </div>
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-xs text-gray-500" id="account-name-label">Tên tài khoản</p>
@@ -1278,7 +1290,8 @@
                 
                 // Payment screen
                 paymentTitle: "THANH TOÁN",
-                download: "Tải xuống",
+                download: "Tải xuống ảnh QR chuyển khoản",
+                accountInfoHeader: "Thông tin tài khoản nhận",
                 accountName: "Tên tài khoản",
                 accountNumber: "Số tài khoản",
                 amount: "Số tiền",
@@ -1380,7 +1393,8 @@
                 
                 // Payment screen
                 paymentTitle: "PAYMENT",
-                download: "Download",
+                download: "Download QR code",
+                accountInfoHeader: "Receiving account info",
                 accountName: "Account Name",
                 accountNumber: "Account Number",
                 amount: "Amount",
@@ -1652,7 +1666,12 @@
             if (downloadEl) {
                 downloadEl.textContent = t('download');
             }
-            
+
+            const accountInfoHeaderEl = document.getElementById('account-info-header');
+            if (accountInfoHeaderEl) {
+                accountInfoHeaderEl.textContent = t('accountInfoHeader');
+            }
+
             const accountNameLabel = document.getElementById('account-name-label');
             if (accountNameLabel) {
                 accountNameLabel.textContent = t('accountName');
@@ -3155,8 +3174,8 @@
 
                 ${remainingAmount > 0 ? `
                     <div style="margin-top:8px;flex-shrink:0;">
-                        <button onclick="showQRPayment('${bill.id}')" style="width:100%;background:#16a34a;color:white;padding:13px 16px;border-radius:8px;font-weight:600;font-size:15px;border:none;cursor:pointer;">
-                            ${currentLanguage === 'en' ? 'Pay Now' : 'Thanh toán'}
+                        <button onclick="showQRPayment('${bill.id}')" style="width:100%;background:#16a34a;color:white;padding:13px 16px;border-radius:8px;font-weight:600;font-size:15px;border:none;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            ${currentLanguage === 'en' ? 'Tap here to pay' : 'Bấm vào đây để thanh toán'}
                         </button>
                     </div>
                 ` : ''}
@@ -3316,18 +3335,60 @@
                 document.getElementById('bill-detail-screen').classList.add('hidden');
                 const qrScreen = document.getElementById('qr-payment-screen');
                 qrScreen.classList.remove('hidden');
-                
+
                 // Scroll to top
                 setTimeout(() => {
                     qrScreen.scrollTop = 0;
                 }, 0);
-                
+
+                requestAnimationFrame(_fitQRPaymentScreen);
+
             } catch (error) {
                 console.error('Error loading account:', error);
                 alert('Lỗi tải thông tin tài khoản');
             }
         }
-        
+
+        // Co giãn ô QR để toàn bộ màn hình thanh toán (QR + nút tải + thông tin tài khoản)
+        // vừa khít trong 1 màn hình, không cần vuốt xuống, dù màn hình điện thoại to nhỏ khác nhau.
+        function _fitQRPaymentScreen() {
+            const contentArea = document.getElementById('qr-content-area');
+            const qrCard = document.getElementById('qr-code-card');
+            const qrBox = document.getElementById('qr-code-box');
+            const infoCard = document.getElementById('qr-payment-info-card');
+            const downloadBtn = document.getElementById('qr-download-btn');
+            if (!contentArea || !qrCard || !qrBox || !infoCard || !downloadBtn) return;
+            if (document.getElementById('qr-payment-screen').classList.contains('hidden')) return;
+
+            const contentGap = parseFloat(getComputedStyle(contentArea).rowGap) || 0;
+            const qrCardStyle = getComputedStyle(qrCard);
+            const qrCardPaddingY = parseFloat(qrCardStyle.paddingTop) + parseFloat(qrCardStyle.paddingBottom);
+            const qrCardPaddingX = parseFloat(qrCardStyle.paddingLeft) + parseFloat(qrCardStyle.paddingRight);
+            const qrBoxMarginBottom = parseFloat(getComputedStyle(qrBox).marginBottom) || 0;
+
+            // Nút tròn ví (.wallet-float) nổi cao hơn mép trên của thanh nav (margin-top:-32px trong CSS),
+            // nên phải lấy đúng mép trên của nút tròn làm giới hạn, không phải mép trên thanh nav phẳng.
+            const bottomNav = document.querySelector('.bottom-nav');
+            const walletFloat = document.querySelector('.wallet-float');
+            let bottomObstructionHeight = 0;
+            if (bottomNav && !bottomNav.classList.contains('hidden')) {
+                const obstructionTop = walletFloat ? walletFloat.getBoundingClientRect().top : bottomNav.getBoundingClientRect().top;
+                bottomObstructionHeight = Math.max(0, window.innerHeight - obstructionTop);
+            }
+
+            const safetyMargin = 16; // chừa khoảng thở, tránh khung thông tin dính sát nút tròn ví
+            const chromeHeight = qrCardPaddingY + qrBoxMarginBottom + downloadBtn.offsetHeight;
+            const availableHeight = contentArea.clientHeight - contentGap - infoCard.offsetHeight - chromeHeight - bottomObstructionHeight - safetyMargin;
+            const availableWidth = qrCard.clientWidth - qrCardPaddingX;
+
+            const size = Math.max(140, Math.floor(Math.min(availableHeight, availableWidth)));
+            qrBox.style.width = size + 'px';
+            qrBox.style.height = size + 'px';
+        }
+
+        window.addEventListener('resize', () => requestAnimationFrame(_fitQRPaymentScreen));
+        window.addEventListener('orientationchange', () => requestAnimationFrame(_fitQRPaymentScreen));
+
         function closeQRPayment() {
             document.getElementById('qr-payment-screen').classList.add('hidden');
             document.getElementById('bill-detail-screen').classList.remove('hidden');
@@ -3349,70 +3410,82 @@
             });
         }
         
+        // Lưu/chia sẻ file ảnh: ưu tiên Web Share API (bật share sheet có nút "Lưu ảnh",
+        // vì Safari iOS không hỗ trợ thuộc tính download của thẻ <a> nên link-click không lưu được vào Ảnh).
+        // Nếu máy không hỗ trợ share file (Android/máy tính) thì rơi về cách link download cũ.
+        async function _saveOrShareBlob(blob, filename) {
+            try {
+                const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file] });
+                    showToast('✅ Đã mở bảng chia sẻ, chọn "Lưu ảnh" để lưu vào thư viện!', 'success');
+                    return;
+                }
+            } catch (error) {
+                if (error?.name === 'AbortError') return; // Khách tự hủy bảng chia sẻ
+                console.log('Web Share API thất bại, dùng cách tải link:', error);
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast('✅ Đã lưu mã QR vào thư viện!', 'success');
+        }
+
         async function downloadQR() {
             if (!currentPaymentData) return;
-            
+
             try {
                 showToast('Đang tải ảnh QR...', 'info');
-                
+
                 // Lấy ảnh QR từ element hiện tại
                 const qrImg = document.getElementById('payment-qr-image');
                 if (!qrImg || !qrImg.src) {
                     showToast('Không tìm thấy mã QR để tải', 'error');
                     return;
                 }
-                
+
                 // Tạo canvas để vẽ ảnh QR
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                
+
                 // Tạo image element mới để load ảnh
                 const img = new Image();
                 img.crossOrigin = 'anonymous'; // Để tránh CORS issue
-                
+
                 img.onload = function() {
                     // Đặt kích thước canvas bằng kích thước ảnh
                     canvas.width = img.width;
                     canvas.height = img.height;
-                    
+
                     // Vẽ ảnh lên canvas
                     ctx.drawImage(img, 0, 0);
-                    
+
                     // Chuyển canvas thành blob
                     canvas.toBlob(function(blob) {
                         if (blob) {
-                            // Tạo URL từ blob
-                            const url = URL.createObjectURL(blob);
-                            
-                            // Tạo link download
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `QR_Thanh_Toan_Phong_${currentPaymentData.room || 'Unknown'}_${new Date().getTime()}.jpg`;
-                            
-                            // Trigger download
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            // Dọn dẹp
-                            URL.revokeObjectURL(url);
-                            
-                            showToast('✅ Đã lưu mã QR vào thư viện!', 'success');
+                            const filename = `QR_Thanh_Toan_Phong_${currentPaymentData.room || 'Unknown'}_${new Date().getTime()}.jpg`;
+                            _saveOrShareBlob(blob, filename);
                         } else {
                             showToast('Lỗi khi tạo file ảnh', 'error');
                         }
                     }, 'image/jpeg', 0.9);
                 };
-                
+
                 img.onerror = function() {
                     console.log('Canvas method failed, trying fetch method...');
                     // Fallback: Dùng fetch để tải ảnh
                     downloadQRWithFetch();
                 };
-                
+
                 // Load ảnh từ URL
                 img.src = currentPaymentData.qrUrl;
-                
+
             } catch (error) {
                 console.error('Lỗi download QR:', error);
                 showToast('Lỗi khi tải mã QR', 'error');
@@ -3425,31 +3498,15 @@
                 const response = await fetch(currentPaymentData.qrUrl, {
                     mode: 'cors'
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                
+
                 const blob = await response.blob();
-                
-                // Tạo URL từ blob
-                const url = URL.createObjectURL(blob);
-                
-                // Tạo link download
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `QR_Thanh_Toan_Phong_${currentPaymentData.room || 'Unknown'}_${new Date().getTime()}.jpg`;
-                
-                // Trigger download
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                // Dọn dẹp
-                URL.revokeObjectURL(url);
-                
-                showToast('✅ Đã lưu mã QR vào thư viện!', 'success');
-                
+                const filename = `QR_Thanh_Toan_Phong_${currentPaymentData.room || 'Unknown'}_${new Date().getTime()}.jpg`;
+                await _saveOrShareBlob(blob, filename);
+
             } catch (error) {
                 console.error('Fetch method also failed:', error);
                 // Cuối cùng dùng phương pháp cũ nếu tất cả đều fail
@@ -3988,11 +4045,11 @@
         // Export contract functions
         window.openContractScreen = openContractScreen;
         window.closeContractScreen = closeContractScreen;
-        window.clearSignature = clearSignature;
-        window.clearWord = clearWord;
         window.updateSignBtn = updateSignBtn;
         window.confirmSign = confirmSign;
         window.downloadContractPDF = downloadContractPDF;
+        window.handleSignatureUpload = handleSignatureUpload;
+        window.clearUploadedSignature = clearUploadedSignature;
         
         // Export QR Payment functions
         window.showQRPayment = showQRPayment;
@@ -5351,20 +5408,11 @@
         // HỢP ĐỒNG THUÊ PHÒNG
         // ─────────────────────────────────────────────────────────
         const LANDLORD_SIG = './assets/landlord-sig.jpg';
-        let signaturePad = null;
-        let signWordPads = [];
         let contractSignedData = null;
+        let uploadedSignatureDataUrl = null;
 
         async function loadContractLibs() {
             const loads = [];
-            if (!window.SignaturePad) {
-                loads.push(new Promise((res, rej) => {
-                    const s = document.createElement('script');
-                    s.src = 'https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js';
-                    s.onload = res; s.onerror = rej;
-                    document.head.appendChild(s);
-                }));
-            }
             if (!window.jspdf) {
                 loads.push(new Promise((res, rej) => {
                     const s = document.createElement('script');
@@ -5420,7 +5468,7 @@
 
             await loadContractLibs();
             if (!alreadySigned && infoComplete) {
-                initSignaturePad();
+                clearUploadedSignature();
             }
             await loadExistingSignature(contract);
         }
@@ -5434,74 +5482,13 @@
         function closeContractScreen() {
             document.getElementById('contract-screen').classList.add('hidden');
             document.body.style.overflow = '';
-            if (signaturePad) { signaturePad.off(); signaturePad = null; }
-            signWordPads.forEach(pad => pad && pad.off());
-            signWordPads = [];
-        }
-
-        function _initPad(canvasId, placeholderId) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return null;
-            const wrapper = canvas.parentElement;
-            canvas.width = wrapper.offsetWidth;
-            canvas.height = parseInt(canvas.style.height) || 180;
-            const pad = new SignaturePad(canvas, {
-                minWidth: 0.36,
-                maxWidth: 1.26,
-                penColor: '#1a237e',
-                velocityFilterWeight: 0.55,
-                minDistance: 2
-            });
-            pad.addEventListener('beginStroke', () => {
-                const el = document.getElementById(placeholderId);
-                if (el) el.style.opacity = '0';
-            });
-            pad.addEventListener('afterUpdateStroke', () => { updateSignBtn(); });
-            return pad;
-        }
-
-        function _getSignWords() {
-            const fullName = (customerData?.name || currentUser?.name || '').trim();
-            const words = fullName.split(/\s+/).filter(Boolean);
-            return words.length > 0 ? words : ['Họ và tên'];
-        }
-
-        function renderSignWordBoxes() {
-            const words = _getSignWords();
-            const container = document.getElementById('contract-sign-words-container');
-            container.innerHTML = words.map((word, i) => `
-                <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
-                    <p class="text-sm font-semibold text-gray-700 mb-3">Viết tay chữ "<span class="text-green-700">${word}</span>"</p>
-                    <div class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50" style="height:180px;">
-                        <canvas id="sign-word-${i}-canvas" style="width:100%;height:180px;touch-action:none;border-radius:8px;display:block;"></canvas>
-                        <button onclick="clearWord(${i})" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
-                        <p id="sign-word-${i}-placeholder" class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none select-none">✍️ Viết "${word}" tại đây</p>
-                    </div>
-                </div>
-            `).join('');
-            return words;
-        }
-
-        function initSignaturePad() {
-            signaturePad = _initPad('signature-canvas', 'sign-placeholder');
-            const words = renderSignWordBoxes();
-            signWordPads = words.map((word, i) => _initPad(`sign-word-${i}-canvas`, `sign-word-${i}-placeholder`));
-        }
-
-        function clearSignature() {
-            if (signaturePad) { signaturePad.clear(); document.getElementById('sign-placeholder').style.opacity = '1'; updateSignBtn(); }
-        }
-        function clearWord(i) {
-            const pad = signWordPads[i];
-            if (pad) { pad.clear(); document.getElementById(`sign-word-${i}-placeholder`).style.opacity = '1'; updateSignBtn(); }
         }
 
         function updateSignBtn() {
             const btn = document.getElementById('confirm-sign-btn');
             const checked = document.getElementById('contract-agree-checkbox').checked;
-            const hasSig = signaturePad && !signaturePad.isEmpty();
-            const hasAllWords = signWordPads.length > 0 && signWordPads.every(pad => pad && !pad.isEmpty());
-            if (checked && hasSig && hasAllWords) {
+            const hasSig = !!uploadedSignatureDataUrl;
+            if (checked && hasSig) {
                 btn.disabled = false;
                 btn.style.background = 'linear-gradient(135deg,#1e6b3a,#23904f)';
                 btn.style.cursor = 'pointer';
@@ -5510,6 +5497,87 @@
                 btn.style.background = '#9ca3af';
                 btn.style.cursor = 'not-allowed';
             }
+        }
+
+        function _otsuThreshold(hist, total) {
+            let sum = 0;
+            for (let i = 0; i < 256; i++) sum += i * hist[i];
+            let sumB = 0, wB = 0, maxVar = 0, threshold = 128;
+            for (let t = 0; t < 256; t++) {
+                wB += hist[t];
+                if (wB === 0) continue;
+                const wF = total - wB;
+                if (wF === 0) break;
+                sumB += t * hist[t];
+                const mB = sumB / wB;
+                const mF = (sum - sumB) / wF;
+                const varBetween = wB * wF * (mB - mF) * (mB - mF);
+                if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
+            }
+            return threshold;
+        }
+
+        // Tách nét mực chữ ký khỏi nền giấy trong ảnh chụp: nhị phân hóa theo ngưỡng Otsu tự động
+        // (vùng tối hơn ngưỡng = nét mực, giữ lại; vùng còn lại = nền giấy, xóa thành trong suốt)
+        function _extractInkFromPhoto(canvas) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const imageData = ctx.getImageData(0, 0, w, h);
+            const data = imageData.data;
+            const n = w * h;
+            const gray = new Uint8ClampedArray(n);
+            const hist = new Array(256).fill(0);
+            for (let i = 0; i < n; i++) {
+                const o = i * 4;
+                const v = Math.round(0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2]);
+                gray[i] = v;
+                hist[v]++;
+            }
+            const threshold = _otsuThreshold(hist, n);
+            for (let i = 0; i < n; i++) {
+                const o = i * 4;
+                if (gray[i] < threshold) {
+                    data[o] = 26; data[o + 1] = 35; data[o + 2] = 126; // #1a237e, đồng bộ màu mực với chữ ký vẽ tay
+                    data[o + 3] = 255;
+                } else {
+                    data[o + 3] = 0;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function handleSignatureUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const img = await _loadImg(reader.result);
+                    const maxDim = 1200;
+                    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    _extractInkFromPhoto(canvas);
+                    uploadedSignatureDataUrl = _cropSignatureToContent(canvas);
+                    document.getElementById('signature-upload-preview').src = uploadedSignatureDataUrl;
+                    document.getElementById('signature-upload-preview-area').classList.remove('hidden');
+                    document.getElementById('signature-upload-placeholder').classList.add('hidden');
+                    updateSignBtn();
+                } catch (err) {
+                    showToast('Không đọc được ảnh, vui lòng thử ảnh khác', 'error');
+                }
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        }
+
+        function clearUploadedSignature() {
+            uploadedSignatureDataUrl = null;
+            document.getElementById('signature-upload-preview-area').classList.add('hidden');
+            document.getElementById('signature-upload-placeholder').classList.remove('hidden');
+            updateSignBtn();
         }
 
         async function loadExistingSignature(contract) {
@@ -5574,42 +5642,13 @@
             return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
         }
 
-        async function _buildSignatureWithWords(sigUrl, wordUrls) {
-            const [sig, ...words] = await Promise.all([_loadImg(sigUrl), ...wordUrls.map(_loadImg)]);
-            const gap = 10;
-            const nameGap = -11.56; // các canvas chữ đã có sẵn viền trắng ~12px mỗi bên nên cần kéo lại gần nhau (đã giảm lực kéo 15% để chữ giãn cách hơn)
-            const nameW = words.reduce((sum, img) => sum + img.width, 0) + nameGap * (words.length - 1);
-            const w = Math.max(sig.width, nameW, 280);
-            const nameH = Math.max(...words.map(img => img.height));
-            const h = sig.height + gap + nameH;
-            const out = document.createElement('canvas');
-            out.width = w; out.height = h;
-            const ctx = out.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, w, h);
-            // chữ ký căn giữa trên cùng
-            ctx.drawImage(sig, Math.round((w - sig.width) / 2), 0);
-            // các chữ cạnh nhau, căn giữa bên dưới
-            let x = Math.round((w - nameW) / 2);
-            const nameY = sig.height + gap;
-            words.forEach(img => {
-                ctx.drawImage(img, x, nameY);
-                x += img.width + nameGap;
-            });
-            return out.toDataURL('image/png');
-        }
-
         async function confirmSign() {
             if (!isCustomerInfoCompleteForSigning(customerData)) {
                 showToast('Hồ sơ chưa đầy đủ thông tin (năm sinh, CCCD, thường trú). Vui lòng liên hệ quản lý để bổ sung trước khi ký.', 'error');
                 return;
             }
-            if (!signaturePad || signaturePad.isEmpty()) {
-                showToast('Vui lòng ký tên trước khi xác nhận', 'error');
-                return;
-            }
-            if (signWordPads.length === 0 || signWordPads.some(pad => !pad || pad.isEmpty())) {
-                showToast('Vui lòng viết tay đầy đủ họ tên trước khi xác nhận', 'error');
+            if (!uploadedSignatureDataUrl) {
+                showToast('Vui lòng tải ảnh chữ ký trước khi xác nhận', 'error');
                 return;
             }
             if (!document.getElementById('contract-agree-checkbox').checked) {
@@ -5622,9 +5661,7 @@
             btn.textContent = 'Đang lưu...';
 
             try {
-                const croppedSig = _cropSignatureToContent(document.getElementById('signature-canvas'));
-                const croppedWords = signWordPads.map((_, i) => _cropSignatureToContent(document.getElementById(`sign-word-${i}-canvas`)));
-                const signatureImage = await _buildSignatureWithWords(croppedSig, croppedWords);
+                const signatureImage = uploadedSignatureDataUrl;
                 const contract = contracts[0];
                 const signatureData = {
                     signatureImage,
@@ -5643,8 +5680,6 @@
 
                 showSignedState(signatureData);
                 showToast('Ký hợp đồng thành công!');
-
-                if (signaturePad) { signaturePad.off(); signaturePad = null; }
             } catch (err) {
                 btn.disabled = false;
                 btn.textContent = 'Xác nhận ký hợp đồng';
