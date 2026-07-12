@@ -3,9 +3,10 @@
 import { db, addDoc, setDoc, doc, deleteDoc, updateDoc, collection, serverTimestamp, deleteField } from '../firebase.js';
 import { getContracts, getBuildings, getCustomers, getServices, getBills, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { 
-    showToast, openModal, closeModal, 
-    formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney, 
-    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage, safeToDate
+    showToast, openModal, closeModal,
+    formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney,
+    importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage, safeToDate,
+    attachDateSlashMask
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -119,7 +120,8 @@ export function initContracts() {
     // Lắng nghe form
     contractForm.addEventListener('submit', handleContractFormSubmit);
     quickCustomerForm.addEventListener('submit', handleQuickCustomerSubmit);
-    
+    attachDateSlashMask(document.getElementById('quick-customer-birth-date'));
+
     // Lắng nghe nút bỏ chọn hàng loạt
     document.getElementById('clear-selection-contracts-btn')?.addEventListener('click', () => {
         selectedMobileContractIds.clear();
@@ -1444,9 +1446,10 @@ async function handleQuickCustomerSubmit(e) {
     e.preventDefault();
     const name = document.getElementById('quick-customer-name').value.trim();
     const phone = document.getElementById('quick-customer-phone').value.trim();
-    const birthYear = document.getElementById('quick-customer-birth-year').value.trim();
     const idNumber = document.getElementById('quick-customer-id-number').value.trim();
     const permanentAddress = document.getElementById('quick-customer-permanent-address').value.trim();
+    const birthDate = document.getElementById('quick-customer-birth-date').value.trim();
+    const gender = document.getElementById('quick-customer-gender').value;
 
     if (!name || !phone) {
         return showToast('Vui lòng nhập đủ tên và SĐT!', 'error');
@@ -1456,9 +1459,10 @@ async function handleQuickCustomerSubmit(e) {
         const customerData = {
             name,
             phone,
-            ...(birthYear && { birthYear }),
             ...(idNumber && { idNumber }),
             ...(permanentAddress && { permanentAddress }),
+            ...(birthDate && { birthDate }),
+            ...(gender && { gender }),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         };
@@ -2213,7 +2217,7 @@ export async function handleTerminationBillDeleted(billId, contractId) {
 /**
  * Tính toán trạng thái hợp đồng (active, expiring, expired, terminated)
  */
-function getContractStatus(contract) {
+export function getContractStatus(contract) {
     if (contract.status === 'terminated') return 'terminated';
     
     const today = new Date();

@@ -192,6 +192,7 @@
             <nav class="mt-4">
                 <a href="#" class="block py-3 px-3 text-gray-700 sidebar-item" id="dashboard-btn">📊 Bảng tin</a>
                 <a href="#" class="block py-3 px-3 text-gray-700 sidebar-item" id="buildings-btn">🏢 Tòa nhà</a>
+                <a href="#" class="block py-3 px-3 text-gray-700 sidebar-item" id="documents-btn">📎 Hồ sơ giấy tờ</a>
                 <a href="#" class="block py-3 px-3 text-gray-700 sidebar-item" id="services-btn">💰 Phí dịch vụ</a>
                 <a href="#" class="block py-3 px-3 text-gray-700 sidebar-item" id="transaction-categories-btn">📋 Hạng mục thu chi</a>
                 <a href="#" class="block py-3 px-3 text-gray-700 sidebar-item" id="accounts-btn">💳 Sổ quỹ</a>
@@ -383,6 +384,41 @@
                             <!-- Mobile Cards -->
                             <div id="buildings-mobile-list" class="mobile-cards">
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Section (Giấy tờ) -->
+                <div id="documents-section" class="hidden">
+                    <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+                        <h2 class="text-lg font-semibold mb-4">Hồ sơ giấy tờ</h2>
+
+                        <div class="mb-4">
+                            <label for="documents-building-select" class="block mb-2 text-sm font-medium">Chọn tòa nhà</label>
+                            <select id="documents-building-select" class="w-full sm:w-96 p-2.5 border rounded-lg bg-gray-50">
+                                <option value="">-- Chọn tòa nhà --</option>
+                            </select>
+                        </div>
+
+                        <div id="documents-no-building" class="text-gray-500 text-sm py-6 text-center">Chọn 1 tòa nhà để xem danh sách khách còn hợp đồng hoạt động.</div>
+
+                        <div id="documents-customer-panel" class="hidden">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                <div class="flex items-center gap-3">
+                                    <button type="button" id="documents-select-all-btn" class="text-sm text-blue-600 hover:text-blue-800 font-medium">✓ Chọn tất cả</button>
+                                    <button type="button" id="documents-deselect-all-btn" class="text-sm text-gray-600 hover:text-gray-800 font-medium">✗ Bỏ chọn tất cả</button>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex items-center gap-2">
+                                        <label for="documents-temp-residence-until" class="text-sm font-medium whitespace-nowrap">Tạm trú đến ngày</label>
+                                        <input type="date" id="documents-temp-residence-until" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                    </div>
+                                    <button type="button" id="documents-export-ct01-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">
+                                        Xuất CT01 (PDF)
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="documents-customer-list" class="space-y-2 max-h-[60vh] overflow-y-auto border rounded-lg p-3"></div>
                         </div>
                     </div>
                 </div>
@@ -2142,6 +2178,48 @@
                     </div>
                 </div>
 
+                <div class="space-y-4">
+                    <h4 class="text-base font-semibold text-gray-700 border-b pb-2">5. Thông tin chủ nhà</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="building-landlord-name" class="block mb-2 text-sm font-medium">Họ và tên</label>
+                            <input type="text" id="building-landlord-name" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nguyễn Văn A">
+                        </div>
+                        <div>
+                            <label for="building-landlord-id" class="block mb-2 text-sm font-medium">Số định danh cá nhân</label>
+                            <input type="text" id="building-landlord-id" maxlength="12" inputmode="numeric" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="12 số">
+                        </div>
+                        <div>
+                            <label for="building-landlord-dob" class="block mb-2 text-sm font-medium">Ngày, tháng, năm sinh</label>
+                            <input type="text" id="building-landlord-dob" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}">
+                        </div>
+                        <div>
+                            <label for="building-landlord-gender" class="block mb-2 text-sm font-medium">Giới tính</label>
+                            <select id="building-landlord-gender" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                <option value="">-- Chọn --</option>
+                                <option value="Nam">Nam</option>
+                                <option value="Nữ">Nữ</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="building-landlord-address" class="block mb-2 text-sm font-medium">Nơi thường trú</label>
+                            <input type="text" id="building-landlord-address" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-2 text-sm font-medium">Ảnh chữ ký chủ nhà</label>
+                        <div id="building-landlord-sig-placeholder" class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-2 cursor-pointer" style="height:140px;">
+                            <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
+                            <p class="text-sm text-gray-400">Nhấn vào đây để tải ảnh chữ ký lên</p>
+                        </div>
+                        <div id="building-landlord-sig-preview-area" class="hidden relative border-2 border-dashed border-gray-300 rounded-lg" style="height:140px;">
+                            <img id="building-landlord-sig-preview" src="" alt="" class="w-full h-full object-contain rounded-lg" style="background:repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 50% / 16px 16px;">
+                            <button type="button" id="clear-landlord-sig-btn" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
+                        </div>
+                        <input type="file" id="building-landlord-sig-input" accept="image/*" class="hidden">
+                    </div>
+                </div>
+
                 <div class="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white border-t -mx-5 px-5 py-4">
                     <button type="button" id="cancel-building-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
                     <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu</button>
@@ -2400,12 +2478,20 @@
                         <input type="tel" id="quick-customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập SĐT" required>
                     </div>
                     <div>
-                        <label for="quick-customer-birth-year" class="block mb-2 text-sm font-medium">Năm sinh</label>
-                        <input type="number" id="quick-customer-birth-year" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="VD: 1995" min="1900" max="2099">
-                    </div>
-                    <div>
                         <label for="quick-customer-id-number" class="block mb-2 text-sm font-medium">Số CCCD</label>
                         <input type="text" id="quick-customer-id-number" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Số CCCD">
+                    </div>
+                    <div>
+                        <label for="quick-customer-birth-date" class="block mb-2 text-sm font-medium">Ngày, tháng, năm sinh</label>
+                        <input type="text" id="quick-customer-birth-date" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}">
+                    </div>
+                    <div>
+                        <label for="quick-customer-gender" class="block mb-2 text-sm font-medium">Giới tính</label>
+                        <select id="quick-customer-gender" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                            <option value="">-- Chọn --</option>
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
                     </div>
                 </div>
                 <div>
@@ -2438,12 +2524,20 @@
                         <input type="tel" id="customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
                     </div>
                     <div>
-                        <label for="customer-birth-year" class="block mb-2 text-sm font-medium">Năm sinh</label>
-                        <input type="number" id="customer-birth-year" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="VD: 1995" min="1900" max="2099">
-                    </div>
-                    <div>
                         <label for="customer-id-number" class="block mb-2 text-sm font-medium">Số CCCD</label>
                         <input type="text" id="customer-id-number" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số CCCD">
+                    </div>
+                    <div>
+                        <label for="customer-birth-date" class="block mb-2 text-sm font-medium">Ngày, tháng, năm sinh</label>
+                        <input type="text" id="customer-birth-date" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}">
+                    </div>
+                    <div>
+                        <label for="customer-gender" class="block mb-2 text-sm font-medium">Giới tính</label>
+                        <select id="customer-gender" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                            <option value="">-- Chọn --</option>
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
                     </div>
                 </div>
                 <div>

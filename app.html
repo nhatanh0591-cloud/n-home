@@ -1151,6 +1151,7 @@
         import { getFirestore, collection, query, where, getDocs, getDoc, orderBy, onSnapshot, addDoc, doc, updateDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js';
         import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js';
         import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js';
+        import { processSignatureFile } from './js/modules/signature-utils.js';
 
         // Firebase config
         const firebaseConfig = {
@@ -5499,77 +5500,18 @@
             }
         }
 
-        function _otsuThreshold(hist, total) {
-            let sum = 0;
-            for (let i = 0; i < 256; i++) sum += i * hist[i];
-            let sumB = 0, wB = 0, maxVar = 0, threshold = 128;
-            for (let t = 0; t < 256; t++) {
-                wB += hist[t];
-                if (wB === 0) continue;
-                const wF = total - wB;
-                if (wF === 0) break;
-                sumB += t * hist[t];
-                const mB = sumB / wB;
-                const mF = (sum - sumB) / wF;
-                const varBetween = wB * wF * (mB - mF) * (mB - mF);
-                if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
-            }
-            return threshold;
-        }
-
-        // Tách nét mực chữ ký khỏi nền giấy trong ảnh chụp: nhị phân hóa theo ngưỡng Otsu tự động
-        // (vùng tối hơn ngưỡng = nét mực, giữ lại; vùng còn lại = nền giấy, xóa thành trong suốt)
-        function _extractInkFromPhoto(canvas) {
-            const ctx = canvas.getContext('2d');
-            const w = canvas.width, h = canvas.height;
-            const imageData = ctx.getImageData(0, 0, w, h);
-            const data = imageData.data;
-            const n = w * h;
-            const gray = new Uint8ClampedArray(n);
-            const hist = new Array(256).fill(0);
-            for (let i = 0; i < n; i++) {
-                const o = i * 4;
-                const v = Math.round(0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2]);
-                gray[i] = v;
-                hist[v]++;
-            }
-            const threshold = _otsuThreshold(hist, n);
-            for (let i = 0; i < n; i++) {
-                const o = i * 4;
-                if (gray[i] < threshold) {
-                    data[o] = 26; data[o + 1] = 35; data[o + 2] = 126; // #1a237e, đồng bộ màu mực với chữ ký vẽ tay
-                    data[o + 3] = 255;
-                } else {
-                    data[o + 3] = 0;
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
-        }
-
         function handleSignatureUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async () => {
-                try {
-                    const img = await _loadImg(reader.result);
-                    const maxDim = 1200;
-                    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-                    const canvas = document.createElement('canvas');
-                    canvas.width = Math.round(img.width * scale);
-                    canvas.height = Math.round(img.height * scale);
-                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                    _extractInkFromPhoto(canvas);
-                    uploadedSignatureDataUrl = _cropSignatureToContent(canvas);
-                    document.getElementById('signature-upload-preview').src = uploadedSignatureDataUrl;
-                    document.getElementById('signature-upload-preview-area').classList.remove('hidden');
-                    document.getElementById('signature-upload-placeholder').classList.add('hidden');
-                    updateSignBtn();
-                } catch (err) {
-                    showToast('Không đọc được ảnh, vui lòng thử ảnh khác', 'error');
-                }
-            };
-            reader.readAsDataURL(file);
+            processSignatureFile(file).then(dataUrl => {
+                uploadedSignatureDataUrl = dataUrl;
+                document.getElementById('signature-upload-preview').src = uploadedSignatureDataUrl;
+                document.getElementById('signature-upload-preview-area').classList.remove('hidden');
+                document.getElementById('signature-upload-placeholder').classList.add('hidden');
+                updateSignBtn();
+            }).catch(() => {
+                showToast('Không đọc được ảnh, vui lòng thử ảnh khác', 'error');
+            });
             event.target.value = '';
         }
 
@@ -5611,35 +5553,6 @@
                 badge.innerHTML = '<span class="bg-yellow-400 text-yellow-900 text-xs font-bold px-2.5 py-1 rounded-full">Chưa ký</span>';
                 subtitle.textContent = '';
             }
-        }
-
-        function _cropSignatureToContent(canvas) {
-            const ctx = canvas.getContext('2d');
-            const w = canvas.width, h = canvas.height;
-            const data = ctx.getImageData(0, 0, w, h).data;
-            let x0 = w, y0 = h, x1 = 0, y1 = 0;
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    if (data[(y * w + x) * 4 + 3] > 10) {
-                        if (x < x0) x0 = x;
-                        if (x > x1) x1 = x;
-                        if (y < y0) y0 = y;
-                        if (y > y1) y1 = y;
-                    }
-                }
-            }
-            if (x1 < x0) return canvas.toDataURL('image/png');
-            const pad = 12;
-            x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
-            x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
-            const out = document.createElement('canvas');
-            out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
-            out.getContext('2d').drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
-            return out.toDataURL('image/png');
-        }
-
-        function _loadImg(src) {
-            return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
         }
 
         async function confirmSign() {

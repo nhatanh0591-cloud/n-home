@@ -2,7 +2,8 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
 import { getBuildings, getServices, getAccounts, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
-import { showToast, openModal, closeModal, formatNumber, formatMoney, exportToExcel, showConfirm } from '../utils.js';
+import { showToast, openModal, closeModal, formatNumber, formatMoney, exportToExcel, showConfirm, attachDateSlashMask } from '../utils.js';
+import { processSignatureFile } from './signature-utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentBuildingServices = []; // Dịch vụ tạm thời khi chỉnh sửa tòa nhà
@@ -10,6 +11,7 @@ let originalBuildingServices = []; // Sao lưu dịch vụ gốc
 let isCreatingServiceFromBuilding = false; // Cờ báo hiệu
 let selectedMobileBuildingIds = new Set(); // Checkbox mobile persistent
 let currentCapitalItems = []; // Vốn đầu tư tạm thời khi chỉnh sửa
+let currentLandlordSignature = null; // Ảnh chữ ký chủ nhà (dataURL) tạm thời khi chỉnh sửa
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Tòa nhà) ---
 const buildingsSection = document.getElementById('buildings-section');
@@ -35,6 +37,12 @@ const buildingStatusText = document.getElementById('building-status-text');
 const buildingServicesListEl = document.getElementById('building-services-list');
 const roomsModal = document.getElementById('rooms-modal');
 const importBuildingsModal = document.getElementById('import-buildings-modal');
+
+// Chủ nhà
+const landlordSigPlaceholder = document.getElementById('building-landlord-sig-placeholder');
+const landlordSigPreviewArea = document.getElementById('building-landlord-sig-preview-area');
+const landlordSigPreview = document.getElementById('building-landlord-sig-preview');
+const landlordSigInput = document.getElementById('building-landlord-sig-input');
 
 // Modals (Dịch vụ)
 const selectBuildingServiceModal = document.getElementById('select-building-service-modal');
@@ -89,6 +97,39 @@ export function initBuildings() {
 
     // Lắng nghe sự kiện cho modal import
     initImportModal();
+    attachDateSlashMask(document.getElementById('building-landlord-dob'));
+
+    // Upload ảnh chữ ký chủ nhà
+    landlordSigPlaceholder?.addEventListener('click', () => landlordSigInput.click());
+    landlordSigInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            currentLandlordSignature = await processSignatureFile(file);
+            renderLandlordSignature();
+        } catch (err) {
+            showToast('Không đọc được ảnh, vui lòng thử ảnh khác', 'error');
+        }
+        e.target.value = '';
+    });
+    document.getElementById('clear-landlord-sig-btn')?.addEventListener('click', () => {
+        currentLandlordSignature = null;
+        renderLandlordSignature();
+    });
+}
+
+/**
+ * Hiển thị/ẩn ảnh chữ ký chủ nhà trong modal tòa nhà
+ */
+function renderLandlordSignature() {
+    if (currentLandlordSignature) {
+        landlordSigPreview.src = currentLandlordSignature;
+        landlordSigPreviewArea.classList.remove('hidden');
+        landlordSigPlaceholder.classList.add('hidden');
+    } else {
+        landlordSigPreviewArea.classList.add('hidden');
+        landlordSigPlaceholder.classList.remove('hidden');
+    }
 }
 
 /**
@@ -280,6 +321,16 @@ async function handleBodyClick(e) {
         document.getElementById('building-start-date')?.value && (document.getElementById('building-start-date').value = '');
         const priorEl = document.getElementById('building-prior-profit');
         if (priorEl) priorEl.value = '';
+
+        // Reset thông tin chủ nhà
+        document.getElementById('building-landlord-name').value = '';
+        document.getElementById('building-landlord-id').value = '';
+        document.getElementById('building-landlord-dob').value = '';
+        document.getElementById('building-landlord-gender').value = '';
+        document.getElementById('building-landlord-address').value = '';
+        currentLandlordSignature = null;
+        renderLandlordSignature();
+
         loadAccountsToDropdown();
         openModal(buildingModal);
     }
@@ -309,6 +360,15 @@ async function handleBodyClick(e) {
             // Load priorProfit
             const priorEl = document.getElementById('building-prior-profit');
             if (priorEl) priorEl.value = building.priorProfit ? formatMoney(building.priorProfit) : '';
+
+            // Load thông tin chủ nhà
+            document.getElementById('building-landlord-name').value = building.landlordName || '';
+            document.getElementById('building-landlord-id').value = building.landlordIdNumber || '';
+            document.getElementById('building-landlord-dob').value = building.landlordDob || '';
+            document.getElementById('building-landlord-gender').value = building.landlordGender || '';
+            document.getElementById('building-landlord-address').value = building.landlordAddress || '';
+            currentLandlordSignature = building.landlordSignatureImage || null;
+            renderLandlordSignature();
 
             loadAccountsToDropdown();
             
@@ -546,6 +606,14 @@ async function handleBuildingFormSubmit(e) {
         buildingData.startDate = startDateVal || null;
         const priorRaw = (document.getElementById('building-prior-profit')?.value || '').replace(/\./g, '');
         buildingData.priorProfit = parseFloat(priorRaw) || 0;
+
+        // Thông tin chủ nhà
+        buildingData.landlordName = document.getElementById('building-landlord-name').value.trim() || null;
+        buildingData.landlordIdNumber = document.getElementById('building-landlord-id').value.trim() || null;
+        buildingData.landlordDob = document.getElementById('building-landlord-dob').value.trim() || null;
+        buildingData.landlordGender = document.getElementById('building-landlord-gender').value || null;
+        buildingData.landlordAddress = document.getElementById('building-landlord-address').value.trim() || null;
+        buildingData.landlordSignatureImage = currentLandlordSignature || null;
 
         let buildingId = id;
         if (id) {

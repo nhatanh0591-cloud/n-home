@@ -250,6 +250,24 @@ export function formatMoneyInput(input) {
 }
 
 /**
+ * Gắn vào 1 input text để tự động chèn dấu "/" khi gõ số, ra định dạng dd/mm/yyyy.
+ * Gõ "05052000" -> tự hiện "05/05/2000".
+ */
+export function attachDateSlashMask(input) {
+    if (!input) return;
+    input.addEventListener('input', () => {
+        const digits = input.value.replace(/\D/g, '').slice(0, 8);
+        if (digits.length > 4) {
+            input.value = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+        } else if (digits.length > 2) {
+            input.value = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+        } else {
+            input.value = digits;
+        }
+    });
+}
+
+/**
  * Hiển thị thông báo (toast)
  */
 export function showToast(message, type = 'success') {

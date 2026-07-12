@@ -2,7 +2,7 @@
 
 import { db, addDoc, setDoc, doc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
 import { getCustomers, getContracts, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
-import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showConfirm } from '../utils.js';
+import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showConfirm, attachDateSlashMask } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentCustomerPage = 1;
@@ -70,7 +70,8 @@ export function initCustomers() {
     
     // Lắng nghe form
     customerForm.addEventListener('submit', handleCustomerFormSubmit);
-    
+    attachDateSlashMask(document.getElementById('customer-birth-date'));
+
     // Lắng nghe nút bỏ chọn hàng loạt
     document.getElementById('clear-selection-customers-btn')?.addEventListener('click', () => {
         selectedMobileCustomerIds.clear();
@@ -435,9 +436,10 @@ async function handleBodyClick(e) {
         customerModalTitle.textContent = 'Thêm Khách hàng';
         customerForm.reset();
         document.getElementById('customer-id').value = '';
-        document.getElementById('customer-birth-year').value = '';
         document.getElementById('customer-id-number').value = '';
         document.getElementById('customer-permanent-address').value = '';
+        document.getElementById('customer-birth-date').value = '';
+        document.getElementById('customer-gender').value = '';
         openModal(customerModal);
     }
     // Nút "Sửa"
@@ -448,9 +450,10 @@ async function handleBodyClick(e) {
             document.getElementById('customer-id').value = customer.id;
             document.getElementById('customer-name').value = customer.name;
             document.getElementById('customer-phone').value = customer.phone;
-            document.getElementById('customer-birth-year').value = customer.birthYear || '';
             document.getElementById('customer-id-number').value = customer.idNumber || '';
             document.getElementById('customer-permanent-address').value = customer.permanentAddress || '';
+            document.getElementById('customer-birth-date').value = customer.birthDate || '';
+            document.getElementById('customer-gender').value = customer.gender || '';
             openModal(customerModal);
         }
     }
@@ -503,9 +506,10 @@ async function handleCustomerFormSubmit(e) {
     const id = document.getElementById('customer-id').value;
     const name = document.getElementById('customer-name').value.trim();
     const phone = document.getElementById('customer-phone').value.trim();
-    const birthYear = document.getElementById('customer-birth-year').value.trim();
     const idNumber = document.getElementById('customer-id-number').value.trim();
     const permanentAddress = document.getElementById('customer-permanent-address').value.trim();
+    const birthDate = document.getElementById('customer-birth-date').value.trim();
+    const gender = document.getElementById('customer-gender').value;
 
     if (!name || !phone) {
         showToast('Vui lòng nhập đầy đủ thông tin!', 'error');
@@ -516,16 +520,16 @@ async function handleCustomerFormSubmit(e) {
         const customerData = {
             name,
             phone,
-            ...(birthYear && { birthYear }),
             ...(idNumber && { idNumber }),
             ...(permanentAddress && { permanentAddress }),
+            ...(birthDate && { birthDate }),
+            ...(gender && { gender }),
             updatedAt: serverTimestamp()
         };
 
         if (id) {
             // Nếu ô nào bị xóa trắng thì phải xóa hẳn field đó trên Firebase (deleteField),
             // nếu không setDoc({merge:true}) sẽ chỉ bỏ qua field đó và giữ nguyên giá trị cũ
-            if (!birthYear) customerData.birthYear = deleteField();
             if (!idNumber) customerData.idNumber = deleteField();
             if (!permanentAddress) customerData.permanentAddress = deleteField();
 
@@ -534,7 +538,6 @@ async function handleCustomerFormSubmit(e) {
 
             // Update localStorage - dùng undefined để xóa field khỏi bản ghi local tương ứng
             const localData = { ...customerData };
-            if (!birthYear) localData.birthYear = undefined;
             if (!idNumber) localData.idNumber = undefined;
             if (!permanentAddress) localData.permanentAddress = undefined;
             updateInLocalStorage('customers', id, localData);

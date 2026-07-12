@@ -11,6 +11,7 @@ import { initSyncUI } from './sync-ui.js';
 // --- 2. NHẬP CÁC MODULE CHỨC NĂNG ---
 // Nhập cả hàm init (để cài đặt) và hàm load (để điều hướng)
 import { initBuildings, loadBuildings } from './modules/buildings.js';
+import { initDocuments, loadDocuments } from './modules/documents.js';
 import { initServices, loadServices } from './modules/services.js';
 import { initAccounts, loadAccounts } from './modules/accounts.js';
 import { initTransactionCategories, loadTransactionCategories } from './modules/transaction-categories.js';
@@ -80,6 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const loaders = {
             'dashboard': loadDashboard,
             'buildings': loadBuildings,
+            'documents': loadDocuments,
             'services': loadServices,
             'accounts': loadAccounts,
             'transaction-categories': loadTransactionCategories,
@@ -96,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initNavigation(loaders); // Quan trọng: Truyền bản đồ loaders vào
         initDashboard();
         initBuildings();
+        initDocuments();
         initServices();
         initAccounts();
         initTransactionCategories();

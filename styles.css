@@ -3,6 +3,15 @@
     background-color: #f0f2f5;
 }
 
+/* Ẩn thanh cuộn (vẫn cuộn được bình thường, chỉ ẩn phần thanh chiếm diện tích) */
+* {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+    display: none;
+}
+
 /* Close button (X) styles - Make all X buttons bigger and consistent */
 button[id*="close-"],
 button[id*="close-"]:not([class*="text-"]) {

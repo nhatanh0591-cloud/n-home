@@ -9,6 +9,7 @@ const mainHeaderTitle = document.getElementById('main-header-title');
 const sections = {
     'dashboard': document.getElementById('dashboard-section'),
     'buildings': document.getElementById('buildings-section'),
+    'documents': document.getElementById('documents-section'),
     'services': document.getElementById('services-section'),
     'accounts': document.getElementById('accounts-section'),
     'transaction-categories': document.getElementById('transaction-categories-section'),
@@ -26,6 +27,7 @@ const sections = {
 const navButtons = {
     'dashboard': document.getElementById('dashboard-btn'),
     'buildings': document.getElementById('buildings-btn'),
+    'documents': document.getElementById('documents-btn'),
     'services': document.getElementById('services-btn'),
     'accounts': document.getElementById('accounts-btn'),
     'transaction-categories': document.getElementById('transaction-categories-btn'),
@@ -47,6 +49,7 @@ export function showSection(sectionName, loader) {
     const titles = {
         'dashboard': 'Bảng tin',
         'buildings': 'Quản lý Tòa nhà',
+        'documents': 'Hồ sơ giấy tờ',
         'services': 'Danh sách Dịch vụ',
         'accounts': 'Quản lý Sổ quỹ',
         'contracts': 'Hợp đồng',
