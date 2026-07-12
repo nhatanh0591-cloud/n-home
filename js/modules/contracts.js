@@ -1450,6 +1450,8 @@ async function handleQuickCustomerSubmit(e) {
     const permanentAddress = document.getElementById('quick-customer-permanent-address').value.trim();
     const birthDate = document.getElementById('quick-customer-birth-date').value.trim();
     const gender = document.getElementById('quick-customer-gender').value;
+    const hometown = document.getElementById('quick-customer-hometown').value.trim();
+    const ethnicity = document.getElementById('quick-customer-ethnicity').value.trim();
 
     if (!name || !phone) {
         return showToast('Vui lòng nhập đủ tên và SĐT!', 'error');
@@ -1463,6 +1465,8 @@ async function handleQuickCustomerSubmit(e) {
             ...(permanentAddress && { permanentAddress }),
             ...(birthDate && { birthDate }),
             ...(gender && { gender }),
+            ...(hometown && { hometown }),
+            ...(ethnicity && { ethnicity }),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         };
@@ -2237,7 +2241,7 @@ export function getContractStatus(contract) {
 /**
  * Lấy thông tin hiển thị (text, class) cho từng trạng thái
  */
-function getStatusInfo(status) {
+export function getStatusInfo(status) {
     switch (status) {
         case 'active': return { text: '🟢 Thuê', className: 'bg-green-100 text-green-800' };
         case 'expiring': return { text: '🟡 Sắp hết', className: 'bg-yellow-100 text-yellow-800' };

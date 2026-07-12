@@ -65,8 +65,9 @@ function idNumberRow(label, idNumber, boxWidthPt) {
  * @param {object} customer - cần customer.name, birthDate, gender, idNumber
  * @param {string} [customerSignatureDataUrl] - chữ ký khách (lấy lại từ hợp đồng thuê đã ký)
  * @param {string} [residenceUntilDate] - ngày tạm trú đến (dd/mm/yyyy), người dùng tự nhập trước khi xuất
+ * @param {string} [signDate] - ngày tháng ký (dd/mm/yyyy), người dùng tự nhập trước khi xuất; để trống thì lấy ngày hiện tại
  */
-export function buildCT01Html(building, customer, customerSignatureDataUrl, residenceUntilDate) {
+export function buildCT01Html(building, customer, customerSignatureDataUrl, residenceUntilDate, signDate) {
     const addr = parseBuildingAddress(building?.address);
     const dots = (n) => '.'.repeat(n);
 
@@ -76,24 +77,24 @@ export function buildCT01Html(building, customer, customerSignatureDataUrl, resi
     const idNumber = customer?.idNumber || '';
     const email = customer?.email || dots(10);
 
-    const landlordName = building?.landlordName || '';
-    const landlordId = building?.landlordIdNumber || '';
+    const landlordName = building?.landlordName || dots(18);
+    const landlordId = building?.landlordIdNumber || dots(11);
     const landlordSigHtml = building?.landlordSignatureImage
-        ? `<img src="${building.landlordSignatureImage}" style="height:48pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
+        ? `<img src="${building.landlordSignatureImage}" style="height:82pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
         : '';
     const customerSigHtml = customerSignatureDataUrl
-        ? `<img src="${customerSignatureDataUrl}" style="height:48pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
+        ? `<img src="${customerSignatureDataUrl}" style="height:82pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
         : '';
 
-    const now = new Date();
-    const signDay = String(now.getDate()).padStart(2, '0');
-    const signMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const signYear = now.getFullYear();
+    // Ngày tháng ký NGƯỜI KÊ KHAI: ưu tiên ngày người dùng tự nhập trước khi xuất, không có thì lấy ngày hiện tại
+    const [signDay, signMonth, signYear] = signDate
+        ? signDate.split('/')
+        : [String(new Date().getDate()).padStart(2, '0'), String(new Date().getMonth() + 1).padStart(2, '0'), new Date().getFullYear()];
 
     // Độ rộng cột bảng mục 11, đúng tỉ lệ tblGrid docx: 455:2671:1552:758:2163:1550 (twips)
     // Tiêu đề xuống dòng cứng đúng điểm ngắt trong file gốc (2 dòng/ô), viền liền cả 4 cạnh mọi ô
     const memberRow = () =>
-        `<tr>${['4%', '34%', '14%', '8%', '24%', '16%'].map(w => `<td style="border:1px solid #000;height:14pt;width:${w};font-size:12pt;"></td>`).join('')}</tr>`;
+        `<tr>${['4%', '34%', '14%', '8%', '24%', '16%'].map(w => `<td style="border:1px solid #000;height:26pt;width:${w};font-size:12pt;"></td>`).join('')}</tr>`;
     const memberTable = `
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;${SP}">
   <tr>
@@ -107,12 +108,14 @@ export function buildCT01Html(building, customer, customerSignatureDataUrl, resi
   ${Array.from({ length: 4 }, memberRow).join('')}
 </table>`;
 
-    // Độ rộng 4 cột chữ ký cuối trang, đúng tỉ lệ tblGrid docx: 3015:2825:2782:2596 (twips, gần bằng nhau)
-    const sigCol = (dateLine, title, bodyHtml, footHtml, widthPct) => `
-<td style="width:${widthPct}%;text-align:center;vertical-align:top;padding:0 4pt;">
-  <p style="text-align:left;font-style:italic;margin:0;">${dateLine}</p>
-  <p style="text-align:center;font-weight:700;margin:2pt 0 0;">${title}</p>
-  <div style="height:48pt;display:flex;align-items:center;justify-content:center;">${bodyHtml || ''}</div>
+    // Độ rộng 4 cột chữ ký cuối trang. Cột NGƯỜI KÊ KHAI có số (12/07/2026) chiếm nhiều bề ngang hơn chữ
+    // chấm chấm của 3 cột kia (chữ số trong Times New Roman rộng hơn dấu chấm nhiều), nên nới rộng hơn
+    // + giảm nhẹ cỡ chữ dòng ngày cho chắc vừa 1 hàng, không ép quá tay làm vỡ 3 cột còn lại.
+    const sigCol = (dateLine, title, bodyHtml, footHtml, widthPct, italicDate = true, noLeftPad = false) => `
+<td style="width:${widthPct}%;text-align:center;vertical-align:top;padding:0 4pt 0 ${noLeftPad ? '0' : '4pt'};">
+  <p style="text-align:left;margin:0;${italicDate ? 'font-style:italic;' : ''}">${dateLine}</p>
+  <p style="text-align:center;font-weight:700;font-size:10pt;margin:2pt 0 0;">${title}</p>
+  <div style="height:82pt;display:flex;align-items:center;justify-content:center;">${bodyHtml || ''}</div>
   <p style="text-align:center;margin:0;">&nbsp;</p>
   ${footHtml || ''}
 </td>`;
@@ -135,16 +138,15 @@ ${idNumberRow('9. Số định danh cá nhân của chủ hộ:', idNumber, 20.5
 <p style="text-align:left;${SP}">10. Nội dung đề nghị<sup>(2)</sup>: Đăng ký tạm trú tại địa chỉ ${addr.fullAddress}${residenceUntilDate ? ` đến ngày ${residenceUntilDate}` : ''}</p>
 <p style="text-align:left;font-size:13pt;${SP}">11. Những thành viên trong hộ gia đình cùng thay đổi:</p>
 ${memberTable}
-
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8pt;">
 <tr>
-${sigCol('.....,ngày.......tháng....năm.......', 'Ý KIẾN CỦA CHỦ HỘ<sup>(3)</sup>', '', '', 27)}
-${sigCol('.....,ngày.....tháng....năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(4)</sup>', landlordSigHtml,
-    `<p style="text-align:left;font-size:8.5pt;margin:0;">(7) Họ và tên: ${landlordName}</p><p style="text-align:left;font-size:8.5pt;margin:0;">(7) Số định danh cá nhân: ${landlordId}</p>`, 25)}
-${sigCol('.....,ngày......tháng...năm...', 'Ý KIẾN CỦA CHA HOẶC MẸ HOẶC NGƯỜI GIÁM HỘ<sup>(5)</sup>', '',
-    `<p style="text-align:left;font-size:8.5pt;margin:0;">(7) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;">(7) Số định danh cá nhân:..................</p>`, 25)}
-${sigCol(`.....,ngày${signDay}tháng${signMonth}năm${signYear}`, 'NGƯỜI KÊ KHAI<sup>(6)</sup>', customerSigHtml,
-    `<p style="text-align:center;margin:0;">${name}</p>`, 23)}
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ HỘ<sup>(3)</sup>', '', '', 21, true, true)}
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(4)</sup>', landlordSigHtml,
+    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ${landlordName}</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:${landlordId}</p>`, 24)}
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHA HOẶC MẸ HOẶC NGƯỜI GIÁM HỘ<sup>(5)</sup>', '',
+    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:...........</p>`, 23)}
+${sigCol(`..,ngày ${signDay} tháng ${signMonth} năm ${signYear}`, 'NGƯỜI KÊ KHAI<sup>(6)</sup>', customerSigHtml,
+    '', 32, false)}
 </tr>
 </table>
 </div>`;

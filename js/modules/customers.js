@@ -440,6 +440,8 @@ async function handleBodyClick(e) {
         document.getElementById('customer-permanent-address').value = '';
         document.getElementById('customer-birth-date').value = '';
         document.getElementById('customer-gender').value = '';
+        document.getElementById('customer-hometown').value = '';
+        document.getElementById('customer-ethnicity').value = '';
         openModal(customerModal);
     }
     // Nút "Sửa"
@@ -454,6 +456,8 @@ async function handleBodyClick(e) {
             document.getElementById('customer-permanent-address').value = customer.permanentAddress || '';
             document.getElementById('customer-birth-date').value = customer.birthDate || '';
             document.getElementById('customer-gender').value = customer.gender || '';
+            document.getElementById('customer-hometown').value = customer.hometown || '';
+            document.getElementById('customer-ethnicity').value = customer.ethnicity || '';
             openModal(customerModal);
         }
     }
@@ -510,6 +514,8 @@ async function handleCustomerFormSubmit(e) {
     const permanentAddress = document.getElementById('customer-permanent-address').value.trim();
     const birthDate = document.getElementById('customer-birth-date').value.trim();
     const gender = document.getElementById('customer-gender').value;
+    const hometown = document.getElementById('customer-hometown').value.trim();
+    const ethnicity = document.getElementById('customer-ethnicity').value.trim();
 
     if (!name || !phone) {
         showToast('Vui lòng nhập đầy đủ thông tin!', 'error');
@@ -524,6 +530,8 @@ async function handleCustomerFormSubmit(e) {
             ...(permanentAddress && { permanentAddress }),
             ...(birthDate && { birthDate }),
             ...(gender && { gender }),
+            ...(hometown && { hometown }),
+            ...(ethnicity && { ethnicity }),
             updatedAt: serverTimestamp()
         };
 
@@ -532,6 +540,8 @@ async function handleCustomerFormSubmit(e) {
             // nếu không setDoc({merge:true}) sẽ chỉ bỏ qua field đó và giữ nguyên giá trị cũ
             if (!idNumber) customerData.idNumber = deleteField();
             if (!permanentAddress) customerData.permanentAddress = deleteField();
+            if (!hometown) customerData.hometown = deleteField();
+            if (!ethnicity) customerData.ethnicity = deleteField();
 
             // Update Firebase
             await setDoc(doc(db, 'customers', id), customerData, { merge: true });
@@ -540,6 +550,8 @@ async function handleCustomerFormSubmit(e) {
             const localData = { ...customerData };
             if (!idNumber) localData.idNumber = undefined;
             if (!permanentAddress) localData.permanentAddress = undefined;
+            if (!hometown) localData.hometown = undefined;
+            if (!ethnicity) localData.ethnicity = undefined;
             updateInLocalStorage('customers', id, localData);
             showToast('Cập nhật khách hàng thành công!');
         } else {

@@ -98,6 +98,7 @@ export function initBuildings() {
     // Lắng nghe sự kiện cho modal import
     initImportModal();
     attachDateSlashMask(document.getElementById('building-landlord-dob'));
+    attachDateSlashMask(document.getElementById('building-landlord-id-issue-date'));
 
     // Upload ảnh chữ ký chủ nhà
     landlordSigPlaceholder?.addEventListener('click', () => landlordSigInput.click());
@@ -327,7 +328,10 @@ async function handleBodyClick(e) {
         document.getElementById('building-landlord-id').value = '';
         document.getElementById('building-landlord-dob').value = '';
         document.getElementById('building-landlord-gender').value = '';
+        document.getElementById('building-landlord-id-issue-date').value = '';
+        document.getElementById('building-landlord-id-issue-place').value = '';
         document.getElementById('building-landlord-address').value = '';
+        document.getElementById('building-landlord-current-address').value = '';
         currentLandlordSignature = null;
         renderLandlordSignature();
 
@@ -366,7 +370,10 @@ async function handleBodyClick(e) {
             document.getElementById('building-landlord-id').value = building.landlordIdNumber || '';
             document.getElementById('building-landlord-dob').value = building.landlordDob || '';
             document.getElementById('building-landlord-gender').value = building.landlordGender || '';
+            document.getElementById('building-landlord-id-issue-date').value = building.landlordIdIssueDate || '';
+            document.getElementById('building-landlord-id-issue-place').value = building.landlordIdIssuePlace || '';
             document.getElementById('building-landlord-address').value = building.landlordAddress || '';
+            document.getElementById('building-landlord-current-address').value = building.landlordCurrentAddress || '';
             currentLandlordSignature = building.landlordSignatureImage || null;
             renderLandlordSignature();
 
@@ -612,7 +619,10 @@ async function handleBuildingFormSubmit(e) {
         buildingData.landlordIdNumber = document.getElementById('building-landlord-id').value.trim() || null;
         buildingData.landlordDob = document.getElementById('building-landlord-dob').value.trim() || null;
         buildingData.landlordGender = document.getElementById('building-landlord-gender').value || null;
+        buildingData.landlordIdIssueDate = document.getElementById('building-landlord-id-issue-date').value.trim() || null;
+        buildingData.landlordIdIssuePlace = document.getElementById('building-landlord-id-issue-place').value.trim() || null;
         buildingData.landlordAddress = document.getElementById('building-landlord-address').value.trim() || null;
+        buildingData.landlordCurrentAddress = document.getElementById('building-landlord-current-address').value.trim() || null;
         buildingData.landlordSignatureImage = currentLandlordSignature || null;
 
         let buildingId = id;

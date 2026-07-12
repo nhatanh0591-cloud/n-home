@@ -49,7 +49,7 @@ export function showSection(sectionName, loader) {
     const titles = {
         'dashboard': 'Bảng tin',
         'buildings': 'Quản lý Tòa nhà',
-        'documents': 'Hồ sơ giấy tờ',
+        'documents': 'Quản lý hồ sơ',
         'services': 'Danh sách Dịch vụ',
         'accounts': 'Quản lý Sổ quỹ',
         'contracts': 'Hợp đồng',

@@ -388,37 +388,88 @@
                     </div>
                 </div>
 
-                <!-- Documents Section (Giấy tờ) -->
+                <!-- Documents Section (Quản lý hồ sơ) -->
                 <div id="documents-section" class="hidden">
-                    <div class="bg-white rounded-lg shadow p-4 sm:p-6">
-                        <h2 class="text-lg font-semibold mb-4">Hồ sơ giấy tờ</h2>
-
-                        <div class="mb-4">
-                            <label for="documents-building-select" class="block mb-2 text-sm font-medium">Chọn tòa nhà</label>
-                            <select id="documents-building-select" class="w-full sm:w-96 p-2.5 border rounded-lg bg-gray-50">
-                                <option value="">-- Chọn tòa nhà --</option>
-                            </select>
-                        </div>
-
-                        <div id="documents-no-building" class="text-gray-500 text-sm py-6 text-center">Chọn 1 tòa nhà để xem danh sách khách còn hợp đồng hoạt động.</div>
-
-                        <div id="documents-customer-panel" class="hidden">
-                            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                                <div class="flex items-center gap-3">
-                                    <button type="button" id="documents-select-all-btn" class="text-sm text-blue-600 hover:text-blue-800 font-medium">✓ Chọn tất cả</button>
-                                    <button type="button" id="documents-deselect-all-btn" class="text-sm text-gray-600 hover:text-gray-800 font-medium">✗ Bỏ chọn tất cả</button>
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="p-4 border-b">
+                            <h2 class="text-lg font-semibold mb-4">Quản lý hồ sơ</h2>
+                            <div class="flex flex-col sm:flex-row gap-4">
+                                <div class="flex-1">
+                                    <label for="documents-type-select" class="block mb-2 text-sm font-medium">Loại giấy tờ</label>
+                                    <select id="documents-type-select" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                                        <option value="">-- Chọn loại giấy tờ cần xuất --</option>
+                                        <option value="ct01">CT01 - Tờ khai thay đổi thông tin cư trú</option>
+                                        <option value="onho1">Hợp đồng ở nhờ - Mẫu 1</option>
+                                        <option value="onho2">Hợp đồng ở nhờ - Mẫu 2</option>
+                                        <option value="onho3">Hợp đồng ở nhờ - Mẫu 3</option>
+                                    </select>
                                 </div>
-                                <div class="flex items-center gap-3">
-                                    <div class="flex items-center gap-2">
-                                        <label for="documents-temp-residence-until" class="text-sm font-medium whitespace-nowrap">Tạm trú đến ngày</label>
-                                        <input type="date" id="documents-temp-residence-until" class="p-2 border rounded-lg bg-gray-50 text-sm">
-                                    </div>
-                                    <button type="button" id="documents-export-ct01-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">
-                                        Xuất CT01 (PDF)
-                                    </button>
+                                <div class="flex-1">
+                                    <label for="documents-building-select" class="block mb-2 text-sm font-medium">Chọn tòa nhà</label>
+                                    <select id="documents-building-select" class="w-full p-2.5 border rounded-lg bg-gray-50" disabled>
+                                        <option value="">-- Chọn tòa nhà --</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div id="documents-customer-list" class="space-y-2 max-h-[60vh] overflow-y-auto border rounded-lg p-3"></div>
+                        </div>
+
+                        <div id="documents-no-type" class="text-gray-500 text-sm py-6 text-center">Chọn loại giấy tờ cần xuất để bắt đầu.</div>
+                        <div id="documents-no-building" class="hidden text-gray-500 text-sm py-6 text-center">Chọn 1 tòa nhà để xem danh sách khách còn hợp đồng hoạt động.</div>
+
+                        <div id="documents-customer-panel" class="hidden p-4">
+                            <!-- Field bổ sung riêng cho từng loại giấy tờ, chỉ hiện khi loại giấy tờ tương ứng được chọn -->
+                            <div id="documents-ct01-fields" class="hidden flex flex-wrap items-center gap-4 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <label for="documents-temp-residence-until" class="text-sm font-medium whitespace-nowrap">Tạm trú đến ngày</label>
+                                    <input type="date" id="documents-temp-residence-until" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label for="documents-ct01-sign-date" class="text-sm font-medium whitespace-nowrap">Ngày ký CT01</label>
+                                    <input type="date" id="documents-ct01-sign-date" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                </div>
+                            </div>
+                            <div id="documents-onho1-fields" class="hidden flex flex-wrap items-center gap-4 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <label for="documents-onho1-sign-date" class="text-sm font-medium whitespace-nowrap">Ngày ký hợp đồng</label>
+                                    <input type="date" id="documents-onho1-sign-date" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                </div>
+                            </div>
+                            <div id="documents-onho2-fields" class="hidden flex flex-wrap items-center gap-4 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <label for="documents-onho2-sign-date" class="text-sm font-medium whitespace-nowrap">Ngày ký hợp đồng</label>
+                                    <input type="date" id="documents-onho2-sign-date" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                </div>
+                            </div>
+                            <div id="documents-onho3-fields" class="hidden flex flex-wrap items-center gap-4 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <label for="documents-onho3-sign-date" class="text-sm font-medium whitespace-nowrap">Ngày ký hợp đồng</label>
+                                    <input type="date" id="documents-onho3-sign-date" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center justify-end gap-3 mb-3">
+                                <button type="button" id="documents-export-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">
+                                    Xuất PDF
+                                </button>
+                            </div>
+                            <!-- Desktop Table -->
+                            <table class="w-full desktop-table">
+                                <thead>
+                                    <tr class="border-b text-left text-gray-600 text-sm font-medium">
+                                        <th class="py-3 px-4 w-12">
+                                            <input type="checkbox" id="documents-select-all" class="w-4 h-4 cursor-pointer">
+                                        </th>
+                                        <th class="py-3 px-4">Họ tên</th>
+                                        <th class="py-3 px-4">Tòa nhà</th>
+                                        <th class="py-3 px-4">Phòng</th>
+                                        <th class="py-3 px-4">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documents-customer-list"></tbody>
+                            </table>
+
+                            <!-- Mobile Cards -->
+                            <div id="documents-customer-mobile-list" class="mobile-cards"></div>
                         </div>
                     </div>
                 </div>
@@ -2201,9 +2252,21 @@
                                 <option value="Nữ">Nữ</option>
                             </select>
                         </div>
+                        <div>
+                            <label for="building-landlord-id-issue-date" class="block mb-2 text-sm font-medium">Ngày cấp CCCD</label>
+                            <input type="text" id="building-landlord-id-issue-date" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="building-landlord-id-issue-place" class="block mb-2 text-sm font-medium">Nơi cấp CCCD</label>
+                            <input type="text" id="building-landlord-id-issue-place" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Cục CSQLHC về TTXH">
+                        </div>
                         <div class="sm:col-span-2">
                             <label for="building-landlord-address" class="block mb-2 text-sm font-medium">Nơi thường trú</label>
                             <input type="text" id="building-landlord-address" class="w-full p-2.5 border rounded-lg bg-gray-50">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="building-landlord-current-address" class="block mb-2 text-sm font-medium">Chỗ ở hiện nay</label>
+                            <input type="text" id="building-landlord-current-address" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Để trống nếu giống nơi thường trú">
                         </div>
                     </div>
                     <div>
@@ -2493,6 +2556,14 @@
                             <option value="Nữ">Nữ</option>
                         </select>
                     </div>
+                    <div>
+                        <label for="quick-customer-hometown" class="block mb-2 text-sm font-medium">Quê quán</label>
+                        <input type="text" id="quick-customer-hometown" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập quê quán">
+                    </div>
+                    <div>
+                        <label for="quick-customer-ethnicity" class="block mb-2 text-sm font-medium">Dân tộc</label>
+                        <input type="text" id="quick-customer-ethnicity" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Kinh">
+                    </div>
                 </div>
                 <div>
                     <label for="quick-customer-permanent-address" class="block mb-2 text-sm font-medium">Địa chỉ thường trú</label>
@@ -2538,6 +2609,14 @@
                             <option value="Nam">Nam</option>
                             <option value="Nữ">Nữ</option>
                         </select>
+                    </div>
+                    <div>
+                        <label for="customer-hometown" class="block mb-2 text-sm font-medium">Quê quán</label>
+                        <input type="text" id="customer-hometown" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập quê quán">
+                    </div>
+                    <div>
+                        <label for="customer-ethnicity" class="block mb-2 text-sm font-medium">Dân tộc</label>
+                        <input type="text" id="customer-ethnicity" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Kinh">
                     </div>
                 </div>
                 <div>
