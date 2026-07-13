@@ -723,7 +723,9 @@ async function handleCustomerFormSubmit(e) {
                 await markContractSignedByAdmin(currentCustomerSignatureContractId, currentCustomerSignature, phone);
                 showToast('Đã ghi nhận chữ ký, hợp đồng chuyển trạng thái đã ký!');
             } catch (sigError) {
-                showToast('Lưu khách hàng thành công nhưng lỗi khi ghi nhận chữ ký: ' + sigError.message, 'error');
+                const sizeKb = Math.round((new Blob([currentCustomerSignature || '']).size) / 1024);
+                console.error('❌ Lỗi ghi nhận chữ ký, chi tiết:', sigError, 'Dung lượng ảnh (KB):', sizeKb);
+                showToast(`Lưu khách hàng thành công nhưng lỗi khi ghi nhận chữ ký (ảnh ~${sizeKb}KB): ${sigError.message}`, 'error');
             }
         }
 
