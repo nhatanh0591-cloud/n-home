@@ -1151,7 +1151,7 @@
         import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js';
         import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js';
         import { processSignatureFile } from './js/modules/signature-utils.js';
-        import { cleanupAfterPrint, getBuildingShortCode } from './js/utils.js';
+        import { cleanupAfterPrint, getBuildingShortCode, getBirthYear } from './js/utils.js';
 
         // Firebase config
         const firebaseConfig = {
@@ -5442,7 +5442,7 @@
             const contract = contracts[0];
             const building = buildings.find(b => b.id === contract?.buildingId);
 
-            // Re-fetch customer để lấy dữ liệu mới nhất (birthYear, idNumber, permanentAddress)
+            // Re-fetch customer để lấy dữ liệu mới nhất (birthDate, idNumber, permanentAddress)
             let freshCustomer = await loadCustomerData(currentUser.phone).catch(() => null);
             if (!freshCustomer && contract?.customerId) {
                 try {
@@ -5475,7 +5475,7 @@
         }
 
         function isCustomerInfoCompleteForSigning(customer) {
-            return !!(customer?.birthYear && String(customer.birthYear).trim() &&
+            return !!(customer?.birthDate && String(customer.birthDate).trim() &&
                       customer?.idNumber && String(customer.idNumber).trim() &&
                       customer?.permanentAddress && String(customer.permanentAddress).trim());
         }
@@ -5669,7 +5669,7 @@
                 }
             }
             const tenantName = customer?.name ? customer.name.toUpperCase() : '............................................................................';
-            const tenantBirthYear = customer?.birthYear || '............................................................................';
+            const tenantBirthYear = getBirthYear(customer?.birthDate) || '............................................................................';
             const tenantIdNumber = customer?.idNumber || '............................................................................';
             const tenantAddress = customer?.permanentAddress || '............................................................................';
             const tenantPhone = currentUser?.phone || customer?.phone || '............................................................................';
@@ -5920,7 +5920,7 @@ ${sp}
             }
 
             const tenantName = customer?.name ? customer.name.toUpperCase() : '............................................................................';
-            const tenantBirthYear = customer?.birthYear || '............................................................................';
+            const tenantBirthYear = getBirthYear(customer?.birthDate) || '............................................................................';
             const tenantIdNumber = customer?.idNumber || '............................................................................';
             const tenantAddress = customer?.permanentAddress || '............................................................................';
             const tenantPhone = currentUser?.phone || customer?.phone || '............................................................................';

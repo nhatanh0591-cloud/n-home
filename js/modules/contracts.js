@@ -6,7 +6,7 @@ import {
     showToast, openModal, closeModal,
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney,
     importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage, safeToDate,
-    attachDateSlashMask, cleanupAfterPrint, getBuildingShortCode
+    attachDateSlashMask, cleanupAfterPrint, getBuildingShortCode, getBirthYear
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -703,7 +703,7 @@ function buildA4ContractHtml(contract, building, customer, tenantSigDataUrl) {
         }
     }
     const tenantName = customer?.name ? customer.name.toUpperCase() : '............................................................................';
-    const tenantBirthYear = customer?.birthYear || '............................................................................';
+    const tenantBirthYear = getBirthYear(customer?.birthDate) || '............................................................................';
     const tenantIdNumber = customer?.idNumber || '............................................................................';
     const tenantAddress = customer?.permanentAddress || '............................................................................';
     const tenantPhone = customer?.phone || '............................................................................';

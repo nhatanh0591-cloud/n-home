@@ -651,3 +651,11 @@ export function getBuildingShortCode(building) {
     const code = building?.code || '';
     return code.split('_')[0] || code;
 }
+
+/**
+ * Lấy năm sinh từ ô "Ngày, tháng, năm sinh" (dd/mm/yyyy) — dùng cho các chỗ hợp đồng
+ * chỉ cần hiển thị "Sinh năm: ...", thay cho field birthYear cũ đã bỏ.
+ */
+export function getBirthYear(birthDate) {
+    return birthDate ? String(birthDate).split('/').pop() : '';
+}
