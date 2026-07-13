@@ -2,7 +2,7 @@
 // Module "Giấy tờ": chọn 1 tòa nhà, xuất PDF hàng loạt cho các khách còn hợp đồng hoạt động.
 
 import { getBuildings, getCustomers, getContracts } from '../store.js';
-import { showToast } from '../utils.js';
+import { showToast, cleanupAfterPrint, getBuildingShortCode } from '../utils.js';
 import { getContractStatus, getStatusInfo } from './contracts.js';
 import { buildCT01Html } from './ct01-utils.js';
 import { buildOnho1Html } from './onho1-utils.js';
@@ -279,7 +279,8 @@ async function handleExportCT01() {
     });
 
     const originalTitle = document.title;
-    document.title = `CT01 - ${building.code}`;
+    const roomLabel = [...new Set(checkedBoxes.map(cb => contracts.find(c => c.id === cb.dataset.contractId)?.room).filter(Boolean))].join('+');
+    document.title = `CT01 - ${roomLabel} - ${getBuildingShortCode(building)}`;
 
     // Lề trang CT01 đúng số đo thật trong file CT01.docx gốc (Page Setup: Top 0.79" / Bottom 0.39" /
     // Left 1.18" / Right 0.79" = trên 2cm / dưới 1cm / trái 3cm / phải 2cm), ghi đè tạm thời @page
@@ -291,9 +292,7 @@ async function handleExportCT01() {
 
     await Promise.all([imgsReady, _waitFontsReady()]);
     window.print();
-    document.title = originalTitle;
-    pageStyle.remove();
-    setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+    cleanupAfterPrint(printRoot, originalTitle, () => pageStyle.remove());
 }
 
 async function handleExportOnho1() {
@@ -350,12 +349,12 @@ async function handleExportOnho1() {
     });
 
     const originalTitle = document.title;
-    document.title = `Ở nhờ - ${building.code}`;
+    const roomLabel = [...customerIdsByContract.keys()].map(id => contracts.find(c => c.id === id)?.room).filter(Boolean).join('+');
+    document.title = `Ở nhờ - ${roomLabel} - ${getBuildingShortCode(building)}`;
 
     await Promise.all([imgsReady, _waitFontsReady()]);
     window.print();
-    document.title = originalTitle;
-    setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+    cleanupAfterPrint(printRoot, originalTitle);
 }
 
 async function handleExportOnho2() {
@@ -412,12 +411,12 @@ async function handleExportOnho2() {
     });
 
     const originalTitle = document.title;
-    document.title = `Ở nhờ - ${building.code}`;
+    const roomLabel = [...customerIdsByContract.keys()].map(id => contracts.find(c => c.id === id)?.room).filter(Boolean).join('+');
+    document.title = `Ở nhờ - ${roomLabel} - ${getBuildingShortCode(building)}`;
 
     await Promise.all([imgsReady, _waitFontsReady()]);
     window.print();
-    document.title = originalTitle;
-    setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+    cleanupAfterPrint(printRoot, originalTitle);
 }
 
 async function handleExportOnho3() {
@@ -474,10 +473,10 @@ async function handleExportOnho3() {
     });
 
     const originalTitle = document.title;
-    document.title = `Ở nhờ - ${building.code}`;
+    const roomLabel = [...customerIdsByContract.keys()].map(id => contracts.find(c => c.id === id)?.room).filter(Boolean).join('+');
+    document.title = `Ở nhờ - ${roomLabel} - ${getBuildingShortCode(building)}`;
 
     await Promise.all([imgsReady, _waitFontsReady()]);
     window.print();
-    document.title = originalTitle;
-    setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+    cleanupAfterPrint(printRoot, originalTitle);
 }

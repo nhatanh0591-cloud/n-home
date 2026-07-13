@@ -810,7 +810,6 @@
                                 </div>
                                 <p class="text-sm font-semibold text-green-700">Đã ký hợp đồng</p>
                             </div>
-                            <p class="text-xs text-gray-400" id="signed-at-label"></p>
                         </div>
                         <img id="signature-result-img" src="" alt="" style="display:none;">
 
@@ -1152,6 +1151,7 @@
         import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js';
         import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js';
         import { processSignatureFile } from './js/modules/signature-utils.js';
+        import { cleanupAfterPrint, getBuildingShortCode } from './js/utils.js';
 
         // Firebase config
         const firebaseConfig = {
@@ -5534,9 +5534,6 @@
             document.getElementById('contract-unsigned-area').classList.add('hidden');
             document.getElementById('contract-signed-area').classList.remove('hidden');
             document.getElementById('signature-result-img').src = signatureData.signatureImage;
-            const date = new Date(signatureData.signedAt);
-            document.getElementById('signed-at-label').textContent =
-                `Đã ký lúc ${date.toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})} ngày ${date.toLocaleDateString('vi-VN')}`;
             updateContractCardBadge(true);
             // Hiển thị chữ ký khách vào phần BÊN THUÊ trong nội dung hợp đồng
             injectSignatureIntoContract();
@@ -5620,8 +5617,7 @@
 
             const originalTitle = document.title;
             const roomCode = contract?.room || '';
-            const buildingCode = building?.code || '';
-            document.title = `Hợp Đồng Thuê Phòng ${roomCode} - ${buildingCode}`.trim();
+            document.title = `Hợp đồng thuê phòng ${roomCode} - ${getBuildingShortCode(building)}`.trim();
 
             const imgs = Array.from(printRoot.querySelectorAll('img'));
             const imgsReady = new Promise(resolve => {
@@ -5635,8 +5631,7 @@
 
             await Promise.all([imgsReady, _waitContractFontsReady()]);
             window.print();
-            document.title = originalTitle;
-            setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+            cleanupAfterPrint(printRoot, originalTitle);
         }
 
         function injectSignatureIntoContract() {

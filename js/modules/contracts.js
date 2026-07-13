@@ -6,7 +6,7 @@ import {
     showToast, openModal, closeModal,
     formatDateDisplay, convertToDateInputFormat, parseDateInput, parseFormattedNumber, formatMoney,
     importFromExcel, exportToExcel, showConfirm, getCurrentDateString, formatDateForStorage, safeToDate,
-    attachDateSlashMask
+    attachDateSlashMask, cleanupAfterPrint, getBuildingShortCode
 } from '../utils.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
@@ -945,8 +945,7 @@ async function downloadContractPDF(contractId) {
 
     const originalTitle = document.title;
     const roomCode = contract.room || '';
-    const buildingCode = building?.code || '';
-    document.title = `Hợp Đồng Thuê Phòng ${roomCode} - ${buildingCode}`.trim();
+    document.title = `Hợp đồng thuê phòng ${roomCode} - ${getBuildingShortCode(building)}`.trim();
 
     const imgs = Array.from(printRoot.querySelectorAll('img'));
     const imgsReady = new Promise(resolve => {
@@ -960,8 +959,7 @@ async function downloadContractPDF(contractId) {
 
     await Promise.all([imgsReady, _waitContractFontsReady()]);
     window.print();
-    document.title = originalTitle;
-    setTimeout(() => { printRoot.innerHTML = ''; }, 2000);
+    cleanupAfterPrint(printRoot, originalTitle);
 }
 
 /**

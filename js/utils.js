@@ -622,3 +622,32 @@ export function showConfirm(message, title = 'Xác nhận', okText = 'OK', cance
         document.addEventListener('keydown', handleEsc);
     });
 }
+
+/**
+ * Dọn dẹp sau window.print() — đợi in xong thật sự (sự kiện afterprint) rồi mới xóa
+ * nội dung/title, thay vì setTimeout cố định. Trên Android Chrome, window.print() không
+ * block: nó trả về ngay trong khi hộp thoại lưu PDF vẫn render nội dung ở nền, nên xóa
+ * printRoot quá sớm khiến lúc người dùng bấm Lưu, PDF được tạo từ DOM đã rỗng -> file trắng.
+ */
+export function cleanupAfterPrint(printRoot, originalTitle, extraCleanup) {
+    let done = false;
+    const cleanup = () => {
+        if (done) return;
+        done = true;
+        document.title = originalTitle;
+        printRoot.innerHTML = '';
+        if (extraCleanup) extraCleanup();
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 60000);
+}
+
+/**
+ * Rút gọn mã tòa nhà để đặt tên file — building.code thường có dạng "529_122HVB"
+ * (số nhà + phần viết tắt địa chỉ), chỉ lấy phần số nhà đứng trước dấu "_".
+ */
+export function getBuildingShortCode(building) {
+    const code = building?.code || '';
+    return code.split('_')[0] || code;
+}
