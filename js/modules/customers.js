@@ -39,6 +39,8 @@ const nextBtn = document.getElementById('customer-next-page');
 const customerModal = document.getElementById('customer-modal');
 const customerModalTitle = document.getElementById('customer-modal-title');
 const customerForm = document.getElementById('customer-form');
+const customerBuildingSelect = document.getElementById('customer-building');
+const customerRoomSelect = document.getElementById('customer-room');
 const importCustomersModal = document.getElementById('import-customers-modal');
 
 // --- HÀM CHÍNH ---
@@ -71,6 +73,7 @@ export function initCustomers() {
     // Lắng nghe form
     customerForm.addEventListener('submit', handleCustomerFormSubmit);
     attachDateSlashMask(document.getElementById('customer-birth-date'));
+    customerBuildingSelect.addEventListener('change', () => populateCustomerRoomOptions());
 
     // Lắng nghe nút bỏ chọn hàng loạt
     document.getElementById('clear-selection-customers-btn')?.addEventListener('click', () => {
@@ -129,13 +132,14 @@ export function loadCustomers() {
         );
         
         if (customerContracts.length === 0) {
-            // Customer chưa có hợp đồng nào
-            customersWithInfo.push({ 
-                ...customer, 
-                status: 'no_contract', 
-                buildingId: '', 
-                buildingName: '', 
-                roomName: '' 
+            // Customer chưa có hợp đồng nào -> dùng tòa nhà/phòng tự khai (nếu có)
+            const manualBuilding = buildings.find(b => b.id === customer.buildingId);
+            customersWithInfo.push({
+                ...customer,
+                status: 'no_contract',
+                buildingId: customer.buildingId || '',
+                buildingName: manualBuilding ? manualBuilding.code : '',
+                roomName: customer.room || ''
             });
         } else {
             // Tạo một record cho mỗi hợp đồng
@@ -425,6 +429,53 @@ function updateCustomerFilterOptions(customers, buildings) {
 }
 
 /**
+ * Dò tòa nhà/phòng hiện tại của khách dựa theo hợp đồng đang có (cho khách cũ chưa có buildingId/room lưu sẵn)
+ * Ưu tiên hợp đồng còn hiệu lực, nếu không có thì lấy hợp đồng gần nhất
+ */
+function getCustomerCurrentRoom(customerId) {
+    const customerContracts = getContracts().filter(c =>
+        c.customers && Array.isArray(c.customers) && c.customers.includes(customerId)
+    );
+    if (customerContracts.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const activeContract = customerContracts.find(c => {
+        if (c.status === 'terminated') return false;
+        const endDate = parseDateInput(c.endDate);
+        if (!endDate) return true;
+        endDate.setHours(0, 0, 0, 0);
+        return endDate >= today;
+    });
+    const contract = activeContract || customerContracts[customerContracts.length - 1];
+    return { buildingId: contract.buildingId || '', room: contract.room || '' };
+}
+
+/**
+ * Nạp danh sách tòa nhà vào ô chọn trong form Thêm/Sửa khách hàng
+ */
+function populateCustomerBuildingOptions(selectedBuildingId = '') {
+    const buildings = getBuildings();
+    customerBuildingSelect.innerHTML = '<option value="">-- Chọn tòa nhà --</option>';
+    buildings.forEach(building => {
+        customerBuildingSelect.innerHTML += `<option value="${building.id}">${building.code}</option>`;
+    });
+    customerBuildingSelect.value = selectedBuildingId;
+}
+
+/**
+ * Nạp danh sách phòng theo tòa nhà đang chọn trong form Thêm/Sửa khách hàng
+ */
+function populateCustomerRoomOptions(selectedRoom = '') {
+    const building = getBuildings().find(b => b.id === customerBuildingSelect.value);
+    customerRoomSelect.innerHTML = '<option value="">-- Chọn phòng --</option>';
+    (building?.rooms || []).forEach(room => {
+        customerRoomSelect.innerHTML += `<option value="${room}">${room}</option>`;
+    });
+    customerRoomSelect.value = selectedRoom;
+}
+
+/**
  * Xử lý sự kiện click
  */
 async function handleBodyClick(e) {
@@ -442,6 +493,8 @@ async function handleBodyClick(e) {
         document.getElementById('customer-gender').value = '';
         document.getElementById('customer-hometown').value = '';
         document.getElementById('customer-ethnicity').value = '';
+        populateCustomerBuildingOptions();
+        populateCustomerRoomOptions();
         openModal(customerModal);
     }
     // Nút "Sửa"
@@ -458,6 +511,10 @@ async function handleBodyClick(e) {
             document.getElementById('customer-gender').value = customer.gender || '';
             document.getElementById('customer-hometown').value = customer.hometown || '';
             document.getElementById('customer-ethnicity').value = customer.ethnicity || '';
+            // Khách cũ chưa có buildingId/room lưu sẵn -> tự dò theo hợp đồng hiện tại
+            const currentRoom = (!customer.buildingId && !customer.room) ? getCustomerCurrentRoom(customer.id) : null;
+            populateCustomerBuildingOptions(customer.buildingId || currentRoom?.buildingId || '');
+            populateCustomerRoomOptions(customer.room || currentRoom?.room || '');
             openModal(customerModal);
         }
     }
@@ -516,6 +573,8 @@ async function handleCustomerFormSubmit(e) {
     const gender = document.getElementById('customer-gender').value;
     const hometown = document.getElementById('customer-hometown').value.trim();
     const ethnicity = document.getElementById('customer-ethnicity').value.trim();
+    const buildingId = customerBuildingSelect.value;
+    const room = customerRoomSelect.value;
 
     if (!name || !phone) {
         showToast('Vui lòng nhập đầy đủ thông tin!', 'error');
@@ -532,6 +591,8 @@ async function handleCustomerFormSubmit(e) {
             ...(gender && { gender }),
             ...(hometown && { hometown }),
             ...(ethnicity && { ethnicity }),
+            ...(buildingId && { buildingId }),
+            ...(room && { room }),
             updatedAt: serverTimestamp()
         };
 
@@ -542,6 +603,8 @@ async function handleCustomerFormSubmit(e) {
             if (!permanentAddress) customerData.permanentAddress = deleteField();
             if (!hometown) customerData.hometown = deleteField();
             if (!ethnicity) customerData.ethnicity = deleteField();
+            if (!buildingId) customerData.buildingId = deleteField();
+            if (!room) customerData.room = deleteField();
 
             // Update Firebase
             await setDoc(doc(db, 'customers', id), customerData, { merge: true });
@@ -552,6 +615,8 @@ async function handleCustomerFormSubmit(e) {
             if (!permanentAddress) localData.permanentAddress = undefined;
             if (!hometown) localData.hometown = undefined;
             if (!ethnicity) localData.ethnicity = undefined;
+            if (!buildingId) localData.buildingId = undefined;
+            if (!room) localData.room = undefined;
             updateInLocalStorage('customers', id, localData);
             showToast('Cập nhật khách hàng thành công!');
         } else {

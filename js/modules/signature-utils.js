@@ -1,49 +1,22 @@
 // js/modules/signature-utils.js
-// Xử lý ảnh chữ ký chụp/upload: tách nét mực khỏi nền giấy (nhị phân hóa theo ngưỡng Otsu tự động),
-// crop về đúng vùng có nét mực. Dùng chung cho app.html (chữ ký khách) và index.html (chữ ký chủ nhà).
+// Xử lý ảnh chữ ký chụp/upload: ảnh đầu vào đã được tách nền trắng sạch từ trước (bằng công cụ AI ngoài),
+// nên ở đây chỉ cần xóa nền trắng thành trong suốt, GIỮ NGUYÊN màu mực và độ đậm nhạt gốc của chữ ký
+// (không ép về 1 màu cố định, không nhị phân hóa cứng - tránh làm mất các nét mực nhạt/mảnh).
+// Dùng chung cho app.html (chữ ký khách) và index.html (chữ ký chủ nhà).
 
-function otsuThreshold(hist, total) {
-    let sum = 0;
-    for (let i = 0; i < 256; i++) sum += i * hist[i];
-    let sumB = 0, wB = 0, maxVar = 0, threshold = 128;
-    for (let t = 0; t < 256; t++) {
-        wB += hist[t];
-        if (wB === 0) continue;
-        const wF = total - wB;
-        if (wF === 0) break;
-        sumB += t * hist[t];
-        const mB = sumB / wB;
-        const mF = (sum - sumB) / wF;
-        const varBetween = wB * wF * (mB - mF) * (mB - mF);
-        if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
-    }
-    return threshold;
-}
-
-// vùng tối hơn ngưỡng = nét mực, giữ lại; vùng còn lại = nền giấy, xóa thành trong suốt
+// pixel càng gần trắng thì càng trong suốt (nền); càng đậm thì càng đục (mực) - giữ nguyên màu gốc
 export function extractInkFromPhoto(canvas) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     const imageData = ctx.getImageData(0, 0, w, h);
     const data = imageData.data;
     const n = w * h;
-    const gray = new Uint8ClampedArray(n);
-    const hist = new Array(256).fill(0);
     for (let i = 0; i < n; i++) {
         const o = i * 4;
-        const v = Math.round(0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2]);
-        gray[i] = v;
-        hist[v]++;
-    }
-    const threshold = otsuThreshold(hist, n);
-    for (let i = 0; i < n; i++) {
-        const o = i * 4;
-        if (gray[i] < threshold) {
-            data[o] = 26; data[o + 1] = 35; data[o + 2] = 126; // #1a237e, đồng bộ màu mực với chữ ký vẽ tay
-            data[o + 3] = 255;
-        } else {
-            data[o + 3] = 0;
-        }
+        const luminance = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+        let alpha = Math.round((255 - luminance) * 1.15); // hệ số nhẹ để nét mực nhạt vẫn hiện rõ hơn
+        if (alpha < 8) alpha = 0; // khử nhiễu nền trắng còn sót (ví dụ nén JPEG)
+        data[o + 3] = Math.max(0, Math.min(255, alpha));
     }
     ctx.putImageData(imageData, 0, 0);
 }

@@ -1,6 +1,6 @@
 /**
  * Firebase Cloud Functions cho tự động đối soát thanh toán qua Casso
- * 
+ *
  * Chức năng:
  * 1. Nhận webhook từ Casso khi có tiền vào
  * 2. Parse nội dung chuyển khoản để lấy thông tin phòng và tháng
@@ -102,7 +102,7 @@ async function processTransaction(transaction) {
 
   const {id, description, amount, when, transactionDateTime} = transaction;
   const transactionTime = when || transactionDateTime; // Support both formats
-  
+
   console.log("🕐 Raw transactionTime:", transactionTime);
 
   // 🔥 PHÂN BIỆT GIAO DỊCH THU/CHI THEO SỐ TIỀN
@@ -120,23 +120,39 @@ async function processTransaction(transaction) {
 }
 
 /**
- * Xử lý giao dịch THU (logic cũ)
+ * Chuẩn hóa văn bản tiếng Việt để so khớp: bỏ dấu, viết hoa, cắt khoảng trắng thừa
  */
-async function processIncomeTransaction(transaction) {
-  const {id, description, amount, when, transactionDateTime} = transaction;
-  
-  // Chuẩn hóa nội dung giao dịch để so khớp
-  const normalizedDescription = description
+function normalizeText(str) {
+  return (str || "")
       .toUpperCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[̀-ͯ]/g, "")
       .replace(/Đ/g, "D")
-      .replace(/đ/g, "d");
-  
+      .replace(/đ/g, "d")
+      .trim();
+}
+
+/**
+ * Xử lý giao dịch THU - chấp nhận cả thanh toán một phần, cộng dồn dần vào hóa đơn
+ * cho tới khi đủ (không còn bắt buộc số tiền chuyển vào phải bằng đúng tổng hóa đơn)
+ */
+async function processIncomeTransaction(transaction) {
+  const {description, amount} = transaction;
+
+  // Chuẩn hóa nội dung giao dịch để so khớp
+  const normalizedDescription = normalizeText(description);
+
   console.log("🔍 Normalized description:", normalizedDescription);
 
-  // Tìm hóa đơn theo logic đơn giản: chỉ theo số tiền, không cần tháng/năm
-  const bill = await findMatchingBillByAmount(normalizedDescription, amount);
+  // Tìm hóa đơn theo tên khách hàng trong nội dung chuyển khoản (không lọc theo số tiền,
+  // vì khách có thể thanh toán một phần rồi thanh toán tiếp phần còn lại sau)
+  const {bill, ambiguous} = await findMatchingBillByCustomer(normalizedDescription);
+
+  if (ambiguous) {
+    console.log("⚠️ Ambiguous match - khách có nhiều hóa đơn chưa thanh toán, không tự xác định được");
+    await createUnverifiedTransaction(transaction, "Khách có nhiều hóa đơn chưa thanh toán, không tự xác định được hóa đơn nào");
+    return;
+  }
 
   if (!bill) {
     console.log("⚠️ No matching bill found for:", normalizedDescription, "amount:", amount);
@@ -147,21 +163,24 @@ async function processIncomeTransaction(transaction) {
 
   console.log("✅ Found matching bill:", bill.id);
 
-  // Kiểm tra hóa đơn đã thanh toán chưa
+  // Phòng hờ trường hợp đua hiếm gặp: hóa đơn vừa được thanh toán xong ở nơi khác
   if (bill.status === "paid") {
     console.log("⚠️ Bill already paid:", bill.id);
+    await createUnverifiedTransaction(transaction, "Hóa đơn khớp tên khách đã ở trạng thái đã thanh toán");
     return;
   }
 
-  // Kiểm tra số tiền có khớp không (cho phép sai lệch 1000đ)
-  if (Math.abs(amount - bill.totalAmount) > 1000) {
-    console.log("⚠️ Amount mismatch. Expected:", bill.totalAmount, "Got:", amount);
-    // Gửi thông báo cho admin về sự khác biệt
-    await notifyAdminAboutMismatch(bill, transaction);
+  // Kiểm tra số tiền chuyển vào có vượt quá số còn phải thu không (cho phép sai lệch 1000đ)
+  const currentPaidAmount = bill.paidAmount || 0;
+  const remainingAmount = bill.totalAmount - currentPaidAmount;
+  if (amount - remainingAmount > 1000) {
+    console.log("⚠️ Amount exceeds remaining balance. Remaining:", remainingAmount, "Got:", amount);
+    await notifyAdminAboutMismatch(bill, transaction, remainingAmount);
+    await createUnverifiedTransaction(transaction, "Số tiền chuyển vượt quá số còn phải thu của hóa đơn");
     return;
   }
 
-  // CẬP NHẬT HÓA ĐƠN VÀ TẠO PHIẾU THU
+  // CẬP NHẬT HÓA ĐƠN (cộng dồn số đã thu) VÀ TẠO PHIẾU THU đúng số tiền lần này
   await updateBillAndCreateTransaction(bill, transaction);
 }
 
@@ -172,26 +191,21 @@ async function processExpenseTransaction(transaction) {
   const {id, description, when, transactionDateTime} = transaction;
   const amount = Math.abs(transaction.amount); // Chuyển thành số dương
   const transactionTime = when || transactionDateTime;
-  
+
   console.log("💸 Creating expense transaction draft for amount:", amount);
-  
+
   // 🔥 CẮT BỎ PHẦN ĐUÔI TỪ DẦU "-" TRỞ ĐI (Ma giao dich/ Trace)
   const cleanDescription = description.split(' - ')[0].trim();
   console.log("🧹 Original description:", description);
   console.log("🧹 Cleaned description:", cleanDescription);
-  
+
   // Chuẩn hóa nội dung giao dịch
-  const normalizedDescription = cleanDescription
-      .toUpperCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/Đ/g, "D")
-      .replace(/đ/g, "d");
+  const normalizedDescription = normalizeText(cleanDescription);
 
   try {
     // Tạo mã phiếu chi tự động
     const transactionCode = `PC${new Date().toISOString().replace(/\D/g, "").slice(0, 12)}`;
-    
+
     // Parse ngày từ Casso (format: "2025-11-06 15:30:45")
     let transactionDate;
     if (transactionTime) {
@@ -243,58 +257,43 @@ async function processExpenseTransaction(transaction) {
   }
 }
 
-// Hàm parsePaymentDescription đã được thay thế bằng logic mới trong findMatchingBillOptimized
-
 /**
- * Tìm hóa đơn khớp theo số tiền đơn giản: không cần tháng/năm
+ * Tìm hóa đơn khớp theo tên khách hàng trong nội dung chuyển khoản.
+ * Không lọc theo số tiền nữa (khách có thể thanh toán nhiều lần cho tới khi đủ).
+ * Trả về { bill, ambiguous }: ambiguous = true nếu khách có từ 2 hóa đơn chưa thanh toán
+ * trở lên cùng khớp một lúc - trường hợp này KHÔNG tự xác định, để admin xử lý tay.
  */
-async function findMatchingBillByAmount(normalizedDescription, amount) {
+async function findMatchingBillByCustomer(normalizedDescription) {
   try {
-    console.log("🔍 Searching bills with amount:", amount);
-    
-    // 1. Lọc hóa đơn chỉ theo số tiền + trạng thái
+    // 1. Lấy tất cả hóa đơn chưa thanh toán + đã duyệt
     const billsRef = db.collection("bills");
     const snapshot = await billsRef
-        .where("totalAmount", "==", amount)
         .where("status", "==", "unpaid")
         .where("approved", "==", true)
         .get();
 
     if (snapshot.empty) {
-      console.log("⚠️ No bills found matching amount");
-      return null;
+      console.log("⚠️ No unpaid bills found");
+      return {bill: null, ambiguous: false};
     }
 
-    console.log("📋 Found", snapshot.docs.length, "bill(s) matching amount");
+    console.log("📋 Checking", snapshot.docs.length, "unpaid bill(s) for customer name match");
 
-    // 2. Với mỗi hóa đơn, lấy tên khách hàng và so khớp
+    // 2. Với mỗi hóa đơn, lấy tên khách hàng và so khớp với nội dung chuyển khoản
+    const matchedBills = [];
     for (const billDoc of snapshot.docs) {
       const bill = billDoc.data();
-      
+
       // Ưu tiên dùng customerName nếu có (từ hóa đơn mới)
       let customerNormalizedName = null;
-      
+
       if (bill.customerName) {
-        // Hóa đơn mới đã có customerName
-        customerNormalizedName = bill.customerName
-            .toUpperCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/Đ/g, "D")
-            .replace(/đ/g, "d")
-            .trim();
+        customerNormalizedName = normalizeText(bill.customerName);
       } else {
-        // Hóa đơn cũ, phải lấy từ collection customers  
+        // Hóa đơn cũ, phải lấy từ collection customers
         const customerDoc = await db.collection("customers").doc(bill.customerId).get();
         if (customerDoc.exists) {
-          const customer = customerDoc.data();
-          customerNormalizedName = customer.name
-              .toUpperCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .replace(/Đ/g, "D")
-              .replace(/đ/g, "d")
-              .trim();
+          customerNormalizedName = normalizeText(customerDoc.data().name);
         }
       }
 
@@ -311,36 +310,50 @@ async function findMatchingBillByAmount(normalizedDescription, amount) {
 
       // 3. Kiểm tra nội dung giao dịch có chứa tên khách hàng không
       if (normalizedDescription.includes(customerNormalizedName)) {
-        console.log("✅ Found matching bill:", billDoc.id, "- Customer:", customerNormalizedName);
-        return {id: billDoc.id, ...bill};
+        matchedBills.push({id: billDoc.id, ...bill});
       }
     }
 
-    console.log("⚠️ No bills found with matching customer name in description");
-    return null;
+    if (matchedBills.length === 0) {
+      console.log("⚠️ No bills found with matching customer name in description");
+      return {bill: null, ambiguous: false};
+    }
+
+    if (matchedBills.length > 1) {
+      console.log("⚠️ Ambiguous - multiple unpaid bills matched same customer name:", matchedBills.map((b) => b.id));
+      return {bill: null, ambiguous: true};
+    }
+
+    console.log("✅ Found matching bill:", matchedBills[0].id);
+    return {bill: matchedBills[0], ambiguous: false};
   } catch (error) {
-    console.error("❌ Error finding optimized bill:", error);
-    return null;
+    console.error("❌ Error finding matching bill:", error);
+    return {bill: null, ambiguous: false};
   }
 }
 
 /**
- * Cập nhật hóa đơn và tạo phiếu thu
+ * Cập nhật hóa đơn (cộng dồn số tiền đã thu) và tạo phiếu thu đúng số tiền của lần chuyển khoản này
  */
 async function updateBillAndCreateTransaction(bill, cassoTransaction) {
   try {
-    // 1. Cập nhật trạng thái hóa đơn
+    const paymentAmount = cassoTransaction.amount;
+    const previousPaidAmount = bill.paidAmount || 0;
+    const newPaidAmount = previousPaidAmount + paymentAmount;
+    const isFullyPaid = newPaidAmount >= bill.totalAmount;
+
+    // 1. Cập nhật hóa đơn: cộng dồn paidAmount, chỉ chuyển "paid" khi đã thu đủ
     await db.collection("bills").doc(bill.id).update({
-      status: "paid",
+      status: isFullyPaid ? "paid" : "unpaid",
       paidAt: admin.firestore.FieldValue.serverTimestamp(),
-      paidAmount: cassoTransaction.amount,
+      paidAmount: newPaidAmount,
       paymentMethod: "bank_transfer",
       cassoTransactionId: cassoTransaction.id,
       cassoTransactionDescription: cassoTransaction.description,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log("✅ Updated bill status to paid:", bill.id);
+    console.log(`✅ Updated bill ${bill.id}: paid ${newPaidAmount}/${bill.totalAmount}, status=${isFullyPaid ? "paid" : "unpaid"}`);
 
     // 2. Lấy thông tin bổ sung
     const buildingDoc = await db.collection("buildings").doc(bill.buildingId).get();
@@ -349,8 +362,8 @@ async function updateBillAndCreateTransaction(bill, cassoTransaction) {
     const customerDoc = await db.collection("customers").doc(bill.customerId).get();
     const customer = customerDoc.exists ? customerDoc.data() : null;
 
-    // 3. Tạo phiếu thu tự động
-    const transactionItems = await createTransactionItemsFromBill(bill);
+    // 3. Tạo phiếu thu tự động - CHỈ đúng số tiền của lần chuyển khoản này, không phải cả hóa đơn
+    const transactionItems = await createTransactionItemsFromBill(bill, paymentAmount);
 
     const accountId = building?.accountId || "";
     if (!accountId) {
@@ -366,7 +379,7 @@ async function updateBillAndCreateTransaction(bill, cassoTransaction) {
       customerId: bill.customerId,
       billId: bill.id,
       accountId: accountId,
-      title: `Thu tiền phòng ${building?.code || ""} - ${bill.room} - Tháng ${bill.period}`,
+      title: `Thu tiền phòng ${building?.code || ""} - ${bill.room} - Tháng ${bill.period}${isFullyPaid ? "" : " (thanh toán một phần)"}`,
       payer: customer?.name || "Khách hàng",
       date: new Date().toISOString().split("T")[0],
       items: transactionItems,
@@ -378,10 +391,10 @@ async function updateBillAndCreateTransaction(bill, cassoTransaction) {
     };
 
     await db.collection("transactions").add(transactionData);
-    console.log("✅ Created transaction receipt:", transactionCode);
+    console.log("✅ Created transaction receipt:", transactionCode, "amount:", paymentAmount);
 
-    // 4. Gửi thông báo cho khách hàng
-    await notifyCustomerPaymentSuccess(bill, customer, building);
+    // 4. Gửi thông báo cho khách hàng / admin
+    await notifyCustomerPaymentSuccess(bill, customer, building, paymentAmount, newPaidAmount, isFullyPaid);
 
     console.log("🎉 Payment processed successfully for bill:", bill.id);
   } catch (error) {
@@ -391,13 +404,14 @@ async function updateBillAndCreateTransaction(bill, cassoTransaction) {
 }
 
 /**
- * Tạo các items cho phiếu thu từ hóa đơn
+ * Tạo các items cho phiếu thu - dùng đúng số tiền thực nhận của lần thanh toán này
+ * (mặc định lấy tổng hóa đơn nếu không truyền amount, để tương thích ngược)
  */
-async function createTransactionItemsFromBill(bill) {
+async function createTransactionItemsFromBill(bill, amount) {
   // Lấy danh sách categories để tìm "Tiền hóa đơn"
   const categoriesSnapshot = await db.collection("transactionCategories").get();
   let billCategoryId = null;
-  
+
   categoriesSnapshot.forEach((doc) => {
     const cat = doc.data();
     if (cat.name === "Tiền hóa đơn") {
@@ -405,10 +419,10 @@ async function createTransactionItemsFromBill(bill) {
     }
   });
 
-  // Tạo 1 item duy nhất cho toàn bộ hóa đơn
+  // Tạo 1 item duy nhất cho số tiền của lần thanh toán này
   const items = [{
     description: "Tiền hóa đơn",
-    amount: bill.totalAmount || 0,
+    amount: amount != null ? amount : (bill.totalAmount || 0),
     categoryId: billCategoryId,
   }];
 
@@ -416,24 +430,29 @@ async function createTransactionItemsFromBill(bill) {
 }
 
 /**
- * Gửi thông báo khi thanh toán thành công (Casso auto)
+ * Gửi thông báo khi thanh toán thành công qua Casso - hỗ trợ cả thanh toán một phần
  * Tạo thông báo cho web admin + gửi push notification cho app
  */
-async function notifyCustomerPaymentSuccess(bill, customer, building) {
+async function notifyCustomerPaymentSuccess(bill, customer, building, paymentAmount, totalPaidAmount, isFullyPaid) {
   try {
     const billYear = new Date(bill.billDate).getFullYear();
+    const remainingAfter = Math.max(bill.totalAmount - totalPaidAmount, 0);
 
     // 1. Tạo thông báo cho WEB ADMIN (giống như khi bấm nút thu tiền)
+    const adminMessage = isFullyPaid
+        ? `Đã thu tiền từ khách hàng ${customer?.name || "Khách hàng"} - Phòng ${building?.code || ""}-${bill.room} - Tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(bill.totalAmount)}đ`
+        : `Khách hàng ${customer?.name || "Khách hàng"} thanh toán một phần - Phòng ${building?.code || ""}-${bill.room} - Tháng ${bill.period}-${billYear}. Đã đóng lần này: ${formatMoney(paymentAmount)}đ, còn thiếu: ${formatMoney(remainingAfter)}đ`;
+
     const adminNotificationData = {
       type: "payment_collected",
       buildingId: bill.buildingId,
       room: bill.room,
       customerId: bill.customerId,
       billId: bill.id,
-      title: "Thu tiền thành công",
-      message: `Đã thu tiền từ khách hàng ${customer?.name || "Khách hàng"} - Phòng ${building?.code || ""}-${bill.room} - Tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(bill.totalAmount)}đ`,
+      title: isFullyPaid ? "Thu tiền thành công" : "Thu tiền một phần",
+      message: adminMessage,
       customerMessage: `Đã thu tiền từ khách hàng ${customer?.name || "Khách hàng"}`,
-      amount: bill.totalAmount,
+      amount: paymentAmount,
       isRead: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -443,8 +462,10 @@ async function notifyCustomerPaymentSuccess(bill, customer, building) {
 
     // 2. Gửi push notification cho APP
     if (customer?.fcmToken) {
-      const pushTitle = "✅ Thanh toán thành công";
-      const pushMessage = `Cảm ơn bạn đã thanh toán hóa đơn tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(bill.totalAmount)}đ`;
+      const pushTitle = isFullyPaid ? "✅ Thanh toán thành công" : "✅ Đã ghi nhận thanh toán một phần";
+      const pushMessage = isFullyPaid
+          ? `Cảm ơn bạn đã thanh toán hóa đơn tháng ${bill.period}-${billYear}. Số tiền: ${formatMoney(bill.totalAmount)}đ`
+          : `Đã ghi nhận ${formatMoney(paymentAmount)}đ cho hóa đơn tháng ${bill.period}-${billYear}. Còn thiếu: ${formatMoney(remainingAfter)}đ`;
 
       const message = {
         notification: {
@@ -452,11 +473,11 @@ async function notifyCustomerPaymentSuccess(bill, customer, building) {
           body: pushMessage,
         },
         data: {
-          type: "payment_confirmed",
+          type: isFullyPaid ? "payment_confirmed" : "payment_partial",
           billId: bill.id,
           buildingCode: building?.code || "",
           room: bill.room,
-          amount: String(bill.totalAmount),
+          amount: String(paymentAmount),
         },
         token: customer.fcmToken,
       };
@@ -476,18 +497,18 @@ async function notifyCustomerPaymentSuccess(bill, customer, building) {
 }
 
 /**
- * Thông báo cho admin khi số tiền không khớp
+ * Thông báo cho admin khi số tiền chuyển vào vượt quá số còn phải thu của hóa đơn
  */
-async function notifyAdminAboutMismatch(bill, transaction) {
+async function notifyAdminAboutMismatch(bill, transaction, remainingAmount) {
   try {
     const notificationData = {
       type: "payment_mismatch",
       buildingId: bill.buildingId,
       room: bill.room,
       billId: bill.id,
-      title: "⚠️ Số tiền chuyển khoản không khớp",
-      message: `Hóa đơn phòng ${bill.room} tháng ${bill.period}: Số tiền nhận ${formatMoney(transaction.amount)} VNĐ, hóa đơn ${formatMoney(bill.totalAmount)} VNĐ`,
-      expectedAmount: bill.totalAmount,
+      title: "⚠️ Số tiền chuyển khoản vượt quá số còn phải thu",
+      message: `Hóa đơn phòng ${bill.room} tháng ${bill.period}: Số tiền nhận ${formatMoney(transaction.amount)} VNĐ, còn phải thu ${formatMoney(remainingAmount)} VNĐ`,
+      expectedAmount: remainingAmount,
       receivedAmount: transaction.amount,
       transactionDescription: transaction.description,
       isRead: false,
@@ -495,7 +516,7 @@ async function notifyAdminAboutMismatch(bill, transaction) {
     };
 
     await db.collection("adminNotifications").add(notificationData);
-    console.log("✅ Notified admin about amount mismatch");
+    console.log("✅ Notified admin about amount exceeding remaining balance");
   } catch (error) {
     console.error("❌ Error notifying admin:", error);
   }
@@ -536,7 +557,7 @@ async function notifyAdminAboutExpenseDraft(expenseData, transactionId) {
 async function createUnverifiedTransaction(cassoTransaction, reason) {
   try {
     const transactionCode = `PT${new Date().toISOString().replace(/\D/g, "").slice(0, 12)}`;
-    
+
     const transactionData = {
       type: "income",
       code: transactionCode,

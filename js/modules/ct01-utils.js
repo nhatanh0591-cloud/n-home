@@ -120,8 +120,8 @@ export function buildCT01Html(building, customer, customerSignatureDataUrl, resi
 
     return `
 <div style="${BODY_FS}line-height:1.25;">
-<p style="text-align:center;font-size:13pt;margin:0;">Mẫu CT01 ban hành kèm theo Thông tư số 53/2025/TT-BCA</p>
-<p style="text-align:center;font-size:13pt;margin:6pt 0 0;">ngày 01/7/2025 của Bộ trưởng Bộ Công an</p>
+<p style="text-align:center;font-size:13pt;margin:0;">Mẫu CT01 ban hành kèm theo Thông tư số 116/2026/TT-BCA</p>
+<p style="text-align:center;font-size:13pt;margin:6pt 0 0;">ngày 29 tháng 6 năm 2026 của Bộ trưởng Bộ Công an</p>
 <p style="text-align:center;font-weight:700;font-size:14pt;margin:24pt 0 0;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
 <p style="text-align:center;font-weight:700;font-size:14pt;margin:6pt 0 0;text-decoration:underline;">Độc lập – Tự do – Hạnh phúc</p>
 <p style="text-align:center;font-weight:700;font-size:13pt;margin:6pt 0 0;">TỜ KHAI THAY ĐỔI THÔNG TIN CƯ TRÚ</p>
@@ -131,19 +131,19 @@ export function buildCT01Html(building, customer, customerSignatureDataUrl, resi
 <p style="text-align:left;${SP}">2. Ngày, tháng, năm sinh: ${birthDate}&nbsp;&nbsp;&nbsp;&nbsp;3. Giới tính: ${gender}</p>
 ${idNumberRow('4. Số định danh cá nhân:', idNumber, 22)}
 <p style="text-align:left;${SP}">5. Số điện thoại liên hệ: ${dots(10)}&nbsp;&nbsp;&nbsp;&nbsp;6. Email: ${email}</p>
-<p style="text-align:left;${SP}">7. Họ, chữ đệm và tên chủ hộ: ${name}&nbsp;&nbsp;&nbsp;&nbsp;8. Mối quan hệ với chủ hộ: Chủ hộ</p>
+<p style="text-align:left;${SP}">7. Họ, chữ đệm và tên chủ hộ<sup>(2)</sup>: ${name}&nbsp;&nbsp;&nbsp;&nbsp;8. Mối quan hệ với chủ hộ: Chủ hộ</p>
 ${idNumberRow('9. Số định danh cá nhân của chủ hộ:', idNumber, 20.5)}
-<p style="text-align:left;${SP}">10. Nội dung đề nghị<sup>(2)</sup>: Đăng ký tạm trú tại địa chỉ ${addr.fullAddress}${residenceUntilDate ? ` đến ngày ${residenceUntilDate}` : ''}</p>
+<p style="text-align:left;${SP}">10. Nội dung đề nghị<sup>(3)</sup>: Đăng ký tạm trú tại địa chỉ ${addr.fullAddress}${residenceUntilDate ? ` đến ngày ${residenceUntilDate}` : ''}</p>
 <p style="text-align:left;font-size:13pt;${SP}">11. Những thành viên trong hộ gia đình cùng thay đổi:</p>
 ${memberTable}
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8pt;">
 <tr>
-${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ HỘ<sup>(3)</sup>', '', '', 21, true, true)}
-${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(4)</sup>', landlordSigHtml,
-    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:...........</p>`, 24)}
-${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHA HOẶC MẸ HOẶC NGƯỜI GIÁM HỘ<sup>(5)</sup>', '',
-    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:...........</p>`, 23)}
-${sigCol(`..,ngày ${signDay} tháng ${signMonth} năm ${signYear}`, 'NGƯỜI KÊ KHAI<sup>(6)</sup>', customerSigHtml,
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ HỘ<sup>(4)</sup>', '', '', 21, true, true)}
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(5)</sup>', landlordSigHtml,
+    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Số định danh cá nhân:...........</p>`, 24)}
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHA HOẶC MẸ HOẶC NGƯỜI GIÁM HỘ<sup>(6)</sup>', '',
+    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Số định danh cá nhân:...........</p>`, 23)}
+${sigCol(`..,ngày ${signDay} tháng ${signMonth} năm ${signYear}`, 'NGƯỜI KÊ KHAI<sup>(7)</sup>', customerSigHtml,
     '', 32, false)}
 </tr>
 </table>

@@ -1485,9 +1485,9 @@ async function handleQuickCustomerSubmit(e) {
         
         // Thêm khách hàng mới vào danh sách đã chọn
         selectedCustomers.push(docRef.id);
-        
-        // Cập nhật UI ngay lập tức
-        updateSelectedCustomersDisplay(docRef.id); // Tự động chọn làm đại diện
+
+        // Cập nhật UI ngay lập tức - không tự động chọn làm đại diện, để người dùng tự tích
+        updateSelectedCustomersDisplay();
         
         closeModal(quickCustomerModal);
         showToast(`Đã thêm khách hàng "${name}"!`);
@@ -2290,7 +2290,7 @@ function updateSelectedCustomersDisplay(defaultRepresentativeId = null) {
         return;
     }
     
-    const repId = defaultRepresentativeId || document.querySelector('input[name="representative"]:checked')?.value || selectedCustomers[0];
+    const repId = defaultRepresentativeId || document.querySelector('input[name="representative"]:checked')?.value;
     
     const selectedCustomerData = customers.filter(c => selectedCustomers.includes(c.id));
     selectedCustomersDisplay.innerHTML = selectedCustomerData.map(customer => `
