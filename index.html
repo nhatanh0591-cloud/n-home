@@ -2637,6 +2637,19 @@
                     <label for="customer-permanent-address" class="block mb-2 text-sm font-medium">Địa chỉ thường trú</label>
                     <input type="text" id="customer-permanent-address" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập địa chỉ thường trú">
                 </div>
+                <div id="customer-signature-block" class="hidden border-t pt-4">
+                    <label class="block mb-2 text-sm font-medium">Ảnh chữ ký (đánh dấu khách đã ký hợp đồng)</label>
+                    <p id="customer-signature-context" class="text-xs text-gray-500 mb-2"></p>
+                    <div id="customer-signature-placeholder" class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-2 cursor-pointer" style="height:140px;">
+                        <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
+                        <p class="text-sm text-gray-400">Nhấn vào đây để tải ảnh chữ ký lên</p>
+                    </div>
+                    <div id="customer-signature-preview-area" class="hidden relative border-2 border-dashed border-gray-300 rounded-lg" style="height:140px;">
+                        <img id="customer-signature-preview" src="" alt="" class="w-full h-full object-contain rounded-lg" style="background:repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 50% / 16px 16px;">
+                        <button type="button" id="clear-customer-sig-btn" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
+                    </div>
+                    <input type="file" id="customer-signature-input" accept="image/*" class="hidden">
+                </div>
                 <div class="pt-4 flex justify-end gap-3">
                     <button type="button" id="cancel-customer-btn" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
                     <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">Lưu</button>

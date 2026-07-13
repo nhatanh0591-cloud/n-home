@@ -604,7 +604,7 @@
                             </svg>
                         </div>
                         <div class="flex-1">
-                            <p class="font-bold text-white text-base" id="contract-card-title">Hợp đồng thuê phòng</p>
+                            <p class="font-bold text-white text-base" id="contract-card-title">Hợp đồng thuê</p>
                             <p class="text-green-100 text-sm mt-0.5" id="contract-card-subtitle">Nhấn để xem & ký hợp đồng</p>
                         </div>
                         <div id="contract-card-badge" class="flex-shrink-0">
@@ -740,7 +740,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
                     </svg>
                 </button>
-                <h1 class="text-lg font-bold flex-1 text-center pr-8">Hợp đồng thuê phòng</h1>
+                <h1 class="text-lg font-bold flex-1 text-center pr-8">Hợp đồng thuê</h1>
             </div>
 
             <!-- Scrollable content -->
@@ -2569,20 +2569,39 @@
             // requestNotificationPermission();
         }
 
+        // Bỏ bớt đoạn "Khu phố ..." khi hiển thị địa chỉ ở màn hình chính cho gọn (địa chỉ gốc trong dữ liệu vẫn giữ nguyên đầy đủ)
+        function getShortDisplayAddress(address) {
+            if (!address) return address;
+            return address
+                .split(',')
+                .map(part => part.trim())
+                .filter(part => {
+                    const normalized = part
+                        .normalize('NFD')
+                        .replace(/[̀-ͯ]/g, '')
+                        .replace(/Đ/g, 'D')
+                        .replace(/đ/g, 'd')
+                        .toLowerCase();
+                    return !/^khu\s*pho\b/.test(normalized);
+                })
+                .filter(Boolean)
+                .join(', ');
+        }
+
         function renderHomeData() {
             perfMon.track('renderHomeData');
-            
+
             // Render building info
             const buildingInfo = document.getElementById('building-info');
             if (contracts.length > 0) {
                 const contract = contracts[0];
                 const building = buildings.find(b => b.id === contract.buildingId);
-                
+
                 // Debug mapping
                 console.log('🔍 Contract buildingId:', contract.buildingId);
                 console.log('🏢 Available buildings:', buildings.map(b => ({ id: b.id, address: b.address })));
                 console.log('🎯 Found building:', building);
-                
+
                 buildingInfo.innerHTML = `
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
@@ -2591,7 +2610,7 @@
                         </div>
                         <div class="flex justify-between items-start">
                             <span class="text-gray-600">${currentLanguage === 'en' ? 'Address:' : 'Địa chỉ:'}</span>
-                            <span class="font-semibold text-gray-800 text-right">${building?.address || 'N/A'}</span>
+                            <span class="font-semibold text-gray-800 text-right">${getShortDisplayAddress(building?.address) || 'N/A'}</span>
                         </div>
                     </div>
                 `;
