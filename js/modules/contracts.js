@@ -775,7 +775,7 @@ ${sp}
 <p style="${mb3}"><strong>Ông:</strong> ĐẶNG NHẬT ANH</p>
 <p style="${mb3}"><strong>Sinh năm:</strong> 1991</p>
 <p style="${mb3}"><strong>CCCD:</strong> 072091000145</p>
-<p style="${mb3}"><strong>Địa chỉ thường trú:</strong> Khu Phố 4, Thị Trấn Châu Thành, Châu Thành, Tây Ninh</p>
+<p style="${mb3}"><strong>Địa chỉ thường trú:</strong> Tổ 1, Ấp 4, Xã Châu Thành, Tỉnh Tây Ninh</p>
 <p style="${mb3}"><strong>Địa chỉ cho thuê:</strong> ${address}</p>
 ${sp}
 
