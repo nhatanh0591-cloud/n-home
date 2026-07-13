@@ -1,7 +1,7 @@
 // customer-sw.js
 // Service Worker cho Customer N-Home PWA
 
-const CACHE_NAME = 'n-home-customer-v1';
+const CACHE_NAME = 'n-home-customer-v2';
 const urlsToCache = [
     '/app.html',
     '/app',
@@ -13,6 +13,7 @@ const urlsToCache = [
 // Install Service Worker
 self.addEventListener('install', (event) => {
     console.log('Customer SW: Installing...');
+    self.skipWaiting(); // Kích hoạt ngay, không chờ tab cũ đóng hết
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {

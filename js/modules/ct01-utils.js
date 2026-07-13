@@ -61,7 +61,7 @@ function idNumberRow(label, idNumber, boxWidthPt) {
 }
 
 /**
- * @param {object} building - cần building.address, landlordName, landlordIdNumber, landlordSignatureImage
+ * @param {object} building - cần building.address, landlordSignatureImage
  * @param {object} customer - cần customer.name, birthDate, gender, idNumber
  * @param {string} [customerSignatureDataUrl] - chữ ký khách (lấy lại từ hợp đồng thuê đã ký)
  * @param {string} [residenceUntilDate] - ngày tạm trú đến (dd/mm/yyyy), người dùng tự nhập trước khi xuất
@@ -77,8 +77,6 @@ export function buildCT01Html(building, customer, customerSignatureDataUrl, resi
     const idNumber = customer?.idNumber || '';
     const email = customer?.email || dots(10);
 
-    const landlordName = building?.landlordName || dots(18);
-    const landlordId = building?.landlordIdNumber || dots(11);
     const landlordSigHtml = building?.landlordSignatureImage
         ? `<img src="${building.landlordSignatureImage}" style="height:82pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
         : '';
@@ -142,7 +140,7 @@ ${memberTable}
 <tr>
 ${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ HỘ<sup>(3)</sup>', '', '', 21, true, true)}
 ${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(4)</sup>', landlordSigHtml,
-    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ${landlordName}</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:${landlordId}</p>`, 24)}
+    `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:...........</p>`, 24)}
 ${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHA HOẶC MẸ HOẶC NGƯỜI GIÁM HỘ<sup>(5)</sup>', '',
     `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(7) Số định danh cá nhân:...........</p>`, 23)}
 ${sigCol(`..,ngày ${signDay} tháng ${signMonth} năm ${signYear}`, 'NGƯỜI KÊ KHAI<sup>(6)</sup>', customerSigHtml,

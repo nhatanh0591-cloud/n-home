@@ -644,12 +644,14 @@ export function cleanupAfterPrint(printRoot, originalTitle, extraCleanup) {
 }
 
 /**
- * Rút gọn mã tòa nhà để đặt tên file — building.code thường có dạng "529_122HVB"
- * (số nhà + phần viết tắt địa chỉ), chỉ lấy phần số nhà đứng trước dấu "_".
+ * Rút gọn mã tòa nhà để đặt tên file — building.code thường có dạng "958/35/18/6LLQ"
+ * (số nhà + các hẻm/ngõ + phần viết tắt địa chỉ), chỉ lấy số nhà đứng trước dấu "/" đầu tiên.
+ * Khi lưu file, hệ điều hành tự đổi "/" thành "_" (ký tự không hợp lệ trong tên file) nên nếu
+ * không cắt trước thì tên file sẽ hiện nguyên cả mã dài dạng "958_35_18_6LLQ".
  */
 export function getBuildingShortCode(building) {
     const code = building?.code || '';
-    return code.split('_')[0] || code;
+    return code.split(/[/_]/)[0] || code;
 }
 
 /**
