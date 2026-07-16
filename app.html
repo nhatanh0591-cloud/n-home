@@ -1724,12 +1724,45 @@
             try {
                 const q = query(collection(db, 'customers'), where('phone', '==', phone));
                 const snapshot = await getDocs(q);
-                
-                if (!snapshot.empty) {
-                    const doc = snapshot.docs[0];
-                    return { id: doc.id, ...doc.data() };
+
+                if (snapshot.empty) return null;
+
+                const customerDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (customerDocs.length === 1) return customerDocs[0];
+
+                // Cùng 1 SĐT có thể ứng với nhiều bản ghi khách hàng khác nhau
+                // (VD: thêm nhanh khách hàng cho từng hợp đồng thay vì dùng lại bản ghi cũ).
+                // Ưu tiên bản ghi đang là đại diện của hợp đồng còn hiệu lực (chưa thanh lý, chưa hết hạn)
+                // thay vì lấy tuỳ ý bản ghi đầu tiên Firestore trả về.
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                let bestCustomer = customerDocs[0];
+                let bestEndDate = null;
+                let foundActive = false;
+
+                for (const cust of customerDocs) {
+                    const contractsSnap = await getDocs(query(collection(db, 'contracts'), where('representativeId', '==', cust.id)));
+                    contractsSnap.docs.forEach(cDoc => {
+                        const c = cDoc.data();
+                        let end = null;
+                        if (c.endDate) {
+                            const d = new Date(c.endDate);
+                            if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); end = d; }
+                        }
+                        const isActive = c.status !== 'terminated' && (!end || end >= today);
+
+                        if (isActive && !foundActive) {
+                            bestCustomer = cust; bestEndDate = end; foundActive = true;
+                        } else if (isActive && foundActive && end && (!bestEndDate || end > bestEndDate)) {
+                            bestCustomer = cust; bestEndDate = end;
+                        } else if (!isActive && !foundActive && end && (!bestEndDate || end > bestEndDate)) {
+                            bestCustomer = cust; bestEndDate = end;
+                        }
+                    });
                 }
-                return null;
+
+                return bestCustomer;
             } catch (error) {
                 console.error('Error loading customer:', error);
                 return null;
@@ -2588,13 +2621,52 @@
                 .join(', ');
         }
 
+        // Khi 1 SĐT/khách hàng có nhiều hợp đồng (VD: 1 hợp đồng cũ đã hết hạn + 1 hợp đồng mới đang ở),
+        // ưu tiên hợp đồng đang hiệu lực (chưa bị thanh lý và chưa hết hạn) để hiển thị ở trang chủ,
+        // thay vì luôn lấy hợp đồng đầu tiên Firestore trả về (thứ tự không đảm bảo).
+        function getActiveHomeContract(contractsList) {
+            if (!contractsList || contractsList.length === 0) return null;
+            if (contractsList.length === 1) return contractsList[0];
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const getEndDate = (c) => {
+                if (!c.endDate) return null;
+                const d = new Date(c.endDate);
+                if (isNaN(d.getTime())) return null;
+                d.setHours(0, 0, 0, 0);
+                return d;
+            };
+
+            const isActive = (c) => {
+                if (c.status === 'terminated') return false;
+                const end = getEndDate(c);
+                return !end || end >= today;
+            };
+
+            const pickLatestEndDate = (list) => list.reduce((latest, c) => {
+                const latestEnd = getEndDate(latest);
+                const cEnd = getEndDate(c);
+                if (!latestEnd) return latest;
+                if (!cEnd) return c;
+                return cEnd > latestEnd ? c : latest;
+            });
+
+            const activeContracts = contractsList.filter(isActive);
+            if (activeContracts.length > 0) return pickLatestEndDate(activeContracts);
+
+            // Không có hợp đồng nào còn hiệu lực → hiển thị hợp đồng hết hạn gần đây nhất
+            return pickLatestEndDate(contractsList);
+        }
+
         function renderHomeData() {
             perfMon.track('renderHomeData');
 
             // Render building info
             const buildingInfo = document.getElementById('building-info');
             if (contracts.length > 0) {
-                const contract = contracts[0];
+                const contract = getActiveHomeContract(contracts);
                 const building = buildings.find(b => b.id === contract.buildingId);
 
                 // Debug mapping
@@ -2625,7 +2697,7 @@
             // Render contract duration info
             const contractDurationInfo = document.getElementById('contract-duration-info');
             if (contracts.length > 0) {
-                const contract = contracts[0];
+                const contract = getActiveHomeContract(contracts);
                 
                 // Format dates
                 const formatDate = (dateStr) => {
@@ -2684,10 +2756,10 @@
                 `;
             }
 
-            // Render rent info (from first contract)
+            // Render rent info (from active contract)
             const rentInfo = document.getElementById('rent-info');
             if (contracts.length > 0) {
-                const contract = contracts[0];
+                const contract = getActiveHomeContract(contracts);
                 const building = buildings.find(b => b.id === contract.buildingId);
                 
                 // Debug: Log all contract fields to see what's available
@@ -6151,7 +6223,7 @@ ${sp}
         });
 
         function updateContractCardFromData() {
-            const contract = contracts[0];
+            const contract = getActiveHomeContract(contracts);
             if (!contract) {
                 document.getElementById('contract-sign-card-wrapper')?.classList.add('hidden');
                 return;
