@@ -61,9 +61,9 @@ function idNumberRow(label, idNumber, boxWidthPt) {
 }
 
 /**
- * @param {object} building - cần building.address, landlordSignatureImage
+ * @param {object} building - cần building.address
  * @param {object} customer - cần customer.name, birthDate, gender, idNumber
- * @param {string} [customerSignatureDataUrl] - chữ ký khách (lấy lại từ hợp đồng thuê đã ký)
+ * @param {string} [customerSignatureDataUrl] - chữ ký khách (chỉ khách ký, không cần chữ ký chủ nhà)
  * @param {string} [residenceUntilDate] - ngày tạm trú đến (dd/mm/yyyy), người dùng tự nhập trước khi xuất
  * @param {string} [signDate] - ngày tháng ký (dd/mm/yyyy), người dùng tự nhập trước khi xuất; để trống thì lấy ngày hiện tại
  */
@@ -77,9 +77,6 @@ export function buildCT01Html(building, customer, customerSignatureDataUrl, resi
     const idNumber = customer?.idNumber || '';
     const email = customer?.email || dots(10);
 
-    const landlordSigHtml = building?.landlordSignatureImage
-        ? `<img src="${building.landlordSignatureImage}" style="height:82pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
-        : '';
     const customerSigHtml = customerSignatureDataUrl
         ? `<img src="${customerSignatureDataUrl}" style="height:82pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">`
         : '';
@@ -139,7 +136,7 @@ ${memberTable}
 <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-top:8pt;">
 <tr>
 ${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ HỘ<sup>(4)</sup>', '', '', 21, true, true)}
-${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(5)</sup>', landlordSigHtml,
+${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHỦ SỞ HỮU CHỖ Ở HỢP PHÁP<sup>(5)</sup>', '',
     `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Số định danh cá nhân:...........</p>`, 24)}
 ${sigCol('..,ngày...tháng...năm...', 'Ý KIẾN CỦA CHA HOẶC MẸ HOẶC NGƯỜI GIÁM HỘ<sup>(6)</sup>', '',
     `<p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Họ và tên: ..................</p><p style="text-align:left;font-size:8.5pt;margin:0;white-space:nowrap;">(8) Số định danh cá nhân:...........</p>`, 23)}
