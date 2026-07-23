@@ -8,6 +8,7 @@ import { buildCT01Html } from './ct01-utils.js';
 import { buildOnho1Html } from './onho1-utils.js';
 import { buildOnho2Html } from './onho2-utils.js';
 import { buildOnho3Html } from './onho3-utils.js';
+import { buildOnho4Html } from './onho4-utils.js';
 
 const documentsSection = document.getElementById('documents-section');
 const typeSelect = document.getElementById('documents-type-select');
@@ -23,15 +24,15 @@ const signDateInput = document.getElementById('documents-ct01-sign-date');
 const onho1SignDateInput = document.getElementById('documents-onho1-sign-date');
 const onho2SignDateInput = document.getElementById('documents-onho2-sign-date');
 const onho3SignDateInput = document.getElementById('documents-onho3-sign-date');
+const onho4SignDateInput = document.getElementById('documents-onho4-sign-date');
 
 // Field bổ sung riêng của từng loại giấy tờ - chỉ hiện khi loại đó được chọn.
-// Thêm loại giấy tờ mới (vd Hợp đồng ở nhờ - Mẫu 4): thêm <option> trong index.html + 1 div field (nếu cần)
-// + case xử lý trong handleExport + hàm build riêng (vd onho4-utils.js).
 const EXTRA_FIELDS_BY_TYPE = {
     ct01: document.getElementById('documents-ct01-fields'),
     onho1: document.getElementById('documents-onho1-fields'),
     onho2: document.getElementById('documents-onho2-fields'),
-    onho3: document.getElementById('documents-onho3-fields')
+    onho3: document.getElementById('documents-onho3-fields'),
+    onho4: document.getElementById('documents-onho4-fields')
 };
 
 // Trạng thái hợp đồng được coi là "còn hoạt động" (khách vẫn đang ở)
@@ -89,6 +90,18 @@ export function loadDocuments() {
 }
 
 /**
+ * Lấy ảnh chữ ký để in cho 1 khách trong 1 hợp đồng (dùng cho CT01 - mỗi người 1 chữ ký riêng).
+ * Ưu tiên chữ ký cá nhân lưu trên hồ sơ khách hàng (áp dụng cho cả người chung phòng lẫn đại diện).
+ * Nếu khách chưa có chữ ký cá nhân và là đại diện hợp đồng, dự phòng bằng chữ ký hợp đồng đã ký
+ * qua app khách hàng (dữ liệu cũ trước khi có trường chữ ký riêng trên hồ sơ khách).
+ */
+function getCustomerSignature(customer, contract) {
+    if (customer?.signatureImage) return customer.signatureImage;
+    if (contract?.representativeId === customer?.id) return contract?.signatureData?.signatureImage || null;
+    return null;
+}
+
+/**
  * Lấy danh sách khách (kèm hợp đồng) còn hoạt động trong 1 tòa nhà, mỗi khách xuất hiện 1 lần.
  */
 function getActiveCustomersOfBuilding(buildingId) {
@@ -108,7 +121,7 @@ function getActiveCustomersOfBuilding(buildingId) {
             rows.push({
                 customer,
                 contract,
-                hasSignature: contract.representativeId === customerId && !!contract.signatureData?.signatureImage
+                hasSignature: !!getCustomerSignature(customer, contract)
             });
         });
     });
@@ -157,7 +170,7 @@ function renderCustomerList(buildingId) {
 
     customerListEl.innerHTML = rows.map(({ customer, contract, hasSignature }) => {
         const statusInfo = getStatusInfo(getContractStatus(contract));
-        const note = hasSignature ? '' : '<div class="text-xs text-gray-400">Chưa có chữ ký hợp đồng</div>';
+        const note = hasSignature ? '' : '<div class="text-xs text-gray-400">Khách chưa có chữ ký</div>';
         return `
         <tr class="border-b hover:bg-gray-50">
             <td class="py-4 px-4">
@@ -177,7 +190,7 @@ function renderCustomerList(buildingId) {
 
     customerMobileListEl.innerHTML = rows.map(({ customer, contract, hasSignature }) => {
         const statusInfo = getStatusInfo(getContractStatus(contract));
-        const note = hasSignature ? '' : '<div class="text-xs text-gray-400 mt-1">Chưa có chữ ký hợp đồng</div>';
+        const note = hasSignature ? '' : '<div class="text-xs text-gray-400 mt-1">Khách chưa có chữ ký</div>';
         return `
         <div class="mobile-card">
             <div class="flex items-center gap-3 mb-3 pb-3 border-b">
@@ -224,6 +237,8 @@ async function handleExport() {
             return handleExportOnho2();
         case 'onho3':
             return handleExportOnho3();
+        case 'onho4':
+            return handleExportOnho4();
         default:
             showToast('Vui lòng chọn loại giấy tờ cần xuất!', 'error');
     }
@@ -259,7 +274,7 @@ async function handleExportCT01() {
     const pagesHtml = checkedBoxes.map(cb => {
         const customer = customers.find(c => c.id === cb.dataset.customerId);
         const contract = contracts.find(c => c.id === cb.dataset.contractId);
-        const signature = (contract?.representativeId === customer?.id) ? (contract?.signatureData?.signatureImage || null) : null;
+        const signature = getCustomerSignature(customer, contract);
         return buildCT01Html(building, customer, signature, residenceUntilDate, signDate);
     });
 
@@ -475,6 +490,61 @@ async function handleExportOnho3() {
     const originalTitle = document.title;
     const roomLabel = [...customerIdsByContract.keys()].map(id => contracts.find(c => c.id === id)?.room).filter(Boolean).join('+');
     document.title = `Ở nhờ - ${roomLabel} - ${getBuildingShortCode(building)}`;
+
+    await Promise.all([imgsReady, _waitFontsReady()]);
+    window.print();
+    cleanupAfterPrint(printRoot, originalTitle);
+}
+
+async function handleExportOnho4() {
+    const buildingId = buildingSelect.value;
+    const building = getBuildings().find(b => b.id === buildingId);
+    if (!building) {
+        showToast('Vui lòng chọn tòa nhà!', 'error');
+        return;
+    }
+
+    const checkedBoxes = [...customerListEl.querySelectorAll('.doc-customer-checkbox:checked')];
+    if (checkedBoxes.length === 0) {
+        showToast('Vui lòng chọn ít nhất 1 khách!', 'error');
+        return;
+    }
+
+    const customers = getCustomers();
+    const contracts = getContracts();
+
+    // Ngày ký hợp đồng do người dùng tự chọn trước khi xuất (input type=date, dạng yyyy-mm-dd) -> đổi sang dd/mm/yyyy
+    const onho4SignDateRaw = onho4SignDateInput.value;
+    const onho4SignDate = onho4SignDateRaw
+        ? onho4SignDateRaw.split('-').reverse().join('/')
+        : '';
+
+    // Mỗi khách đã chọn ra riêng 1 trang (không gộp theo hợp đồng như mẫu 1/2/3)
+    const pagesHtml = checkedBoxes.map(cb => {
+        const customer = customers.find(c => c.id === cb.dataset.customerId);
+        const contract = contracts.find(c => c.id === cb.dataset.contractId);
+        const tenantSignature = getCustomerSignature(customer, contract);
+        return buildOnho4Html(building, contract, customer, tenantSignature, onho4SignDate);
+    });
+
+    const printRoot = document.getElementById('_print_root');
+    printRoot.innerHTML = pagesHtml
+        .map((html, i) => `<div style="${i < pagesHtml.length - 1 ? 'page-break-after:always;' : ''}">${html}</div>`)
+        .join('');
+
+    const imgs = Array.from(printRoot.querySelectorAll('img'));
+    const imgsReady = new Promise(resolve => {
+        if (imgs.length === 0) return resolve();
+        let pending = imgs.length;
+        imgs.forEach(img => {
+            if (img.complete && img.naturalWidth > 0) { if (--pending === 0) resolve(); }
+            else { img.onload = img.onerror = () => { if (--pending === 0) resolve(); }; }
+        });
+    });
+
+    const originalTitle = document.title;
+    const roomLabel = [...new Set(checkedBoxes.map(cb => contracts.find(c => c.id === cb.dataset.contractId)?.room).filter(Boolean))].join('+');
+    document.title = `Ở nhờ M4 - ${roomLabel} - ${getBuildingShortCode(building)}`;
 
     await Promise.all([imgsReady, _waitFontsReady()]);
     window.print();

@@ -402,6 +402,7 @@
                                         <option value="onho1">Hợp đồng ở nhờ - Mẫu 1</option>
                                         <option value="onho2">Hợp đồng ở nhờ - Mẫu 2</option>
                                         <option value="onho3">Hợp đồng ở nhờ - Mẫu 3</option>
+                                        <option value="onho4">Hợp đồng ở nhờ - Mẫu 4</option>
                                     </select>
                                 </div>
                                 <div class="flex-1">
@@ -444,6 +445,12 @@
                                 <div class="flex items-center gap-2">
                                     <label for="documents-onho3-sign-date" class="text-sm font-medium whitespace-nowrap">Ngày ký hợp đồng</label>
                                     <input type="date" id="documents-onho3-sign-date" class="p-2 border rounded-lg bg-gray-50 text-sm">
+                                </div>
+                            </div>
+                            <div id="documents-onho4-fields" class="hidden flex flex-wrap items-center gap-4 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <label for="documents-onho4-sign-date" class="text-sm font-medium whitespace-nowrap">Ngày ký hợp đồng</label>
+                                    <input type="date" id="documents-onho4-sign-date" class="p-2 border rounded-lg bg-gray-50 text-sm">
                                 </div>
                             </div>
 
@@ -2468,7 +2475,7 @@
                     </div>
                     
                     <div class="relative mb-3">
-                        <input type="text" id="customer-search" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Tìm kiếm khách hàng...">
+                        <input type="text" id="contract-customer-search" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Tìm kiếm khách hàng...">
                         <div id="customer-dropdown" class="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg z-10 mt-1 hidden max-h-60 overflow-y-auto">
                             <div id="customer-options">
                                 </div>
@@ -2538,7 +2545,7 @@
                     </div>
                     <div>
                         <label for="quick-customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
-                        <input type="tel" id="quick-customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập SĐT" required>
+                        <input type="tel" id="quick-customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập SĐT">
                     </div>
                     <div>
                         <label for="quick-customer-id-number" class="block mb-2 text-sm font-medium">Số CCCD</label>
@@ -2592,7 +2599,7 @@
                     </div>
                     <div>
                         <label for="customer-phone" class="block mb-2 text-sm font-medium">Số điện thoại</label>
-                        <input type="tel" id="customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại" required>
+                        <input type="tel" id="customer-phone" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập số điện thoại">
                     </div>
                     <div>
                         <label for="customer-id-number" class="block mb-2 text-sm font-medium">Số CCCD</label>
@@ -2637,9 +2644,8 @@
                     <label for="customer-permanent-address" class="block mb-2 text-sm font-medium">Địa chỉ thường trú</label>
                     <input type="text" id="customer-permanent-address" class="w-full p-2.5 border rounded-lg bg-gray-50" placeholder="Nhập địa chỉ thường trú">
                 </div>
-                <div id="customer-signature-block" class="hidden border-t pt-4">
-                    <label class="block mb-2 text-sm font-medium">Ảnh chữ ký (đánh dấu khách đã ký hợp đồng)</label>
-                    <p id="customer-signature-context" class="text-xs text-gray-500 mb-2"></p>
+                <div id="customer-signature-block" class="border-t pt-4">
+                    <label class="block mb-2 text-sm font-medium">Ảnh chữ ký khách hàng</label>
                     <div id="customer-signature-placeholder" class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-2 cursor-pointer" style="height:140px;">
                         <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
                         <p class="text-sm text-gray-400">Nhấn vào đây để tải ảnh chữ ký lên</p>
@@ -3175,15 +3181,7 @@
                     <!-- Thông tin khách hàng -->
                     <div class="mb-6 bg-blue-50 rounded-lg p-4">
                         <h4 class="text-lg font-semibold mb-4 text-blue-800">Thông tin Khách hàng</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <p class="text-sm text-gray-600">Tên khách hàng:</p>
-                                <p id="contract-detail-customer-name" class="font-semibold text-gray-900"></p>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-600">Số điện thoại:</p>
-                                <p id="contract-detail-customer-phone" class="font-semibold text-gray-900"></p>
-                            </div>
+                        <div id="contract-detail-customers-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         </div>
                     </div>
 

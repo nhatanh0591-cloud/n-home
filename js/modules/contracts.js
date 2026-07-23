@@ -53,7 +53,7 @@ const contractModalTitle = document.getElementById('contract-modal-title');
 const contractForm = document.getElementById('contract-form');
 const contractBuildingSelect = document.getElementById('contract-building');
 const contractRoomSelect = document.getElementById('contract-room');
-const customerSearchInput = document.getElementById('customer-search');
+const customerSearchInput = document.getElementById('contract-customer-search');
 const customerDropdown = document.getElementById('customer-dropdown');
 const customerOptionsEl = document.getElementById('customer-options');
 const selectedCustomersDisplay = document.getElementById('selected-customers-display');
@@ -698,7 +698,9 @@ function buildA4ContractHtml(contract, building, customer, tenantSigDataUrl) {
         const s = contract.startDate.toDate ? contract.startDate.toDate() : new Date(contract.startDate);
         const e = contract.endDate.toDate ? contract.endDate.toDate() : new Date(contract.endDate);
         if (!isNaN(s) && !isNaN(e)) {
-            const m = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+            let m = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+            // Vào sau ngày 10 của tháng thì không tính tháng đó là 1 tháng trọn (VD vào 23/07 -> tháng 7 không tính)
+            if (s.getDate() > 10) m -= 1;
             durationMonths = m > 0 ? m : '..........';
         }
     }
@@ -1451,8 +1453,8 @@ async function handleQuickCustomerSubmit(e) {
     const hometown = document.getElementById('quick-customer-hometown').value.trim();
     const ethnicity = document.getElementById('quick-customer-ethnicity').value.trim();
 
-    if (!name || !phone) {
-        return showToast('Vui lòng nhập đủ tên và SĐT!', 'error');
+    if (!name) {
+        return showToast('Vui lòng nhập họ tên khách hàng!', 'error');
     }
 
     try {
@@ -1571,10 +1573,9 @@ export function showContractDetail(contractId) {
     }
     
     const building = getBuildings().find(b => b.id === contract.buildingId);
-    const customer = getCustomers().find(c => c.id === contract.representativeId);
     const statusInfo = getStatusInfo(contract.status || getContractStatus(contract));
     const contractNumber = `CT${contract.id.slice(-6).toUpperCase()}`;
-    
+
     // Helper function để set text
     const setEl = (id, text) => {
         const element = document.getElementById(id);
@@ -1582,7 +1583,7 @@ export function showContractDetail(contractId) {
             element.textContent = text || 'N/A';
         }
     };
-    
+
     // Thông tin cơ bản
     setEl('contract-detail-number', contractNumber);
     const statusEl = document.getElementById('contract-detail-status');
@@ -1591,11 +1592,33 @@ export function showContractDetail(contractId) {
     }
     setEl('contract-detail-start-date', formatDateDisplay(contract.startDate));
     setEl('contract-detail-end-date', formatDateDisplay(contract.endDate));
-    
-    // Thông tin khách hàng
-    setEl('contract-detail-customer-name', customer ? customer.name : 'N/A');
-    setEl('contract-detail-customer-phone', customer ? customer.phone : 'N/A');
-    
+
+    // Thông tin khách hàng - liệt kê TẤT CẢ khách trong hợp đồng, không chỉ người đại diện
+    const allCustomers = getCustomers();
+    const contractCustomers = (contract.customers || [])
+        .map(cId => allCustomers.find(c => c.id === cId))
+        .filter(Boolean);
+    const customersListEl = document.getElementById('contract-detail-customers-list');
+    if (customersListEl) {
+        customersListEl.innerHTML = contractCustomers.length > 0
+            ? contractCustomers.map(c => {
+                const isRep = c.id === contract.representativeId;
+                const hasSignature = isRep
+                    ? !!contract.signatureData?.signatureImage
+                    : !!c.signatureImage;
+                return `
+                <div class="bg-white rounded-lg px-3 py-2 border border-blue-200">
+                    <p class="text-sm text-gray-600 flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-gray-900">${c.name}</span>
+                        ${isRep ? '<span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">Đại diện</span>' : ''}
+                        ${hasSignature ? '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Đã có chữ ký</span>' : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Chưa có chữ ký</span>'}
+                    </p>
+                    <p class="font-semibold text-gray-900">${c.phone || '-'}</p>
+                </div>`;
+            }).join('')
+            : '<div class="text-gray-500 text-sm">Chưa có khách hàng nào</div>';
+    }
+
     // Thông tin phòng
     setEl('contract-detail-building', building ? (building.name ? `${building.code} - ${building.name}` : building.code) : 'N/A');
     setEl('contract-detail-room', contract.room || 'N/A');
@@ -2257,7 +2280,7 @@ function loadCustomerOptions(searchTerm = '') {
     const filteredCustomers = customers.filter(customer => 
         !selectedCustomers.includes(customer.id) && (
             customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            customer.phone.includes(searchTerm)
+            (customer.phone || '').includes(searchTerm)
         )
     );
     

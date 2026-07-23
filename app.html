@@ -5755,7 +5755,9 @@
                 const s = contract.startDate.toDate ? contract.startDate.toDate() : new Date(contract.startDate);
                 const e = contract.endDate.toDate ? contract.endDate.toDate() : new Date(contract.endDate);
                 if (!isNaN(s) && !isNaN(e)) {
-                    const m = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+                    let m = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+                    // Vào sau ngày 10 của tháng thì không tính tháng đó là 1 tháng trọn (VD vào 23/07 -> tháng 7 không tính)
+                    if (s.getDate() > 10) m -= 1;
                     durationMonths = m > 0 ? m : '..........';
                 }
             }
@@ -6005,7 +6007,9 @@ ${sp}
                 const s = contract.startDate.toDate ? contract.startDate.toDate() : new Date(contract.startDate);
                 const e = contract.endDate.toDate ? contract.endDate.toDate() : new Date(contract.endDate);
                 if (!isNaN(s) && !isNaN(e)) {
-                    const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+                    let months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth() + 1);
+                    // Vào sau ngày 10 của tháng thì không tính tháng đó là 1 tháng trọn (VD vào 23/07 -> tháng 7 không tính)
+                    if (s.getDate() > 10) months -= 1;
                     durationMonths = months > 0 ? months : '..........';
                 }
             }

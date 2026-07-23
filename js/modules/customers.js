@@ -4,14 +4,16 @@ import { db, addDoc, setDoc, doc, updateDoc, deleteDoc, deleteField, collection,
 import { getCustomers, getContracts, getBuildings, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { showToast, openModal, closeModal, exportToExcel, importFromExcel, showConfirm, attachDateSlashMask } from '../utils.js';
 import { processSignatureFile } from './signature-utils.js';
+import { getContractStatus } from './contracts.js';
 
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let currentCustomerPage = 1;
 const customersPerPage = 100;
 let customersCache_filtered = []; // Cache đã lọc để phân trang
 let selectedMobileCustomerIds = new Set(); // Checkbox mobile persistent
-let currentCustomerSignature = null; // Ảnh chữ ký (dataURL) tạm thời khi sửa khách hàng
-let currentCustomerSignatureContractId = null; // Hợp đồng sẽ được đánh dấu đã ký khi lưu, nếu có tải ảnh chữ ký
+let currentCustomerSignature = null; // Ảnh chữ ký (dataURL) của khách đang thêm/sửa - lưu vào hồ sơ khách hàng
+let currentCustomerSignatureContractId = null; // Hợp đồng sẽ được đánh dấu đã ký khi lưu, nếu khách này là đại diện VÀ vừa tải ảnh mới
+let customerSignatureJustUploaded = false; // Chỉ true khi admin vừa chọn ảnh mới trong phiên sửa này (tránh đánh dấu lại hợp đồng đã ký mỗi lần lưu)
 
 // --- DOM ELEMENTS (Chỉ liên quan đến Khách hàng) ---
 const customersSection = document.getElementById('customers-section');
@@ -44,8 +46,6 @@ const customerModalTitle = document.getElementById('customer-modal-title');
 const customerForm = document.getElementById('customer-form');
 const customerBuildingSelect = document.getElementById('customer-building');
 const customerRoomSelect = document.getElementById('customer-room');
-const customerSigBlock = document.getElementById('customer-signature-block');
-const customerSigContextEl = document.getElementById('customer-signature-context');
 const customerSigPlaceholder = document.getElementById('customer-signature-placeholder');
 const customerSigPreviewArea = document.getElementById('customer-signature-preview-area');
 const customerSigPreview = document.getElementById('customer-signature-preview');
@@ -84,13 +84,15 @@ export function initCustomers() {
     attachDateSlashMask(document.getElementById('customer-birth-date'));
     customerBuildingSelect.addEventListener('change', () => populateCustomerRoomOptions());
 
-    // Upload ảnh chữ ký khách hàng (đánh dấu đã ký hợp đồng khi lưu)
+    // Upload ảnh chữ ký khách hàng - lưu vào hồ sơ khách (dùng khi xuất giấy tờ),
+    // nếu khách là đại diện hợp đồng thì còn đánh dấu hợp đồng đó đã ký
     customerSigPlaceholder?.addEventListener('click', () => customerSigInput.click());
     customerSigInput?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         try {
             currentCustomerSignature = await processSignatureFile(file);
+            customerSignatureJustUploaded = true;
             renderCustomerSignature();
         } catch (err) {
             showToast('Không đọc được ảnh, vui lòng thử ảnh khác', 'error');
@@ -99,6 +101,7 @@ export function initCustomers() {
     });
     document.getElementById('clear-customer-sig-btn')?.addEventListener('click', () => {
         currentCustomerSignature = null;
+        customerSignatureJustUploaded = false;
         renderCustomerSignature();
     });
 
@@ -218,8 +221,8 @@ export function loadCustomers() {
         if (filterBuilding && customer.buildingName !== filterBuilding) return false;
         if (filterRoom && customer.roomName !== filterRoom) return false;
         if (filterStatus && customer.status !== filterStatus) return false;
-        if (searchText && !customer.name.toLowerCase().includes(searchText) && 
-            !customer.phone.includes(searchText)) return false;
+        if (searchText && !customer.name.toLowerCase().includes(searchText) &&
+            !(customer.phone || '').includes(searchText)) return false;
         return true;
     });
 
@@ -324,7 +327,7 @@ function renderCustomersPage() {
             </td>
             <td class="py-4 px-4 font-medium">${customer.name}</td>
             <td class="py-4 px-4">
-                <a href="tel:${customer.phone}" class="text-blue-600 hover:text-blue-800 hover:underline">${customer.phone}</a>
+                ${customer.phone ? `<a href="tel:${customer.phone}" class="text-blue-600 hover:text-blue-800 hover:underline">${customer.phone}</a>` : '-'}
             </td>
             <td class="py-4 px-4">${customer.buildingName || '-'}</td>
             <td class="py-4 px-4">${customer.roomName || '-'}</td>
@@ -352,7 +355,7 @@ function renderCustomersPage() {
                 <div class="mobile-card-row">
                     <span class="mobile-card-label">Số điện thoại:</span>
                     <span class="mobile-card-value">
-                        <a href="tel:${customer.phone}" class="text-blue-600 hover:text-blue-800">${customer.phone}</a>
+                        ${customer.phone ? `<a href="tel:${customer.phone}" class="text-blue-600 hover:text-blue-800">${customer.phone}</a>` : '-'}
                     </span>
                 </div>
                 <div class="mobile-card-row">
@@ -517,13 +520,15 @@ function renderCustomerSignature() {
 }
 
 /**
- * Xác định hợp đồng sẽ được đánh dấu "đã ký" nếu admin tải ảnh chữ ký cho khách này.
- * Chỉ áp dụng được khi khách là NGƯỜI ĐẠI DIỆN của hợp đồng (đúng quy tắc chữ ký hiện có).
+ * Chuẩn bị khối ảnh chữ ký khi mở form Sửa khách hàng: nạp sẵn ảnh chữ ký đã lưu trên hồ sơ
+ * khách (nếu có) để xem lại/thay thế. Nếu khách này là NGƯỜI ĐẠI DIỆN của 1 hợp đồng, ghi nhớ
+ * hợp đồng đó để khi tải ảnh MỚI trong lần sửa này sẽ đồng thời đánh dấu hợp đồng đã ký.
  * Ưu tiên đúng hợp đồng của dòng vừa bấm Sửa, nếu không khớp thì tìm hợp đồng khác mà khách làm đại diện.
  */
 function setupCustomerSignatureBlock(customer, contractIdHint) {
-    currentCustomerSignature = null;
+    currentCustomerSignature = customer.signatureImage || null;
     currentCustomerSignatureContractId = null;
+    customerSignatureJustUploaded = false;
     renderCustomerSignature();
 
     const contracts = getContracts();
@@ -532,19 +537,9 @@ function setupCustomerSignatureBlock(customer, contractIdHint) {
         contract = contracts.find(c => c.representativeId === customer.id);
     }
 
-    if (!contract || contract.representativeId !== customer.id) {
-        customerSigBlock.classList.add('hidden');
-        return;
+    if (contract && contract.representativeId === customer.id) {
+        currentCustomerSignatureContractId = contract.id;
     }
-
-    currentCustomerSignatureContractId = contract.id;
-    customerSigBlock.classList.remove('hidden');
-
-    const building = getBuildings().find(b => b.id === contract.buildingId);
-    const roomLabel = `${building?.code || ''} - Phòng ${contract.room || ''}`;
-    customerSigContextEl.textContent = contract.signatureData
-        ? `Hợp đồng ${roomLabel}: đã ký. Tải ảnh mới sẽ ghi đè chữ ký cũ khi lưu.`
-        : `Hợp đồng ${roomLabel}: chưa ký. Tải ảnh chữ ký rồi bấm Lưu để đánh dấu đã ký.`;
 }
 
 /**
@@ -569,8 +564,8 @@ async function handleBodyClick(e) {
         populateCustomerRoomOptions();
         currentCustomerSignature = null;
         currentCustomerSignatureContractId = null;
+        customerSignatureJustUploaded = false;
         renderCustomerSignature();
-        customerSigBlock.classList.add('hidden');
         openModal(customerModal);
     }
     // Nút "Sửa"
@@ -653,8 +648,8 @@ async function handleCustomerFormSubmit(e) {
     const buildingId = customerBuildingSelect.value;
     const room = customerRoomSelect.value;
 
-    if (!name || !phone) {
-        showToast('Vui lòng nhập đầy đủ thông tin!', 'error');
+    if (!name) {
+        showToast('Vui lòng nhập họ tên khách hàng!', 'error');
         return;
     }
 
@@ -670,8 +665,11 @@ async function handleCustomerFormSubmit(e) {
             ...(ethnicity && { ethnicity }),
             ...(buildingId && { buildingId }),
             ...(room && { room }),
+            ...(currentCustomerSignature && { signatureImage: currentCustomerSignature }),
             updatedAt: serverTimestamp()
         };
+
+        let customerId = id;
 
         if (id) {
             // Nếu ô nào bị xóa trắng thì phải xóa hẳn field đó trên Firebase (deleteField),
@@ -682,6 +680,7 @@ async function handleCustomerFormSubmit(e) {
             if (!ethnicity) customerData.ethnicity = deleteField();
             if (!buildingId) customerData.buildingId = deleteField();
             if (!room) customerData.room = deleteField();
+            if (!currentCustomerSignature) customerData.signatureImage = deleteField();
 
             // Update Firebase
             await setDoc(doc(db, 'customers', id), customerData, { merge: true });
@@ -694,16 +693,18 @@ async function handleCustomerFormSubmit(e) {
             if (!ethnicity) localData.ethnicity = undefined;
             if (!buildingId) localData.buildingId = undefined;
             if (!room) localData.room = undefined;
+            if (!currentCustomerSignature) localData.signatureImage = undefined;
             updateInLocalStorage('customers', id, localData);
             showToast('Cập nhật khách hàng thành công!');
         } else {
             // Create Firebase
             customerData.createdAt = serverTimestamp();
             const docRef = await addDoc(collection(db, 'customers'), customerData);
-            
+            customerId = docRef.id;
+
             // Add to localStorage với Firebase ID
-            const newItem = { 
-                ...customerData, 
+            const newItem = {
+                ...customerData,
                 id: docRef.id,
                 createdAt: new Date(),
                 updatedAt: new Date()
@@ -712,13 +713,21 @@ async function handleCustomerFormSubmit(e) {
             state.customers.unshift(newItem);
             saveToCache();
             document.dispatchEvent(new CustomEvent('store:customers:updated'));
-            
+
             showToast('Thêm khách hàng thành công!');
         }
 
-        // Nếu admin có tải ảnh chữ ký cho khách này -> đánh dấu hợp đồng đã ký,
-        // y hệt logic khi khách tự tải ảnh + ký trên app (phục vụ ký hàng loạt)
-        if (currentCustomerSignature && currentCustomerSignatureContractId) {
+        // Nếu phòng vừa chọn đang có hợp đồng còn hiệu lực -> gắn khách này vào hợp đồng đó
+        // luôn, để trạng thái hiển thị "Đang ở" đúng ngay từ lúc lưu.
+        try {
+            await linkCustomerToActiveContractIfNeeded(customerId, buildingId, room);
+        } catch (linkError) {
+            console.error('❌ Lỗi gắn khách vào hợp đồng đang thuê:', linkError);
+        }
+
+        // Nếu admin VỪA tải ảnh chữ ký mới cho khách này trong lần sửa này (không phải ảnh cũ đã lưu từ trước)
+        // và khách là đại diện hợp đồng -> đánh dấu hợp đồng đã ký, y hệt logic khi khách tự ký trên app
+        if (customerSignatureJustUploaded && currentCustomerSignature && currentCustomerSignatureContractId) {
             try {
                 await markContractSignedByAdmin(currentCustomerSignatureContractId, currentCustomerSignature, phone);
                 showToast('Đã ghi nhận chữ ký, hợp đồng chuyển trạng thái đã ký!');
@@ -733,6 +742,27 @@ async function handleCustomerFormSubmit(e) {
     } catch (error) {
         showToast('Lỗi lưu khách hàng: ' + error.message, 'error');
     }
+}
+
+/**
+ * Nếu phòng vừa chọn đang có hợp đồng thuê còn hiệu lực (chưa thanh lý/quá hạn) mà khách này
+ * chưa nằm trong hợp đồng đó -> tự thêm khách vào hợp đồng, để trạng thái hiển thị đúng "Đang ở".
+ */
+async function linkCustomerToActiveContractIfNeeded(customerId, buildingId, room) {
+    if (!buildingId || !room) return;
+
+    const activeContract = getContracts().find(c =>
+        c.buildingId === buildingId &&
+        c.room === room &&
+        ['active', 'expiring'].includes(getContractStatus(c)) &&
+        !(c.customers || []).includes(customerId)
+    );
+    if (!activeContract) return;
+
+    const updatedCustomers = [...(activeContract.customers || []), customerId];
+    await updateDoc(doc(db, 'contracts', activeContract.id), { customers: updatedCustomers });
+    updateInLocalStorage('contracts', activeContract.id, { customers: updatedCustomers });
+    document.dispatchEvent(new CustomEvent('store:contracts:updated'));
 }
 
 /**

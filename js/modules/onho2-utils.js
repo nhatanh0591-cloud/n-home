@@ -35,6 +35,12 @@ export function buildOnho2Html(building, contract, tenants, tenantSignatureDataU
         : fmtDateParts(contract?.startDate) || fmtDateParts(new Date());
     const signDateStr = `${signDate.day}/${signDate.month}/${signDate.year}`;
 
+    // Thời hạn ở nhờ 24 tháng tính từ ngày ký, ngày kết thúc tự tính = ngày ký + 24 tháng
+    const durationMonths = 24;
+    const endDateObj = new Date(parseInt(signDate.year, 10), parseInt(signDate.month, 10) - 1, parseInt(signDate.day, 10));
+    endDateObj.setMonth(endDateObj.getMonth() + durationMonths);
+    const endDateStr = `${String(endDateObj.getDate()).padStart(2, '0')}/${String(endDateObj.getMonth() + 1).padStart(2, '0')}/${endDateObj.getFullYear()}`;
+
     const landlordName = building?.landlordName ? building.landlordName.toUpperCase() : dots(30);
     const landlordId = building?.landlordIdNumber || dots(12);
     const landlordAddress = building?.landlordAddress || dots(30);
@@ -81,7 +87,7 @@ ${tenantBlocks}
 ${sp}
 
 <p style="font-weight:700;${mb3}">Hai bên tự nguyện thỏa thuận và thống nhất như sau:</p>
-<p style="${mb3}">Bên A đồng ý cho bên B được thuê tại nhà số: ${houseAddress} thời gian 12 tháng từ ngày ${signDateStr} và đăng ký cư trú theo quy định.</p>
+<p style="${mb3}">Bên A đồng ý cho bên B được thuê tại nhà số: ${houseAddress} thời gian ${durationMonths} tháng từ ngày ${signDateStr} đến ${endDateStr}. Mục đích để ở và đăng ký tạm trú.</p>
 <p style="${mb3}">Biên bản này được lập thành 02 bản có giá trị như nhau và mỗi bên giữ 01 bản.</p>
 ${sp}${sp}
 
