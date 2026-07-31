@@ -5738,7 +5738,7 @@
                 if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.innerHTML = 'Đang tạo file PDF...'; }
                 try {
                     const blob = await generateContractPdfBlob(printRoot);
-                    const filename = `Hop_dong_thue_phong_${roomCode}_${buildingCode}.pdf`.replace(/\s+/g, '_');
+                    const filename = `${document.title}.pdf`; // Cùng format tên với file PC (bản PC dùng document.title làm tên gợi ý khi in ra PDF)
                     await _saveOrShareBlob(blob, filename, {
                         shareMsg: '✅ Đã mở bảng chia sẻ, chọn nơi lưu để lưu file hợp đồng!',
                         saveMsg: '✅ Đã lưu file hợp đồng PDF!'
@@ -5761,8 +5761,11 @@
         /**
          * Tự vẽ nội dung hợp đồng (đang nằm trong #_print_root) ra file PDF thật bằng
          * html2canvas + jsPDF, dùng cho di động thay cho window.print() (không đáng tin cậy
-         * trên Android). Chụp toàn bộ nội dung thành 1 canvas dài, rồi cắt thành từng trang A4;
-         * điểm cắt được dò lùi tới dòng pixel "trắng" gần nhất để không cắt ngang chữ.
+         * trên Android). Tách nội dung thành từng "đoạn" theo đúng các mốc page-break-before
+         * đã có sẵn trong hợp đồng (trước ĐIỀU 4, ĐIỀU 6, mục 7.4...) để số trang và điểm ngắt
+         * trang khớp với bản in ra từ PC, mỗi đoạn luôn bắt đầu ở đầu 1 trang PDF mới. Nếu 1
+         * đoạn vẫn dài hơn 1 trang (VD danh sách dịch vụ dài) thì cắt tiếp, dò lùi tới dòng pixel
+         * gần như trắng để không cắt ngang chữ.
          */
         async function generateContractPdfBlob(sourceRoot) {
             const { jsPDF } = window.jspdf;
@@ -5777,6 +5780,19 @@
             const contentW = PAGE_W - MARGIN.left - MARGIN.right;
             const contentH = PAGE_H - MARGIN.top - MARGIN.bottom;
 
+            const nodes = Array.from(sourceRoot.children);
+            const sections = [];
+            let bucket = [];
+            nodes.forEach(node => {
+                const breaksBefore = !!(node.style && node.style.pageBreakBefore === 'always');
+                if (breaksBefore && bucket.length > 0) {
+                    sections.push(bucket);
+                    bucket = [];
+                }
+                bucket.push(node);
+            });
+            if (bucket.length > 0) sections.push(bucket);
+
             const stage = document.createElement('div');
             stage.style.position = 'fixed';
             stage.style.left = '-99999px';
@@ -5787,45 +5803,45 @@
             stage.style.fontSize = '11pt';
             stage.style.lineHeight = '1.2';
             stage.style.color = '#000';
-            Array.from(sourceRoot.children).forEach(node => stage.appendChild(node.cloneNode(true)));
             document.body.appendChild(stage);
 
-            const clonedImgs = Array.from(stage.querySelectorAll('img'));
-            await Promise.all(clonedImgs.map(img => (img.complete && img.naturalWidth > 0)
-                ? Promise.resolve()
-                : new Promise(res => { img.onload = img.onerror = res; })));
+            const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
+            let pageIndex = 0;
 
-            let canvas;
             try {
-                canvas = await html2canvas(stage, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: contentW });
+                for (const section of sections) {
+                    stage.innerHTML = '';
+                    section.forEach(node => stage.appendChild(node.cloneNode(true)));
+
+                    const clonedImgs = Array.from(stage.querySelectorAll('img'));
+                    await Promise.all(clonedImgs.map(img => (img.complete && img.naturalWidth > 0)
+                        ? Promise.resolve()
+                        : new Promise(res => { img.onload = img.onerror = res; })));
+
+                    const canvas = await html2canvas(stage, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: contentW });
+                    const pxScale = canvas.width / contentW;
+                    const pageContentPxH = Math.floor(contentH * pxScale);
+                    const totalH = canvas.height;
+
+                    let y = 0;
+                    while (y < totalH) {
+                        let sliceH = Math.min(pageContentPxH, totalH - y);
+                        if (y + sliceH < totalH) {
+                            sliceH = _findSafePdfCutHeight(canvas, y, sliceH, pxScale);
+                        }
+                        const sliceCanvas = document.createElement('canvas');
+                        sliceCanvas.width = canvas.width;
+                        sliceCanvas.height = sliceH;
+                        sliceCanvas.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+                        const imgData = sliceCanvas.toDataURL('image/jpeg', 0.92);
+                        if (pageIndex > 0) pdf.addPage([PAGE_W, PAGE_H], 'p');
+                        pdf.addImage(imgData, 'JPEG', MARGIN.left, MARGIN.top, contentW, sliceH / pxScale);
+                        y += sliceH;
+                        pageIndex++;
+                    }
+                }
             } finally {
                 document.body.removeChild(stage);
-            }
-
-            const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
-            const pxScale = canvas.width / contentW;
-            const pageContentPxH = Math.floor(contentH * pxScale);
-            const totalH = canvas.height;
-
-            const sliceCanvas = document.createElement('canvas');
-            const sliceCtx = sliceCanvas.getContext('2d');
-            sliceCanvas.width = canvas.width;
-
-            let y = 0;
-            let pageIndex = 0;
-            while (y < totalH && pageIndex < 30) {
-                let sliceH = Math.min(pageContentPxH, totalH - y);
-                if (y + sliceH < totalH) {
-                    sliceH = _findSafePdfCutHeight(canvas, y, sliceH, pxScale);
-                }
-                sliceCanvas.height = sliceH;
-                sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceH);
-                sliceCtx.drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-                const imgData = sliceCanvas.toDataURL('image/jpeg', 0.92);
-                if (pageIndex > 0) pdf.addPage([PAGE_W, PAGE_H], 'p');
-                pdf.addImage(imgData, 'JPEG', MARGIN.left, MARGIN.top, contentW, sliceH / pxScale);
-                y += sliceH;
-                pageIndex++;
             }
 
             return pdf.output('blob');
