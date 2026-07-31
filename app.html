@@ -5504,6 +5504,27 @@
         const LANDLORD_SIG = './assets/landlord-sig.jpg';
         let contractSignedData = null;
         let uploadedSignatureDataUrl = null;
+        let _landlordSigDataUrlCache = null;
+
+        /**
+         * Chữ ký khách (base64 sẵn) chụp đúng bằng html2canvas, nhưng ảnh chữ ký chủ nhà
+         * (file .jpg tải qua network) bị lệch/đè lên chữ khi chụp trên di động — html2canvas
+         * clone DOM vào 1 iframe ẩn để chụp, và việc load lại ảnh network trong iframe đó có
+         * race riêng, không đồng bộ với việc mình đợi ảnh load ở ngoài. Chuyển ảnh chủ nhà
+         * thành base64 giống ảnh khách để loại bỏ hẳn phần tải mạng khi chụp.
+         */
+        async function _getLandlordSigDataUrl() {
+            if (_landlordSigDataUrlCache) return _landlordSigDataUrlCache;
+            const res = await fetch(LANDLORD_SIG);
+            const blob = await res.blob();
+            _landlordSigDataUrlCache = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+            return _landlordSigDataUrlCache;
+        }
 
         async function loadContractLibs() {
             const loads = [];
@@ -5805,6 +5826,8 @@
             stage.style.color = '#000';
             document.body.appendChild(stage);
 
+            const landlordSigDataUrl = await _getLandlordSigDataUrl().catch(() => null);
+
             const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
             let pageIndex = 0;
 
@@ -5814,6 +5837,11 @@
                     section.forEach(node => stage.appendChild(node.cloneNode(true)));
 
                     const clonedImgs = Array.from(stage.querySelectorAll('img'));
+                    if (landlordSigDataUrl) {
+                        clonedImgs.forEach(img => {
+                            if (img.getAttribute('src') === LANDLORD_SIG) img.src = landlordSigDataUrl;
+                        });
+                    }
                     await Promise.all(clonedImgs.map(img => (img.complete && img.naturalWidth > 0)
                         ? Promise.resolve()
                         : new Promise(res => { img.onload = img.onerror = res; })));
