@@ -5857,6 +5857,12 @@
                 pageIndex++;
             };
 
+            // Chiều cao đo được (getBoundingClientRect trên "stage" đo riêng) và chiều cao chụp
+            // thật (html2canvas render lại sau đó) có thể lệch nhau 1 chút (bo tròn số, font
+            // metric...). Chừa hẳn 1 khoảng đệm an toàn khi tính vừa/không vừa 1 trang, để dù có
+            // lệch cũng không bao giờ tràn quá trang gây cắt chữ ở mép dưới.
+            const SAFE_CONTENT_H = contentH - 40;
+
             try {
                 for (const section of hardSections) {
                     // Đo layout thật (không chụp canvas): lấy tọa độ bottom của từng node so với
@@ -5873,7 +5879,7 @@
                     const bottoms = stageChildren.map(n => n.getBoundingClientRect().bottom - firstTop);
                     const totalSectionH = bottoms[bottoms.length - 1];
 
-                    if (totalSectionH <= contentH) {
+                    if (totalSectionH <= SAFE_CONTENT_H) {
                         await renderNodesAsPdfPage(section);
                         continue;
                     }
@@ -5883,7 +5889,7 @@
                     let pageStartOffset = 0;
                     for (let i = 0; i < section.length; i++) {
                         const usedH = bottoms[i] - pageStartOffset;
-                        if (usedH > contentH && i > pageStart) {
+                        if (usedH > SAFE_CONTENT_H && i > pageStart) {
                             await renderNodesAsPdfPage(section.slice(pageStart, i));
                             pageStart = i;
                             pageStartOffset = bottoms[i - 1];
