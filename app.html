@@ -3505,12 +3505,14 @@
         // Lưu/chia sẻ file ảnh: ưu tiên Web Share API (bật share sheet có nút "Lưu ảnh",
         // vì Safari iOS không hỗ trợ thuộc tính download của thẻ <a> nên link-click không lưu được vào Ảnh).
         // Nếu máy không hỗ trợ share file (Android/máy tính) thì rơi về cách link download cũ.
-        async function _saveOrShareBlob(blob, filename) {
+        async function _saveOrShareBlob(blob, filename, opts = {}) {
+            const shareMsg = opts.shareMsg || '✅ Đã mở bảng chia sẻ, chọn "Lưu ảnh" để lưu vào thư viện!';
+            const saveMsg = opts.saveMsg || '✅ Đã lưu mã QR vào thư viện!';
             try {
                 const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({ files: [file] });
-                    showToast('✅ Đã mở bảng chia sẻ, chọn "Lưu ảnh" để lưu vào thư viện!', 'success');
+                    showToast(shareMsg, 'success');
                     return;
                 }
             } catch (error) {
@@ -3526,7 +3528,7 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            showToast('✅ Đã lưu mã QR vào thư viện!', 'success');
+            showToast(saveMsg, 'success');
         }
 
         async function downloadQR() {
@@ -5708,7 +5710,8 @@
 
             const originalTitle = document.title;
             const roomCode = contract?.room || '';
-            document.title = `Hợp đồng thuê phòng ${roomCode} - ${getBuildingShortCode(building)}`.trim();
+            const buildingCode = getBuildingShortCode(building);
+            document.title = `Hợp đồng thuê phòng ${roomCode} - ${buildingCode}`.trim();
 
             const imgs = Array.from(printRoot.querySelectorAll('img'));
             const imgsReady = new Promise(resolve => {
@@ -5721,8 +5724,132 @@
             });
 
             await Promise.all([imgsReady, _waitContractFontsReady()]);
+
+            // Android (và nhiều WebView di động) xử lý window.print() qua một tiến trình in
+            // của hệ điều hành: window.print() không chặn JS như trên PC, không đọc đúng
+            // document.title để đặt tên file, và có thể chụp nội dung không đúng lúc (trước khi
+            // vẽ xong, hoặc sau khi ta đã dọn printRoot) -> ra file PDF trắng, sai tên. Trên di
+            // động ta tự dựng file PDF thật (html2canvas + jsPDF) rồi lưu/chia sẻ như cách tải
+            // ảnh QR, để không phải phụ thuộc vào hộp thoại in của hệ điều hành nữa.
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isMobile) {
+                await loadContractLibs();
+                const originalBtnHtml = btn ? btn.innerHTML : null;
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.innerHTML = 'Đang tạo file PDF...'; }
+                try {
+                    const blob = await generateContractPdfBlob(printRoot);
+                    const filename = `Hop_dong_thue_phong_${roomCode}_${buildingCode}.pdf`.replace(/\s+/g, '_');
+                    await _saveOrShareBlob(blob, filename, {
+                        shareMsg: '✅ Đã mở bảng chia sẻ, chọn nơi lưu để lưu file hợp đồng!',
+                        saveMsg: '✅ Đã lưu file hợp đồng PDF!'
+                    });
+                } catch (err) {
+                    console.error('Lỗi tạo PDF hợp đồng:', err);
+                    showToast('Lỗi khi tạo file PDF, vui lòng thử lại', 'error');
+                } finally {
+                    document.title = originalTitle;
+                    printRoot.innerHTML = '';
+                    if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = originalBtnHtml; }
+                }
+                return;
+            }
+
             window.print();
             cleanupAfterPrint(printRoot, originalTitle);
+        }
+
+        /**
+         * Tự vẽ nội dung hợp đồng (đang nằm trong #_print_root) ra file PDF thật bằng
+         * html2canvas + jsPDF, dùng cho di động thay cho window.print() (không đáng tin cậy
+         * trên Android). Chụp toàn bộ nội dung thành 1 canvas dài, rồi cắt thành từng trang A4;
+         * điểm cắt được dò lùi tới dòng pixel "trắng" gần nhất để không cắt ngang chữ.
+         */
+        async function generateContractPdfBlob(sourceRoot) {
+            const { jsPDF } = window.jspdf;
+
+            const PX_PER_MM = 96 / 25.4;
+            const PAGE_W = Math.round(210 * PX_PER_MM);
+            const PAGE_H = Math.round(297 * PX_PER_MM);
+            const MARGIN = {
+                top: Math.round(19 * PX_PER_MM), right: Math.round(20 * PX_PER_MM),
+                bottom: Math.round(8 * PX_PER_MM), left: Math.round(20 * PX_PER_MM)
+            };
+            const contentW = PAGE_W - MARGIN.left - MARGIN.right;
+            const contentH = PAGE_H - MARGIN.top - MARGIN.bottom;
+
+            const stage = document.createElement('div');
+            stage.style.position = 'fixed';
+            stage.style.left = '-99999px';
+            stage.style.top = '0';
+            stage.style.width = contentW + 'px';
+            stage.style.background = '#fff';
+            stage.style.fontFamily = "'Tinos','Times New Roman',Times,serif";
+            stage.style.fontSize = '11pt';
+            stage.style.lineHeight = '1.2';
+            stage.style.color = '#000';
+            Array.from(sourceRoot.children).forEach(node => stage.appendChild(node.cloneNode(true)));
+            document.body.appendChild(stage);
+
+            const clonedImgs = Array.from(stage.querySelectorAll('img'));
+            await Promise.all(clonedImgs.map(img => (img.complete && img.naturalWidth > 0)
+                ? Promise.resolve()
+                : new Promise(res => { img.onload = img.onerror = res; })));
+
+            let canvas;
+            try {
+                canvas = await html2canvas(stage, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: contentW });
+            } finally {
+                document.body.removeChild(stage);
+            }
+
+            const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
+            const pxScale = canvas.width / contentW;
+            const pageContentPxH = Math.floor(contentH * pxScale);
+            const totalH = canvas.height;
+
+            const sliceCanvas = document.createElement('canvas');
+            const sliceCtx = sliceCanvas.getContext('2d');
+            sliceCanvas.width = canvas.width;
+
+            let y = 0;
+            let pageIndex = 0;
+            while (y < totalH && pageIndex < 30) {
+                let sliceH = Math.min(pageContentPxH, totalH - y);
+                if (y + sliceH < totalH) {
+                    sliceH = _findSafePdfCutHeight(canvas, y, sliceH, pxScale);
+                }
+                sliceCanvas.height = sliceH;
+                sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceH);
+                sliceCtx.drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+                const imgData = sliceCanvas.toDataURL('image/jpeg', 0.92);
+                if (pageIndex > 0) pdf.addPage([PAGE_W, PAGE_H], 'p');
+                pdf.addImage(imgData, 'JPEG', MARGIN.left, MARGIN.top, contentW, sliceH / pxScale);
+                y += sliceH;
+                pageIndex++;
+            }
+
+            return pdf.output('blob');
+        }
+
+        /**
+         * Dò lùi từ điểm cắt lý tưởng để tìm 1 dòng pixel gần như toàn trắng (khoảng hở giữa
+         * 2 dòng chữ/đoạn văn), tránh cắt file PDF ngay giữa 1 dòng chữ.
+         */
+        function _findSafePdfCutHeight(canvas, y, idealSliceH, pxScale) {
+            const ctx = canvas.getContext('2d');
+            const searchWindow = Math.round(40 * pxScale);
+            const rowW = canvas.width;
+            const maxBack = Math.min(searchWindow, idealSliceH - 1);
+            for (let back = 0; back <= maxBack; back++) {
+                const rowY = y + idealSliceH - back;
+                const data = ctx.getImageData(0, rowY, rowW, 1).data;
+                let blank = true;
+                for (let px = 0; px < data.length; px += 4) {
+                    if (data[px] < 235 || data[px + 1] < 235 || data[px + 2] < 235) { blank = false; break; }
+                }
+                if (blank) return idealSliceH - back;
+            }
+            return idealSliceH;
         }
 
         function injectSignatureIntoContract() {
