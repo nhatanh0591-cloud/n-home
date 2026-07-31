@@ -5725,9 +5725,12 @@
             const contract = contracts[0];
             const building = buildings.find(b => b.id === contract?.buildingId);
             const tenantSig = contractSignedData?.signatureImage || null;
+            // Nhúng sẵn chữ ký chủ nhà thành base64 giống hệt cách chữ ký khách đang làm (base64
+            // sẵn), thay vì để trỏ tới file ảnh qua đường dẫn mạng — cho 2 bên cùng 1 cách xử lý.
+            const landlordSig = await _getLandlordSigDataUrl().catch(() => LANDLORD_SIG);
 
             const printRoot = document.getElementById('_print_root');
-            printRoot.innerHTML = buildA4ContractHtml(contract, building, customerData, tenantSig);
+            printRoot.innerHTML = buildA4ContractHtml(contract, building, customerData, tenantSig, landlordSig);
 
             const originalTitle = document.title;
             const roomCode = contract?.room || '';
@@ -5826,8 +5829,6 @@
             stage.style.color = '#000';
             document.body.appendChild(stage);
 
-            const landlordSigDataUrl = await _getLandlordSigDataUrl().catch(() => null);
-
             const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
             let pageIndex = 0;
 
@@ -5837,11 +5838,6 @@
                     section.forEach(node => stage.appendChild(node.cloneNode(true)));
 
                     const clonedImgs = Array.from(stage.querySelectorAll('img'));
-                    if (landlordSigDataUrl) {
-                        clonedImgs.forEach(img => {
-                            if (img.getAttribute('src') === LANDLORD_SIG) img.src = landlordSigDataUrl;
-                        });
-                    }
                     await Promise.all(clonedImgs.map(img => (img.complete && img.naturalWidth > 0)
                         ? Promise.resolve()
                         : new Promise(res => { img.onload = img.onerror = res; })));
@@ -5903,7 +5899,7 @@
             }
         }
 
-        function buildA4ContractHtml(contract, building, customer, tenantSigDataUrl) {
+        function buildA4ContractHtml(contract, building, customer, tenantSigDataUrl, landlordSigSrc) {
             const startDateRaw = contract.startDate;
             let signDay = '......', signMonth = '......', signYear = '..........';
             if (startDateRaw) {
@@ -6136,7 +6132,7 @@ ${sp}
     <td style="width:44%;text-align:center;vertical-align:top;padding:0;">
       <p style="text-align:center;font-weight:700;${mb3}">BÊN CHO THUÊ (Bên A)</p>
       <p style="text-align:center;font-style:italic;${mb3}">(Ký, ghi rõ họ tên)</p>
-      <img src="${LANDLORD_SIG}" style="height:95pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">
+      <img src="${landlordSigSrc || LANDLORD_SIG}" style="height:95pt;max-width:100%;object-fit:contain;display:block;margin:0 auto;">
     </td>
     <td style="width:12%;"></td>
     <td style="width:44%;text-align:center;vertical-align:top;padding:0;">
