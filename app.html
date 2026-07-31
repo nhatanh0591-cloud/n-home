@@ -5773,7 +5773,6 @@
         // ===== Tạo PDF hợp đồng cho di động bằng CHỮ THẬT (không chụp ảnh) =====
         // Toàn bộ phần dưới đây CHỈ dùng cho nhánh di động (generateContractPdfBlob). Đường in
         // PC (window.print()) và hàm buildA4ContractHtml (dựng HTML dùng chung) không bị đụng.
-        const PT_TO_PX = 96 / 72; // 1pt = 4/3 px ở 96dpi (đơn vị trang PDF đang để 'px')
         let _tinosPdfFontCache = null; // { 'tinos-regular.ttf': base64, ... } - tải 1 lần, dùng lại
 
         async function _loadTinosFontsIntoPdf(pdf) {
@@ -5867,20 +5866,20 @@
         function _drawParagraph(pdf, node, extraMarginBottomPt, geo, cursor) {
             const spec = _pdfNodeStyle(node);
             const fontSizePt = spec.fontSize;
-            const lineHeightPx = fontSizePt * 1.2 * PT_TO_PX;
-            const marginTopPx = spec.marginTop * PT_TO_PX;
-            const marginBottomPx = (spec.marginBottom + extraMarginBottomPt) * PT_TO_PX;
-            const indentPx = spec.marginLeft * PT_TO_PX;
+            const lineHeightPt = fontSizePt * 1.2;
+            const marginTopPt = spec.marginTop;
+            const marginBottomPt = spec.marginBottom + extraMarginBottomPt;
+            const indentPt = spec.marginLeft;
 
             const runs = _extractRuns(node, spec.bold, spec.italic);
             const words = _runsToWords(runs);
-            cursor.y += marginTopPx;
+            cursor.y += marginTopPt;
             if (words.length === 0) {
-                cursor.y += marginBottomPx;
+                cursor.y += marginBottomPt;
                 return;
             }
 
-            const availableW = geo.contentW - indentPx;
+            const availableW = geo.contentW - indentPt;
             const setFont = (bold, italic) => {
                 pdf.setFont('Tinos', _pdfFontStyle(bold, italic));
                 pdf.setFontSize(fontSizePt);
@@ -5910,30 +5909,30 @@
             if (current.length > 0) lines.push(current);
 
             lines.forEach((line, lineIdx) => {
-                _ensurePdfSpace(pdf, cursor, lineHeightPx, geo);
+                _ensurePdfSpace(pdf, cursor, lineHeightPt, geo);
                 const isLastLine = lineIdx === lines.length - 1;
                 const naturalW = line.reduce((sum, w, i) => sum + w.width + (i > 0 ? spaceW : 0), 0);
-                let x = geo.MARGIN.left + indentPx;
+                let x = geo.MARGIN.left + indentPt;
                 let gap = spaceW;
                 if (spec.align === 'center') {
                     x += Math.max(0, (availableW - naturalW) / 2);
                 } else if (spec.align === 'justify' && !isLastLine && line.length > 1) {
                     gap = spaceW + (availableW - naturalW) / (line.length - 1);
                 }
-                const baselineY = geo.MARGIN.top + cursor.y + fontSizePt * 0.85 * PT_TO_PX;
+                const baselineY = geo.MARGIN.top + cursor.y + fontSizePt * 0.85;
                 line.forEach(w => {
                     setFont(w.bold, w.italic);
                     pdf.text(w.text, x, baselineY);
                     x += w.width + gap;
                 });
-                cursor.y += lineHeightPx;
+                cursor.y += lineHeightPt;
             });
 
-            cursor.y += marginBottomPx;
+            cursor.y += marginBottomPt;
         }
 
         function _drawSpacer(node, cursor) {
-            cursor.y += (parseFloat(node.style.height) || 0) * PT_TO_PX;
+            cursor.y += parseFloat(node.style.height) || 0;
         }
 
         function _imgFormatFromDataUrl(dataUrl) {
@@ -5954,7 +5953,7 @@
         // Vẽ khối 2 cột chữ ký cuối hợp đồng (BÊN CHO THUÊ / BÊN THUÊ + ảnh chữ ký từng bên).
         async function _drawSignatureBlock(pdf, geo, cursor, landlordSigDataUrl, tenantSigDataUrl) {
             const labelSizePt = 11;
-            const estH = (labelSizePt * 1.2 * 2 + 14 + 95) * PT_TO_PX; // ước lượng tối đa để chừa trang
+            const estH = labelSizePt * 1.2 * 2 + 14 + 95; // ước lượng tối đa để chừa trang
             _ensurePdfSpace(pdf, cursor, estH, geo);
 
             const startY = cursor.y;
@@ -5967,21 +5966,21 @@
                 let y = startY;
                 pdf.setFont('Tinos', 'bold'); pdf.setFontSize(labelSizePt);
                 const labelW = pdf.getTextWidth(label);
-                pdf.text(label, x + Math.max(0, (colW - labelW) / 2), geo.MARGIN.top + y + labelSizePt * 0.85 * PT_TO_PX);
-                y += labelSizePt * 1.2 * PT_TO_PX;
+                pdf.text(label, x + Math.max(0, (colW - labelW) / 2), geo.MARGIN.top + y + labelSizePt * 0.85);
+                y += labelSizePt * 1.2;
 
                 pdf.setFont('Tinos', 'italic');
                 const sub = '(Ký, ghi rõ họ tên)';
                 const subW = pdf.getTextWidth(sub);
-                pdf.text(sub, x + Math.max(0, (colW - subW) / 2), geo.MARGIN.top + y + labelSizePt * 0.85 * PT_TO_PX);
-                y += labelSizePt * 1.2 * PT_TO_PX + 14 * PT_TO_PX;
+                pdf.text(sub, x + Math.max(0, (colW - subW) / 2), geo.MARGIN.top + y + labelSizePt * 0.85);
+                y += labelSizePt * 1.2 + 14;
 
                 if (sigDataUrl) {
                     const dims = await _getImageNaturalSize(sigDataUrl);
-                    const hPx = imgHeightPt * PT_TO_PX;
-                    const wPx = Math.min(colW, hPx * (dims.width / Math.max(1, dims.height)));
-                    pdf.addImage(sigDataUrl, _imgFormatFromDataUrl(sigDataUrl), x + Math.max(0, (colW - wPx) / 2), geo.MARGIN.top + y, wPx, hPx);
-                    y += hPx;
+                    const hPt = imgHeightPt;
+                    const wPt = Math.min(colW, hPt * (dims.width / Math.max(1, dims.height)));
+                    pdf.addImage(sigDataUrl, _imgFormatFromDataUrl(sigDataUrl), x + Math.max(0, (colW - wPt) / 2), geo.MARGIN.top + y, wPt, hPt);
+                    y += hPt;
                 }
                 return y;
             };
@@ -6025,18 +6024,21 @@
         async function generateContractPdfBlob(sourceRoot, tenantSigDataUrl, landlordSigDataUrl) {
             const { jsPDF } = window.jspdf;
 
-            const PX_PER_MM = 96 / 25.4;
-            const PAGE_W = Math.round(210 * PX_PER_MM);
-            const PAGE_H = Math.round(297 * PX_PER_MM);
+            // Dùng đơn vị 'pt' (points) cho toàn bộ trang PDF — đúng đơn vị gốc của PDF/in ấn,
+            // khớp thẳng với font-size/margin đã tính bằng "pt" trong bản in PC, không cần quy
+            // đổi qua px nữa (từng bị lệch tỉ lệ do đơn vị 'px' của jsPDF mập mờ theo phiên bản).
+            const PT_PER_MM = 72 / 25.4;
+            const PAGE_W = 210 * PT_PER_MM;
+            const PAGE_H = 297 * PT_PER_MM;
             const MARGIN = {
-                top: Math.round(19 * PX_PER_MM), right: Math.round(20 * PX_PER_MM),
-                bottom: Math.round(8 * PX_PER_MM), left: Math.round(20 * PX_PER_MM)
+                top: 19 * PT_PER_MM, right: 20 * PT_PER_MM,
+                bottom: 8 * PT_PER_MM, left: 20 * PT_PER_MM
             };
             const contentW = PAGE_W - MARGIN.left - MARGIN.right;
             const contentH = PAGE_H - MARGIN.top - MARGIN.bottom;
             const geo = { PAGE_W, PAGE_H, MARGIN, contentW, contentH };
 
-            const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
+            const pdf = new jsPDF({ unit: 'pt', format: [PAGE_W, PAGE_H], compress: true });
             await _loadTinosFontsIntoPdf(pdf);
 
             const flat = _flattenContentNodes(Array.from(sourceRoot.children));
