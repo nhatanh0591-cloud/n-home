@@ -5826,7 +5826,11 @@
 
             const stage = document.createElement('div');
             stage.id = '_pdf_stage';
-            stage.style.position = 'fixed';
+            // QUAN TRỌNG: dùng "absolute", KHÔNG dùng "fixed". html2canvas có lỗi nổi tiếng là
+            // cắt mất phần nội dung vượt quá chiều cao khung nhìn (viewport) đối với phần tử
+            // position:fixed — trên điện thoại viewport thấp hơn nhiều so với 1 trang A4 nội
+            // dung nên bị cắt ngay tại rìa màn hình, dù code tính trang có đúng cỡ nào.
+            stage.style.position = 'absolute';
             stage.style.left = '-99999px';
             stage.style.top = '0';
             stage.style.width = contentW + 'px';
@@ -5848,7 +5852,13 @@
                     ? Promise.resolve()
                     : new Promise(res => { img.onload = img.onerror = res; })));
 
-                const canvas = await html2canvas(stage, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: contentW });
+                // windowHeight lấy theo scrollHeight thật của stage (+ đệm) để html2canvas
+                // không tự giới hạn chụp theo chiều cao khung nhìn (viewport) của điện thoại.
+                const canvas = await html2canvas(stage, {
+                    scale: 2, backgroundColor: '#ffffff', useCORS: true,
+                    windowWidth: contentW, windowHeight: stage.scrollHeight + 200,
+                    height: stage.scrollHeight
+                });
                 const pxScale = canvas.width / contentW;
                 const imgHeightCss = canvas.height / pxScale;
                 const imgData = canvas.toDataURL('image/jpeg', 0.92);
