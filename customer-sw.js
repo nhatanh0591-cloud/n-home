@@ -1,7 +1,7 @@
 // customer-sw.js
 // Service Worker cho Customer N-Home PWA
 
-const CACHE_NAME = 'n-home-customer-v7';
+const CACHE_NAME = 'n-home-customer-v8';
 const urlsToCache = [
     '/app.html',
     '/app',
