@@ -530,13 +530,6 @@
             }
             #_print_root p { margin: 0; text-align: justify; }
         }
-
-        /* Stage offscreen dùng để chụp PDF trên di động (html2canvas) — KHÔNG nằm trong
-           @media print nên rule reset margin/text-align phía trên không áp dụng, khiến
-           thẻ <p> bị trình duyệt tự thêm margin-top mặc định (~1 dòng) khi không có inline
-           margin-top, làm nội dung "phình" cao hơn bản in PC -> đo/tính trang bị lệch, tràn
-           trang. Cần rule giống hệt để hai bên ra cùng chiều cao. */
-        #_pdf_stage p { margin: 0; text-align: justify; }
     </style>
 </head>
 <body>
@@ -5514,11 +5507,9 @@
         let _landlordSigDataUrlCache = null;
 
         /**
-         * Chữ ký khách (base64 sẵn) chụp đúng bằng html2canvas, nhưng ảnh chữ ký chủ nhà
-         * (file .jpg tải qua network) bị lệch/đè lên chữ khi chụp trên di động — html2canvas
-         * clone DOM vào 1 iframe ẩn để chụp, và việc load lại ảnh network trong iframe đó có
-         * race riêng, không đồng bộ với việc mình đợi ảnh load ở ngoài. Chuyển ảnh chủ nhà
-         * thành base64 giống ảnh khách để loại bỏ hẳn phần tải mạng khi chụp.
+         * Lấy ảnh chữ ký chủ nhà dạng base64 (tải 1 lần, cache lại) — dùng để nhúng ảnh trực
+         * tiếp vào PDF di động (pdf.addImage) và để nhúng vào HTML dùng chung với bản in PC,
+         * thay cho đường dẫn file ảnh qua network.
          */
         async function _getLandlordSigDataUrl() {
             if (_landlordSigDataUrlCache) return _landlordSigDataUrlCache;
@@ -5534,24 +5525,13 @@
         }
 
         async function loadContractLibs() {
-            const loads = [];
-            if (!window.jspdf) {
-                loads.push(new Promise((res, rej) => {
-                    const s = document.createElement('script');
-                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-                    s.onload = res; s.onerror = rej;
-                    document.head.appendChild(s);
-                }));
-            }
-            if (!window.html2canvas) {
-                loads.push(new Promise((res, rej) => {
-                    const s = document.createElement('script');
-                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-                    s.onload = res; s.onerror = rej;
-                    document.head.appendChild(s);
-                }));
-            }
-            if (loads.length > 0) await Promise.all(loads);
+            if (window.jspdf) return;
+            await new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                s.onload = res; s.onerror = rej;
+                document.head.appendChild(s);
+            });
         }
 
         async function openContractScreen() {
@@ -5760,15 +5740,16 @@
             // của hệ điều hành: window.print() không chặn JS như trên PC, không đọc đúng
             // document.title để đặt tên file, và có thể chụp nội dung không đúng lúc (trước khi
             // vẽ xong, hoặc sau khi ta đã dọn printRoot) -> ra file PDF trắng, sai tên. Trên di
-            // động ta tự dựng file PDF thật (html2canvas + jsPDF) rồi lưu/chia sẻ như cách tải
-            // ảnh QR, để không phải phụ thuộc vào hộp thoại in của hệ điều hành nữa.
+            // động ta tự dựng file PDF thật bằng jsPDF (viết chữ trực tiếp, không chụp ảnh) rồi
+            // lưu/chia sẻ như cách tải ảnh QR, để không phải phụ thuộc vào hộp thoại in của hệ
+            // điều hành nữa.
             const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
             if (isMobile) {
                 await loadContractLibs();
                 const originalBtnHtml = btn ? btn.innerHTML : null;
                 if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.innerHTML = 'Đang tạo file PDF...'; }
                 try {
-                    const blob = await generateContractPdfBlob(printRoot);
+                    const blob = await generateContractPdfBlob(printRoot, tenantSig, landlordSig);
                     const filename = `${document.title}.pdf`; // Cùng format tên với file PC (bản PC dùng document.title làm tên gợi ý khi in ra PDF)
                     await _saveOrShareBlob(blob, filename, {
                         shareMsg: '✅ Đã mở bảng chia sẻ, chọn nơi lưu để lưu file hợp đồng!',
@@ -5789,16 +5770,259 @@
             cleanupAfterPrint(printRoot, originalTitle);
         }
 
+        // ===== Tạo PDF hợp đồng cho di động bằng CHỮ THẬT (không chụp ảnh) =====
+        // Toàn bộ phần dưới đây CHỈ dùng cho nhánh di động (generateContractPdfBlob). Đường in
+        // PC (window.print()) và hàm buildA4ContractHtml (dựng HTML dùng chung) không bị đụng.
+        const PT_TO_PX = 96 / 72; // 1pt = 4/3 px ở 96dpi (đơn vị trang PDF đang để 'px')
+        let _tinosPdfFontCache = null; // { 'tinos-regular.ttf': base64, ... } - tải 1 lần, dùng lại
+
+        async function _loadTinosFontsIntoPdf(pdf) {
+            const specs = [
+                ['tinos-regular.ttf', 'normal'],
+                ['tinos-bold.ttf', 'bold'],
+                ['tinos-italic.ttf', 'italic'],
+                ['tinos-bolditalic.ttf', 'bolditalic']
+            ];
+            if (!_tinosPdfFontCache) {
+                const entries = await Promise.all(specs.map(async ([file]) => {
+                    const res = await fetch(`./assets/fonts/${file}`);
+                    const buf = await res.arrayBuffer();
+                    return [file, _arrayBufferToBase64(buf)];
+                }));
+                _tinosPdfFontCache = Object.fromEntries(entries);
+            }
+            specs.forEach(([file, style]) => {
+                pdf.addFileToVFS(file, _tinosPdfFontCache[file]);
+                pdf.addFont(file, 'Tinos', style);
+            });
+        }
+
+        function _arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+            }
+            return btoa(binary);
+        }
+
+        // Đọc các thuộc tính CSS cần thiết trực tiếp từ node (browser đã parse sẵn, không cần tự
+        // parse chuỗi style) để biết cách vẽ đoạn văn này: căn lề, thụt đầu dòng, đậm/nghiêng...
+        function _pdfNodeStyle(node) {
+            const s = node.style;
+            return {
+                align: s.textAlign || 'justify', // mặc định "justify" giống rule in PC (#_print_root p)
+                marginTop: parseFloat(s.marginTop) || 0,
+                marginBottom: parseFloat(s.marginBottom) || 0,
+                marginLeft: parseFloat(s.marginLeft) || 0,
+                bold: s.fontWeight === '700' || s.fontWeight === 'bold',
+                italic: s.fontStyle === 'italic',
+                fontSize: parseFloat(s.fontSize) || 11
+            };
+        }
+
+        // Tách 1 đoạn <p> thành từng "đoạn chữ" (run), giữ lại phần nào bị bọc trong <strong> để
+        // biết chữ nào cần in đậm ngay giữa câu (VD "<strong>2.1</strong> Bên B đặt cọc...").
+        function _extractRuns(node, baseBold, baseItalic) {
+            const runs = [];
+            node.childNodes.forEach(child => {
+                if (child.nodeType === Node.TEXT_NODE) {
+                    const text = child.textContent.replace(/\s+/g, ' ');
+                    if (text.trim()) runs.push({ text, bold: baseBold, italic: baseItalic });
+                } else if (child.nodeType === Node.ELEMENT_NODE) {
+                    const isStrong = child.tagName === 'STRONG' || child.tagName === 'B';
+                    const text = child.textContent.replace(/\s+/g, ' ');
+                    if (text.trim()) runs.push({ text, bold: baseBold || isStrong, italic: baseItalic });
+                }
+            });
+            return runs;
+        }
+
+        function _runsToWords(runs) {
+            const words = [];
+            runs.forEach(run => {
+                run.text.split(' ').filter(Boolean).forEach(w => {
+                    words.push({ text: w, bold: run.bold, italic: run.italic });
+                });
+            });
+            return words;
+        }
+
+        function _pdfFontStyle(bold, italic) {
+            return bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+        }
+
+        // Nếu trang hiện tại không còn đủ chỗ cho phần cao "neededPx" tiếp theo -> sang trang mới.
+        function _ensurePdfSpace(pdf, cursor, neededPx, geo) {
+            if (cursor.y + neededPx > geo.contentH) {
+                pdf.addPage([geo.PAGE_W, geo.PAGE_H], 'p');
+                cursor.y = 0;
+            }
+        }
+
+        // Vẽ 1 đoạn <p>: tự đo độ rộng từng từ bằng đúng font sẽ dùng để in (jsPDF getTextWidth),
+        // tự xuống dòng, tự giãn cách chữ khi "justify" — không cắt ngang chữ vì mình biết trước
+        // chính xác từng dòng dài bao nhiêu, không phải chụp lại rồi mới biết.
+        function _drawParagraph(pdf, node, extraMarginBottomPt, geo, cursor) {
+            const spec = _pdfNodeStyle(node);
+            const fontSizePt = spec.fontSize;
+            const lineHeightPx = fontSizePt * 1.2 * PT_TO_PX;
+            const marginTopPx = spec.marginTop * PT_TO_PX;
+            const marginBottomPx = (spec.marginBottom + extraMarginBottomPt) * PT_TO_PX;
+            const indentPx = spec.marginLeft * PT_TO_PX;
+
+            const runs = _extractRuns(node, spec.bold, spec.italic);
+            const words = _runsToWords(runs);
+            cursor.y += marginTopPx;
+            if (words.length === 0) {
+                cursor.y += marginBottomPx;
+                return;
+            }
+
+            const availableW = geo.contentW - indentPx;
+            const setFont = (bold, italic) => {
+                pdf.setFont('Tinos', _pdfFontStyle(bold, italic));
+                pdf.setFontSize(fontSizePt);
+            };
+
+            setFont(spec.bold, spec.italic);
+            const spaceW = pdf.getTextWidth(' ');
+            const measured = words.map(w => {
+                setFont(w.bold, w.italic);
+                return { ...w, width: pdf.getTextWidth(w.text) };
+            });
+
+            const lines = [];
+            let current = [];
+            let currentW = 0;
+            measured.forEach(w => {
+                const addW = current.length === 0 ? w.width : currentW + spaceW + w.width;
+                if (addW > availableW && current.length > 0) {
+                    lines.push(current);
+                    current = [w];
+                    currentW = w.width;
+                } else {
+                    current.push(w);
+                    currentW = addW;
+                }
+            });
+            if (current.length > 0) lines.push(current);
+
+            lines.forEach((line, lineIdx) => {
+                _ensurePdfSpace(pdf, cursor, lineHeightPx, geo);
+                const isLastLine = lineIdx === lines.length - 1;
+                const naturalW = line.reduce((sum, w, i) => sum + w.width + (i > 0 ? spaceW : 0), 0);
+                let x = geo.MARGIN.left + indentPx;
+                let gap = spaceW;
+                if (spec.align === 'center') {
+                    x += Math.max(0, (availableW - naturalW) / 2);
+                } else if (spec.align === 'justify' && !isLastLine && line.length > 1) {
+                    gap = spaceW + (availableW - naturalW) / (line.length - 1);
+                }
+                const baselineY = geo.MARGIN.top + cursor.y + fontSizePt * 0.85 * PT_TO_PX;
+                line.forEach(w => {
+                    setFont(w.bold, w.italic);
+                    pdf.text(w.text, x, baselineY);
+                    x += w.width + gap;
+                });
+                cursor.y += lineHeightPx;
+            });
+
+            cursor.y += marginBottomPx;
+        }
+
+        function _drawSpacer(node, cursor) {
+            cursor.y += (parseFloat(node.style.height) || 0) * PT_TO_PX;
+        }
+
+        function _imgFormatFromDataUrl(dataUrl) {
+            const m = /^data:image\/(\w+);/.exec(dataUrl || '');
+            const t = m ? m[1].toLowerCase() : '';
+            return (t === 'jpeg' || t === 'jpg') ? 'JPEG' : 'PNG';
+        }
+
+        function _getImageNaturalSize(dataUrl) {
+            return new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+                img.onerror = () => resolve({ width: 1, height: 1 });
+                img.src = dataUrl;
+            });
+        }
+
+        // Vẽ khối 2 cột chữ ký cuối hợp đồng (BÊN CHO THUÊ / BÊN THUÊ + ảnh chữ ký từng bên).
+        async function _drawSignatureBlock(pdf, geo, cursor, landlordSigDataUrl, tenantSigDataUrl) {
+            const labelSizePt = 11;
+            const estH = (labelSizePt * 1.2 * 2 + 14 + 95) * PT_TO_PX; // ước lượng tối đa để chừa trang
+            _ensurePdfSpace(pdf, cursor, estH, geo);
+
+            const startY = cursor.y;
+            const colW = geo.contentW * 0.44;
+            const gapW = geo.contentW * 0.12;
+            const leftX = geo.MARGIN.left;
+            const rightX = geo.MARGIN.left + colW + gapW;
+
+            const drawCol = async (x, label, sigDataUrl, imgHeightPt) => {
+                let y = startY;
+                pdf.setFont('Tinos', 'bold'); pdf.setFontSize(labelSizePt);
+                const labelW = pdf.getTextWidth(label);
+                pdf.text(label, x + Math.max(0, (colW - labelW) / 2), geo.MARGIN.top + y + labelSizePt * 0.85 * PT_TO_PX);
+                y += labelSizePt * 1.2 * PT_TO_PX;
+
+                pdf.setFont('Tinos', 'italic');
+                const sub = '(Ký, ghi rõ họ tên)';
+                const subW = pdf.getTextWidth(sub);
+                pdf.text(sub, x + Math.max(0, (colW - subW) / 2), geo.MARGIN.top + y + labelSizePt * 0.85 * PT_TO_PX);
+                y += labelSizePt * 1.2 * PT_TO_PX + 14 * PT_TO_PX;
+
+                if (sigDataUrl) {
+                    const dims = await _getImageNaturalSize(sigDataUrl);
+                    const hPx = imgHeightPt * PT_TO_PX;
+                    const wPx = Math.min(colW, hPx * (dims.width / Math.max(1, dims.height)));
+                    pdf.addImage(sigDataUrl, _imgFormatFromDataUrl(sigDataUrl), x + Math.max(0, (colW - wPx) / 2), geo.MARGIN.top + y, wPx, hPx);
+                    y += hPx;
+                }
+                return y;
+            };
+
+            const [leftEndY, rightEndY] = await Promise.all([
+                drawCol(leftX, 'BÊN CHO THUÊ (Bên A)', landlordSigDataUrl, 95),
+                drawCol(rightX, 'BÊN THUÊ (Bên B)', tenantSigDataUrl, 75)
+            ]);
+            cursor.y = Math.max(leftEndY - startY, rightEndY - startY) + startY;
+        }
+
+        // "Làm phẳng" div bọc nhiều <p> (VD phần tiêu đề CỘNG HÒA...) thành các <p> riêng lẻ, để
+        // xử lý đồng nhất — div rỗng (chỉ có height, không có con) vẫn giữ lại làm khối "khoảng trắng".
+        function _flattenContentNodes(nodes) {
+            const flat = [];
+            nodes.forEach(node => {
+                const isWrapperDiv = node.tagName === 'DIV' && node.children.length > 0 &&
+                    Array.from(node.children).every(c => c.tagName === 'P');
+                if (isWrapperDiv) {
+                    const children = Array.from(node.children);
+                    const divMb = parseFloat(node.style.marginBottom) || 0;
+                    children.forEach((c, idx) => {
+                        flat.push({ node: c, extraMarginBottomPt: idx === children.length - 1 ? divMb : 0 });
+                    });
+                } else {
+                    flat.push({ node, extraMarginBottomPt: 0 });
+                }
+            });
+            return flat;
+        }
+
         /**
-         * Tự vẽ nội dung hợp đồng (đang nằm trong #_print_root) ra file PDF thật bằng
-         * html2canvas + jsPDF, dùng cho di động thay cho window.print() (không đáng tin cậy
-         * trên Android). Tách nội dung thành từng "đoạn cứng" theo đúng các mốc
-         * page-break-before có sẵn (trước ĐIỀU 4, ĐIỀU 6, mục 7.4...) để khớp bản in PC. Nếu 1
-         * đoạn dài hơn 1 trang, ĐO chiều cao thật từng node con (getBoundingClientRect) rồi gói
-         * (pack) vào từng trang — luôn cắt giữa 2 node với nhau, không bao giờ dò pixel/cắt ngang
-         * giữa 1 dòng chữ như cách cũ (từng gây cắt nửa chữ ở cuối trang).
+         * Tạo PDF hợp đồng cho di động bằng cách viết CHỮ THẬT vào file (jsPDF text API), thay
+         * cho window.print() (không đáng tin cậy trên Android: không chặn JS, không đọc đúng
+         * document.title, có thể chụp sai lúc -> file trắng/sai tên) và thay cho html2canvas
+         * (chụp ảnh HTML - liên tục gặp lỗi cắt chữ/lệch ảnh không dò ra được nguyên nhân chính
+         * xác trên nhiều đời máy Android khác nhau). Viết chữ trực tiếp thì mình biết trước
+         * chính xác từng dòng cao/rộng bao nhiêu bằng phép đo của chính jsPDF, nên tự quyết định
+         * ngắt trang đúng 100%, không còn phụ thuộc việc "chụp có đúng hay không" nữa.
          */
-        async function generateContractPdfBlob(sourceRoot) {
+        async function generateContractPdfBlob(sourceRoot, tenantSigDataUrl, landlordSigDataUrl) {
             const { jsPDF } = window.jspdf;
 
             const PX_PER_MM = 96 / 25.4;
@@ -5810,105 +6034,27 @@
             };
             const contentW = PAGE_W - MARGIN.left - MARGIN.right;
             const contentH = PAGE_H - MARGIN.top - MARGIN.bottom;
-
-            const nodes = Array.from(sourceRoot.children);
-            const hardSections = [];
-            let bucket = [];
-            nodes.forEach(node => {
-                const breaksBefore = !!(node.style && node.style.pageBreakBefore === 'always');
-                if (breaksBefore && bucket.length > 0) {
-                    hardSections.push(bucket);
-                    bucket = [];
-                }
-                bucket.push(node);
-            });
-            if (bucket.length > 0) hardSections.push(bucket);
-
-            const stage = document.createElement('div');
-            stage.id = '_pdf_stage';
-            // QUAN TRỌNG: dùng "absolute", KHÔNG dùng "fixed". html2canvas có lỗi nổi tiếng là
-            // cắt mất phần nội dung vượt quá chiều cao khung nhìn (viewport) đối với phần tử
-            // position:fixed — trên điện thoại viewport thấp hơn nhiều so với 1 trang A4 nội
-            // dung nên bị cắt ngay tại rìa màn hình, dù code tính trang có đúng cỡ nào.
-            stage.style.position = 'absolute';
-            stage.style.left = '-99999px';
-            stage.style.top = '0';
-            stage.style.width = contentW + 'px';
-            stage.style.background = '#fff';
-            stage.style.fontFamily = "'Tinos','Times New Roman',Times,serif";
-            stage.style.fontSize = '11pt';
-            stage.style.lineHeight = '1.2';
-            stage.style.color = '#000';
-            document.body.appendChild(stage);
+            const geo = { PAGE_W, PAGE_H, MARGIN, contentW, contentH };
 
             const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], compress: true });
-            let pageIndex = 0;
+            await _loadTinosFontsIntoPdf(pdf);
 
-            const renderNodesAsPdfPage = async (pageNodes) => {
-                stage.innerHTML = '';
-                pageNodes.forEach(node => stage.appendChild(node.cloneNode(true)));
-                const clonedImgs = Array.from(stage.querySelectorAll('img'));
-                await Promise.all(clonedImgs.map(img => (img.complete && img.naturalWidth > 0)
-                    ? Promise.resolve()
-                    : new Promise(res => { img.onload = img.onerror = res; })));
+            const flat = _flattenContentNodes(Array.from(sourceRoot.children));
+            const cursor = { y: 0 };
 
-                // windowHeight lấy theo scrollHeight thật của stage (+ đệm) để html2canvas
-                // không tự giới hạn chụp theo chiều cao khung nhìn (viewport) của điện thoại.
-                const canvas = await html2canvas(stage, {
-                    scale: 2, backgroundColor: '#ffffff', useCORS: true,
-                    windowWidth: contentW, windowHeight: stage.scrollHeight + 200,
-                    height: stage.scrollHeight
-                });
-                const pxScale = canvas.width / contentW;
-                const imgHeightCss = canvas.height / pxScale;
-                const imgData = canvas.toDataURL('image/jpeg', 0.92);
-                if (pageIndex > 0) pdf.addPage([PAGE_W, PAGE_H], 'p');
-                pdf.addImage(imgData, 'JPEG', MARGIN.left, MARGIN.top, contentW, imgHeightCss);
-                pageIndex++;
-            };
-
-            // Chiều cao đo được (getBoundingClientRect trên "stage" đo riêng) và chiều cao chụp
-            // thật (html2canvas render lại sau đó) có thể lệch nhau 1 chút (bo tròn số, font
-            // metric...). Chừa hẳn 1 khoảng đệm an toàn khi tính vừa/không vừa 1 trang, để dù có
-            // lệch cũng không bao giờ tràn quá trang gây cắt chữ ở mép dưới.
-            const SAFE_CONTENT_H = contentH - 40;
-
-            try {
-                for (const section of hardSections) {
-                    // Đo layout thật (không chụp canvas): lấy tọa độ bottom của từng node so với
-                    // node đầu tiên -> phản ánh đúng cả khoảng margin giữa các đoạn (margin không
-                    // tính trong .height của getBoundingClientRect nếu chỉ đo riêng từng node).
-                    stage.innerHTML = '';
-                    section.forEach(node => stage.appendChild(node.cloneNode(true)));
-                    const stageImgs = Array.from(stage.querySelectorAll('img'));
-                    await Promise.all(stageImgs.map(img => (img.complete && img.naturalWidth > 0)
-                        ? Promise.resolve()
-                        : new Promise(res => { img.onload = img.onerror = res; })));
-                    const stageChildren = Array.from(stage.children);
-                    const firstTop = stageChildren[0].getBoundingClientRect().top;
-                    const bottoms = stageChildren.map(n => n.getBoundingClientRect().bottom - firstTop);
-                    const totalSectionH = bottoms[bottoms.length - 1];
-
-                    if (totalSectionH <= SAFE_CONTENT_H) {
-                        await renderNodesAsPdfPage(section);
-                        continue;
-                    }
-
-                    // Đoạn dài hơn 1 trang: gói từng node (nguyên vẹn, không cắt ngang) vào từng trang
-                    let pageStart = 0;
-                    let pageStartOffset = 0;
-                    for (let i = 0; i < section.length; i++) {
-                        const usedH = bottoms[i] - pageStartOffset;
-                        if (usedH > SAFE_CONTENT_H && i > pageStart) {
-                            await renderNodesAsPdfPage(section.slice(pageStart, i));
-                            pageStart = i;
-                            pageStartOffset = bottoms[i - 1];
-                        }
-                    }
-                    await renderNodesAsPdfPage(section.slice(pageStart));
+            for (const item of flat) {
+                const node = item.node;
+                if (node.style && node.style.pageBreakBefore === 'always' && cursor.y > 0) {
+                    pdf.addPage([PAGE_W, PAGE_H], 'p');
+                    cursor.y = 0;
                 }
-            } finally {
-                document.body.removeChild(stage);
+                if (node.tagName === 'TABLE') {
+                    await _drawSignatureBlock(pdf, geo, cursor, landlordSigDataUrl, tenantSigDataUrl);
+                } else if (node.tagName === 'DIV' && node.children.length === 0) {
+                    _drawSpacer(node, cursor);
+                } else if (node.tagName === 'P') {
+                    _drawParagraph(pdf, node, item.extraMarginBottomPt, geo, cursor);
+                }
             }
 
             return pdf.output('blob');
