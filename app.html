@@ -530,6 +530,13 @@
             }
             #_print_root p { margin: 0; text-align: justify; }
         }
+
+        /* Stage offscreen dùng để chụp PDF trên di động (html2canvas) — KHÔNG nằm trong
+           @media print nên rule reset margin/text-align phía trên không áp dụng, khiến
+           thẻ <p> bị trình duyệt tự thêm margin-top mặc định (~1 dòng) khi không có inline
+           margin-top, làm nội dung "phình" cao hơn bản in PC -> đo/tính trang bị lệch, tràn
+           trang. Cần rule giống hệt để hai bên ra cùng chiều cao. */
+        #_pdf_stage p { margin: 0; text-align: justify; }
     </style>
 </head>
 <body>
@@ -5818,6 +5825,7 @@
             if (bucket.length > 0) hardSections.push(bucket);
 
             const stage = document.createElement('div');
+            stage.id = '_pdf_stage';
             stage.style.position = 'fixed';
             stage.style.left = '-99999px';
             stage.style.top = '0';
