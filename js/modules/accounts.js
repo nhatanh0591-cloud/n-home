@@ -13,6 +13,7 @@ const BANK_ID_MAP = {
     'ACB': '970416',
     'Techcombank': '970407',
     'MBBank': '970422',
+    'MB Bank': '970422',
     'TPBank': '970423',
     'Sacombank': '970403',
     'HDBank': '970437',

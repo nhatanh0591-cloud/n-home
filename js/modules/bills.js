@@ -2575,13 +2575,19 @@ function loadBillServices(contract, building) {
     // Find previous month bill to get old readings
     const currentMonth = parseInt(selectedPeriod);
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const previousBill = getBills().find(b => 
-        b.buildingId === building.id && 
-        b.room === contract.room && 
-        b.period == previousMonth
-    );
-    
     const year = new Date().getFullYear();
+    const previousBillYear = currentMonth === 1 ? year - 1 : year;
+    const previousBill = getBills().find(b =>
+        b.buildingId === building.id &&
+        b.room === contract.room &&
+        b.period == previousMonth &&
+        (b.year === undefined || b.year === previousBillYear) &&
+        // Chỉ kế thừa nếu hóa đơn trước thuộc cùng hợp đồng hiện tại
+        // (được lập từ ngày bắt đầu hợp đồng trở về sau). Nếu hợp đồng
+        // hiện tại bắt đầu SAU hóa đơn đó (đổi khách/ký hợp đồng mới),
+        // hóa đơn cũ không còn phản ánh đúng chỉ số/số người nữa.
+        (!contract.startDate || !b.billDate || b.billDate >= contract.startDate)
+    );
     const monthNumber = parseInt(selectedPeriod); // 1-12
     
     // Create dates in local timezone to avoid timezone issues
@@ -3249,6 +3255,7 @@ async function showBillDetail(billId) {
         'ACB': '970416',
         'Techcombank': '970407',
         'MBBank': '970422',
+        'MB Bank': '970422',
         'TPBank': '970423',
         'Sacombank': '970403',
         'HDBank': '970437',
