@@ -3740,11 +3740,14 @@ async function handleImportSubmit() {
                     }
                 });
 
+                const billCustomer = allCustomers.find(cu => cu.id === contract.representativeId);
+
                 const billData = {
                     id: generateId(),
                     buildingId: building.id,
                     room,
                     customerId: contract.representativeId,
+                    customerName: billCustomer ? billCustomer.name : '',
                     period: month,
                     year: year,
                     billDate,

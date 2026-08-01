@@ -71,15 +71,18 @@ exports.cassoWebhook = functions.https.onRequest(async (req, res) => {
     const data = webhookData.data;
 
     if (Array.isArray(data)) {
-      // Nếu Casso gửi mảng giao dịch, xử lý từng phần tử
-      for (const tx of data) {
+      // Nếu Casso gửi mảng giao dịch, xử lý từng phần tử.
+      // Phải "await" hết ở đây - nếu không, function coi như xong việc ngay sau khi
+      // trả lời "OK" cho Casso và có thể bị nền tảng Cloud Functions ngắt CPU giữa
+      // chừng, cắt ngang các giao dịch còn đang xử lý dở.
+      await Promise.all(data.map((tx) =>
         processTransaction(tx).catch((error) => {
           console.error("❌ Error processing transaction (array item):", error);
-        });
-      }
+        }),
+      ));
     } else if (data && typeof data === "object") {
       // Nếu là object duy nhất
-      processTransaction(data).catch((error) => {
+      await processTransaction(data).catch((error) => {
         console.error("❌ Error processing transaction:", error);
       });
     } else {
@@ -144,9 +147,16 @@ async function processIncomeTransaction(transaction) {
 
   console.log("🔍 Normalized description:", normalizedDescription);
 
-  // Tìm hóa đơn theo tên khách hàng trong nội dung chuyển khoản (không lọc theo số tiền,
-  // vì khách có thể thanh toán một phần rồi thanh toán tiếp phần còn lại sau)
-  const {bill, ambiguous} = await findMatchingBillByCustomer(normalizedDescription);
+  // 1. Lọc NHANH theo đúng số tiền trước (cách cũ - Firestore lọc sẵn theo số tiền
+  // nên chỉ còn vài hóa đơn phải so tên, luôn nhanh và không bị trượt).
+  let {bill, ambiguous} = await findMatchingBillByAmount(normalizedDescription, amount);
+
+  // 2. Nếu không khớp đúng số tiền (nghi khách chuyển thiếu/chuyển bù) thì dò
+  // tiếp theo tên trong toàn bộ hóa đơn chưa thu.
+  if (!bill && !ambiguous) {
+    console.log("🔍 Không khớp đúng số tiền, thử dò theo tên (nghi chuyển thiếu)...");
+    ({bill, ambiguous} = await findMatchingBillByCustomer(normalizedDescription));
+  }
 
   if (ambiguous) {
     console.log("⚠️ Ambiguous match - khách có nhiều hóa đơn chưa thanh toán, không tự xác định được");
@@ -254,6 +264,66 @@ async function processExpenseTransaction(transaction) {
   } catch (error) {
     console.error("❌ Error creating expense transaction:", error);
     throw error;
+  }
+}
+
+/**
+ * Lọc NHANH: lấy hóa đơn có đúng số tiền (totalAmount) bằng số tiền chuyển vào trước
+ * (Firestore lọc sẵn), sau đó mới so tên khách trong vài hóa đơn còn lại đó.
+ * Vì lọc theo số tiền trước nên số lượng hóa đơn phải so tên rất ít -> luôn nhanh,
+ * không phụ thuộc vào việc hệ thống có bao nhiêu hóa đơn tồn đọng.
+ * Trả về { bill, ambiguous } giống findMatchingBillByCustomer.
+ */
+async function findMatchingBillByAmount(normalizedDescription, amount) {
+  try {
+    const billsRef = db.collection("bills");
+    const snapshot = await billsRef
+        .where("totalAmount", "==", amount)
+        .where("status", "==", "unpaid")
+        .where("approved", "==", true)
+        .get();
+
+    if (snapshot.empty) {
+      return {bill: null, ambiguous: false};
+    }
+
+    console.log("📋 Lọc nhanh theo số tiền:", snapshot.docs.length, "hóa đơn khớp số tiền", amount);
+
+    const matchedBills = [];
+    for (const billDoc of snapshot.docs) {
+      const bill = billDoc.data();
+
+      let customerNormalizedName = null;
+      if (bill.customerName) {
+        customerNormalizedName = normalizeText(bill.customerName);
+      } else {
+        const customerDoc = await db.collection("customers").doc(bill.customerId).get();
+        if (customerDoc.exists) {
+          customerNormalizedName = normalizeText(customerDoc.data().name);
+        }
+      }
+
+      if (!customerNormalizedName) continue;
+
+      if (normalizedDescription.includes(customerNormalizedName)) {
+        matchedBills.push({id: billDoc.id, ...bill});
+      }
+    }
+
+    if (matchedBills.length === 0) {
+      return {bill: null, ambiguous: false};
+    }
+
+    if (matchedBills.length > 1) {
+      console.log("⚠️ Ambiguous (lọc nhanh theo số tiền) - nhiều hóa đơn cùng số tiền khớp tên:", matchedBills.map((b) => b.id));
+      return {bill: null, ambiguous: true};
+    }
+
+    console.log("✅ Found matching bill (lọc nhanh theo số tiền):", matchedBills[0].id);
+    return {bill: matchedBills[0], ambiguous: false};
+  } catch (error) {
+    console.error("❌ Error in findMatchingBillByAmount:", error);
+    return {bill: null, ambiguous: false};
   }
 }
 
