@@ -3059,7 +3059,7 @@
             console.log('📅 createdAt:', bill.createdAt);
 
             const building = buildings.find(b => b.id === bill.buildingId);
-            const contract = contracts.find(c => c.representativeId === currentUser.id);
+            const contract = contracts.find(c => c.buildingId === bill.buildingId && c.room === bill.room && c.status !== 'terminated');
             
             // Format ngày tháng - LẤY ĐÚNG TỪ BILL
             const formatDateVN = (date) => {

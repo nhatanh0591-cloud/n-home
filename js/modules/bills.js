@@ -3052,7 +3052,7 @@ async function showBillDetail(billId) {
 
     const building = getBuildings().find(b => b.id === bill.buildingId);
     const customer = getCustomers().find(c => c.id === bill.customerId);
-    const contract = getContracts().find(c => c.buildingId === bill.buildingId && c.room === bill.room); // Tìm HĐ bất kỳ
+    const contract = getContracts().find(c => c.buildingId === bill.buildingId && c.room === bill.room && c.status !== 'terminated'); // Chỉ lấy HĐ đang hoạt động
     
     const setEl = (id, text) => {
         const element = document.getElementById(id);
