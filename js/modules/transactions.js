@@ -1,7 +1,7 @@
 ﻿// js/modules/transactions.js
 
 import { db, addDoc, setDoc, doc, deleteDoc, collection, serverTimestamp, query, where, getDocs, orderBy } from '../firebase.js';
-import { getTransactions, getBuildings, getCustomers, getContracts, getAccounts, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
+import { getTransactions, getBuildings, getCustomers, getContracts, getAccounts, getBills, getState, saveToCache, updateInLocalStorage, deleteFromLocalStorage } from '../store.js';
 import { getCurrentUser, getCurrentUserRole } from '../auth.js';
 import { 
     showToast, openModal, closeModal, 
@@ -1417,20 +1417,65 @@ async function deleteTransaction(id) {
     }
 }
 
+/**
+ * Tính lại paidAmount + status thực tế của 1 hóa đơn dựa trên tổng tiền các phiếu THU
+ * đang ở trạng thái đã duyệt liên kết với hóa đơn đó (nguồn dữ liệu gốc = transactions),
+ * thay vì suy diễn 1-1 theo hành động duyệt/bỏ duyệt của 1 phiếu đơn lẻ.
+ * overrides: Map<transactionId, approvedMoi> - áp dụng trạng thái approved MỚI (chưa kịp
+ * phản ánh trong store) cho các phiếu vừa được duyệt/bỏ duyệt trong cùng thao tác này.
+ */
+function recalculateBillPayment(billId, overrides = new Map()) {
+    const bill = getBills().find(b => b.id === billId);
+    if (!bill) return null;
+
+    const paidAmount = getTransactions()
+        .filter(tx => tx.billId === billId && tx.type === 'income')
+        .reduce((sum, tx) => {
+            const isApproved = overrides.has(tx.id) ? overrides.get(tx.id) : tx.approved;
+            if (!isApproved) return sum;
+            const amount = tx.items && tx.items.length > 0
+                ? tx.items.reduce((s, item) => s + (item.amount || 0), 0)
+                : 0;
+            return sum + amount;
+        }, 0);
+
+    const status = paidAmount >= bill.totalAmount ? 'paid' : 'unpaid';
+    return { paidAmount, status };
+}
+
 async function toggleTransactionApproval(id) {
     const t = getTransactions().find(t => t.id === id);
     if (!t) return;
-    
+
     const newApproved = !t.approved;
     try {
-        // Nếu duyệt phiếu liên kết với HĐ, cập nhật HĐ
-        if (t.billId) {
+        // Nếu duyệt phiếu thu liên kết với HĐ, tính lại đúng paidAmount/status theo tổng
+        // các phiếu thu đã duyệt (KHÔNG set cứng 'paid' chỉ vì phiếu này vừa được duyệt,
+        // vì có thể đây chỉ là 1 phần của hóa đơn - xem thêm bug INVXZSZGC)
+        if (t.billId && t.type === 'income') {
+            const recalculated = recalculateBillPayment(t.billId, new Map([[id, newApproved]]));
+            if (recalculated) {
+                await setDoc(doc(db, 'bills', t.billId), {
+                    status: recalculated.status,
+                    paidAmount: recalculated.paidAmount,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+
+                updateInLocalStorage('bills', t.billId, {
+                    status: recalculated.status,
+                    paidAmount: recalculated.paidAmount
+                });
+
+                window.dispatchEvent(new CustomEvent('store:bills:updated'));
+            }
+        } else if (t.billId) {
+            // Loại phiếu khác liên kết hóa đơn (vd: trả cọc thanh lý) - giữ hành vi cũ
             await setDoc(doc(db, 'bills', t.billId), {
                 status: newApproved ? 'paid' : 'unpaid',
                 updatedAt: serverTimestamp()
             }, { merge: true });
         }
-        
+
         // Update Firebase
         await setDoc(doc(db, 'transactions', id), {
             approved: newApproved,
@@ -1889,30 +1934,60 @@ async function bulkApproveTransactions(approve) {
     if (!confirmed) return;
 
     try {
+        // Gom overrides theo billId để tính lại paidAmount/status 1 lần cho mỗi hóa đơn,
+        // tránh set cứng 'paid' cho phiếu thu 1 phần (xem bug INVXZSZGC)
+        const billOverrides = new Map(); // billId -> Map<transactionId, approvedMoi>
+
         for (const transactionId of selected) {
             const transaction = getTransactions().find(t => t.id === transactionId);
-            
+
             // Update Firebase
             await setDoc(doc(db, 'transactions', transactionId), {
                 approved: approve,
                 updatedAt: serverTimestamp()
             }, { merge: true });
-            
+
             // Update localStorage
             updateInLocalStorage('transactions', transactionId, {
                 approved: approve,
                 updatedAt: new Date()
             });
-            
-            // Nếu transaction liên kết với hóa đơn, cập nhật hóa đơn
-            if (transaction && transaction.billId) {
+
+            if (transaction && transaction.billId && transaction.type === 'income') {
+                if (!billOverrides.has(transaction.billId)) {
+                    billOverrides.set(transaction.billId, new Map());
+                }
+                billOverrides.get(transaction.billId).set(transactionId, approve);
+            } else if (transaction && transaction.billId) {
+                // Loại phiếu khác liên kết hóa đơn (vd: trả cọc thanh lý) - giữ hành vi cũ
                 await setDoc(doc(db, 'bills', transaction.billId), {
                     status: approve ? 'paid' : 'unpaid',
                     updatedAt: serverTimestamp()
                 }, { merge: true });
             }
         }
-        
+
+        // Tính lại paidAmount/status thực tế cho từng hóa đơn bị ảnh hưởng
+        for (const [billId, overrides] of billOverrides) {
+            const recalculated = recalculateBillPayment(billId, overrides);
+            if (!recalculated) continue;
+
+            await setDoc(doc(db, 'bills', billId), {
+                status: recalculated.status,
+                paidAmount: recalculated.paidAmount,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            updateInLocalStorage('bills', billId, {
+                status: recalculated.status,
+                paidAmount: recalculated.paidAmount
+            });
+        }
+
+        if (billOverrides.size > 0) {
+            window.dispatchEvent(new CustomEvent('store:bills:updated'));
+        }
+
         // Reset trạng thái
         selectedMobileTransactionIds.clear();
         resetBulkSelection();
