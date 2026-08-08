@@ -3950,9 +3950,9 @@
             if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Đang gửi...'; }
 
             try {
-                const contract = contracts[0];
+                const contract = getActiveHomeContract(contracts);
                 const building = buildings.find(b => b.id === contract?.buildingId);
-                
+
                 // Lấy tên người đại diện - ưu tiên từ currentUser vì contract chỉ có ID
                 const representativeName = currentUser?.name || 'Khách hàng';
                 const representativePhone = currentUser?.phone || '';
@@ -4512,8 +4512,8 @@
                     title: issueData.title,
                     description: issueData.description,
                     customerId: currentUser.id,
-                    buildingId: issueData.buildingId || contracts[0]?.buildingId,
-                    roomNumber: issueData.roomNumber || contracts[0]?.roomNumber,
+                    buildingId: issueData.buildingId || getActiveHomeContract(contracts)?.buildingId,
+                    roomNumber: issueData.roomNumber || getActiveHomeContract(contracts)?.roomNumber,
                     priority: issueData.priority || 'medium',
                     status: 'pending',
                     type: 'issue', // Phân loại là sự cố từ khách
@@ -5541,7 +5541,7 @@
             screen.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
 
-            const contract = contracts[0];
+            const contract = getActiveHomeContract(contracts);
             const building = buildings.find(b => b.id === contract?.buildingId);
 
             // Re-fetch customer để lấy dữ liệu mới nhất (birthDate, idNumber, permanentAddress)
@@ -5674,7 +5674,7 @@
 
             try {
                 const signatureImage = uploadedSignatureDataUrl;
-                const contract = contracts[0];
+                const contract = getActiveHomeContract(contracts);
                 const signatureData = {
                     signatureImage,
                     signedAt: new Date().toISOString(),
@@ -5687,7 +5687,7 @@
                     signedAt: new Date()
                 });
 
-                contracts[0].signatureData = signatureData;
+                contract.signatureData = signatureData;
                 contractSignedData = signatureData;
 
                 showSignedState(signatureData);
@@ -5710,7 +5710,7 @@
         }
 
         async function downloadContractPDF(btn) {
-            const contract = contracts[0];
+            const contract = getActiveHomeContract(contracts);
             const building = buildings.find(b => b.id === contract?.buildingId);
             const tenantSig = contractSignedData?.signatureImage || null;
             // Nhúng sẵn chữ ký chủ nhà thành base64 giống hệt cách chữ ký khách đang làm (base64
