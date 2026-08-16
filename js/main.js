@@ -13,6 +13,7 @@ import { initSyncUI } from './sync-ui.js';
 import { initBuildings, loadBuildings } from './modules/buildings.js';
 import { initDocuments, loadDocuments } from './modules/documents.js';
 import { initServices, loadServices } from './modules/services.js';
+import { initMaterials, loadMaterials } from './modules/materials.js';
 import { initAccounts, loadAccounts } from './modules/accounts.js';
 import { initTransactionCategories, loadTransactionCategories } from './modules/transaction-categories.js';
 import { initCustomers, loadCustomers } from './modules/customers.js';
@@ -83,6 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             'buildings': loadBuildings,
             'documents': loadDocuments,
             'services': loadServices,
+            'materials': loadMaterials,
             'accounts': loadAccounts,
             'transaction-categories': loadTransactionCategories,
             'customers': loadCustomers,
@@ -100,6 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initBuildings();
         initDocuments();
         initServices();
+        initMaterials();
         initAccounts();
         initTransactionCategories();
         initCustomers();

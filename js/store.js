@@ -26,9 +26,11 @@ export const state = {
     tasks: [],
     notifications: [],
     transactionCategories: [],
+    materials: [],
+    materialCategories: [],
     // Cờ báo hiệu tất cả dữ liệu ban đầu đã tải xong
     _isReady: false,
-    _collectionsToLoad: ['buildings', 'services', 'customers', 'contracts', 'bills', 'transactions', 'accounts', 'tasks', 'adminNotifications', 'transactionCategories'],
+    _collectionsToLoad: ['buildings', 'services', 'customers', 'contracts', 'bills', 'transactions', 'accounts', 'tasks', 'adminNotifications', 'transactionCategories', 'materials', 'materialCategories'],
     _loadedCount: 0,
     // 💾 Thêm thông tin cache
     _lastSyncTime: null,
@@ -173,6 +175,8 @@ export const getAccounts = () => state.accounts;
 export const getTasks = () => state.tasks;
 export const getNotifications = () => state.notifications;
 export const getTransactionCategories = () => state.transactionCategories;
+export const getMaterials = () => state.materials;
+export const getMaterialCategories = () => state.materialCategories;
 // Hàm getTenants để tương thích với code cũ (thực chất là getCustomers)
 export const getTenants = () => state.customers;
 

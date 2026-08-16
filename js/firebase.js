@@ -53,6 +53,30 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
+/**
+ * 🕒 Mọi module đều import addDoc/setDoc/updateDoc từ file này (không import
+ * thẳng từ SDK), nên bọc 3 hàm ghi dữ liệu ở đây để LUÔN tự động gắn
+ * updatedAt = serverTimestamp() cho mọi lần tạo/sửa bản ghi — không phụ
+ * thuộc việc từng chỗ gọi có nhớ set field này hay không.
+ * Đây là điều kiện bắt buộc để đồng bộ tăng dần (theo updatedAt) ở
+ * sync-manager.js không bị sót dữ liệu.
+ */
+function withUpdatedAt(data) {
+    return { ...data, updatedAt: serverTimestamp() };
+}
+
+async function addDocWithTimestamp(colRef, data) {
+    return addDoc(colRef, withUpdatedAt(data));
+}
+
+async function setDocWithTimestamp(docRef, data, options) {
+    return setDoc(docRef, withUpdatedAt(data), options);
+}
+
+async function updateDocWithTimestamp(docRef, data) {
+    return updateDoc(docRef, withUpdatedAt(data));
+}
+
 // Export các hàm của Firebase để các module khác có thể dùng
 export {
     // Auth
@@ -60,14 +84,14 @@ export {
     signInWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
-    
+
     // Firestore
     collection,
     onSnapshot,
-    addDoc,
+    addDocWithTimestamp as addDoc,
     doc,
-    setDoc,
-    updateDoc,
+    setDocWithTimestamp as setDoc,
+    updateDocWithTimestamp as updateDoc,
     deleteDoc,
     deleteField,
     serverTimestamp,
@@ -76,7 +100,7 @@ export {
     orderBy,
     getDocs,
     Timestamp,
-    
+
     // Storage
     ref,
     deleteObject,
