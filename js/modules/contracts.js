@@ -605,8 +605,8 @@ function updateContractStats(contracts) {
     const totalRooms = buildings
         .filter(b => b.isActive !== false) // Chỉ tính các tòa nhà đang hoạt động
         .reduce((total, building) => {
-            // Dùng rooms.length nếu totalRooms không có
-            const roomCount = building.totalRooms || (building.rooms ? building.rooms.length : 0);
+            // Luôn dùng rooms.length thực tế, không dùng field totalRooms (có thể bị lệch/cũ)
+            const roomCount = building.rooms ? building.rooms.length : 0;
             console.log(`🏢 Building ${building.code}: ${roomCount} rooms`);
             return total + roomCount;
         }, 0);
@@ -617,13 +617,20 @@ function updateContractStats(contracts) {
     // Đếm tất cả phòng đang thuê (active + expiring đều là đang thuê)
     const activeContracts = contracts.filter(c => c.status === 'active').length;
     const expiringContracts = contracts.filter(c => c.status === 'expiring').length;
-    const occupiedContracts = activeContracts + expiringContracts;
-    
+
+    // Số phòng trống phải tính theo SỐ PHÒNG duy nhất đang bị chiếm, không phải số hợp đồng
+    // (1 phòng có thể có nhiều hơn 1 hợp đồng active/expiring nếu khách chuyển phòng mà
+    // hợp đồng cũ chưa được đóng đúng trạng thái)
+    const occupiedRoomKeys = new Set(
+        contracts
+            .filter(c => c.status === 'active' || c.status === 'expiring')
+            .map(c => `${c.buildingId}__${c.room}`)
+    );
     console.log('📋 Active contracts:', activeContracts);
-    console.log('📋 Expiring contracts:', expiringContracts);  
-    console.log('📋 Total occupied contracts:', occupiedContracts);
-    
-    const vacantRooms = Math.max(0, totalRooms - occupiedContracts);
+    console.log('📋 Expiring contracts:', expiringContracts);
+    console.log('📋 Unique occupied rooms:', occupiedRoomKeys.size);
+
+    const vacantRooms = Math.max(0, totalRooms - occupiedRoomKeys.size);
     console.log('🏠 Vacant rooms:', vacantRooms);
     
     // Cập nhật giao diện
