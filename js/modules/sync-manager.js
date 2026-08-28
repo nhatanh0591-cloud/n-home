@@ -72,12 +72,18 @@ function timestampToMillis(timestamp) {
  * Đồng bộ tự động - nút "Đồng bộ dữ liệu" gọi đúng 1 hàm này.
  * Tự quyết định: tăng dần hay quét toàn bộ, tự lọc module theo quyền tài khoản,
  * tự lưu lại mốc đồng bộ - người dùng chỉ cần bấm nút.
+ *
+ * @param {Object} [options]
+ * @param {boolean} [options.forceFull] - Ép quét lại toàn bộ ngay, không chờ đủ 7 ngày
+ *   (dùng khi người dùng chủ động chọn "Đồng bộ toàn bộ dữ liệu" - ví dụ để dọn các bản ghi
+ *   đã bị xóa ở máy khác mà đồng bộ tăng dần không phát hiện được).
  */
-export async function autoSync() {
+export async function autoSync(options = {}) {
+    const { forceFull = false } = options;
     const targets = getSyncTargetsForCurrentUser();
     const cursors = loadCursors();
     const now = Date.now();
-    const needFullReconcile = !cursors._lastFullSync || (now - cursors._lastFullSync > FULL_RESYNC_INTERVAL_MS);
+    const needFullReconcile = forceFull || !cursors._lastFullSync || (now - cursors._lastFullSync > FULL_RESYNC_INTERVAL_MS);
 
     let totalReads = 0;
     let totalChanged = 0;
