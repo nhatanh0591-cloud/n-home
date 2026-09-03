@@ -1102,10 +1102,25 @@ async function openDepositReturnModal(bill) {
     const deposit = contract.deposit || 0;
 
     // Lấy chỉ số điện và đơn giá từ hóa đơn gần nhất CỦA CHÍNH HỢP ĐỒNG NÀY
-    // (không lấy theo phòng, vì phòng có thể đã có khách mới với hợp đồng/hóa đơn khác)
-    const previousBills = getBills()
+    // (ưu tiên khớp contractId, không lấy đại theo phòng, vì phòng có thể đã có khách mới với hợp
+    // đồng/hóa đơn khác). Dùng parseDateInput thay vì new Date() thô vì billDate có thể lưu ở 2 định
+    // dạng khác nhau tuỳ nguồn tạo hóa đơn (nhập tay: YYYY-MM-DD, import Excel: DD-MM-YYYY) - new Date()
+    // không parse đúng định dạng DD-MM-YYYY (ra Invalid Date), khiến sort sai và lấy nhầm hóa đơn.
+    const sortByBillDateDesc = (a, b) => (parseDateInput(b.billDate) || 0) - (parseDateInput(a.billDate) || 0);
+    let previousBills = getBills()
         .filter(b => b.contractId === bill.contractId && !b.isTerminationBill)
-        .sort((a, b) => new Date(b.billDate) - new Date(a.billDate));
+        .sort(sortByBillDateDesc);
+
+    // Fallback: 1 số hóa đơn cũ có thể bị lưu lệch contractId (hợp đồng từng được sửa/tạo lại) khiến
+    // không khớp được ở trên dù thực chất vẫn là hóa đơn của đúng khách này - khớp tiếp theo buildingId +
+    // phòng + CHÍNH khách hàng đó (không khớp lỏng theo phòng thôi, để không lấy nhầm dữ liệu của khách
+    // thuê trước/sau trong cùng phòng).
+    if (previousBills.length === 0) {
+        previousBills = getBills()
+            .filter(b => b.buildingId === bill.buildingId && b.room === bill.room &&
+                b.customerId === bill.customerId && !b.isTerminationBill)
+            .sort(sortByBillDateDesc);
+    }
 
     let lastElectricReading = 0;
     let electricUnitPrice = 0;
