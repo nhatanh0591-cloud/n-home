@@ -282,6 +282,22 @@ function setupEventListeners() {
 }
 
 /**
+ * Sắp xếp tasks: Chưa xử lý > Chờ nghiệm thu > Đã hoàn thành, mỗi nhóm mới nhất -> cũ nhất
+ */
+function sortTasksForDisplay(tasks) {
+    const statusPriority = { 'pending': 0, 'pending-review': 1, 'completed': 2 };
+    return [...tasks].sort((a, b) => {
+        const pa = statusPriority[a.status] ?? 3;
+        const pb = statusPriority[b.status] ?? 3;
+        if (pa !== pb) return pa - pb;
+
+        const dateA = a.createdAt ? safeToDate(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? safeToDate(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+    });
+}
+
+/**
  * Load danh sách tasks (sử dụng store nếu có, fallback Firebase)
  */
 export async function loadTasks() {
@@ -289,14 +305,14 @@ export async function loadTasks() {
         // Thử load từ store trước (real-time data)
         const { getTasks } = await import('../store.js');
         const storeTasks = getTasks();
-        
+
         // Luôn dùng data từ store
         console.log('📦 Loading tasks from store');
-        tasksCache = storeTasks;
-        
+        tasksCache = sortTasksForDisplay(storeTasks);
+
         renderTasks();
         updateStats();
-        
+
     } catch (error) {
         console.error('Error loading tasks:', error);
         showToast('Lỗi khi tải danh sách công việc', 'error');
@@ -310,9 +326,9 @@ function loadTasksFromStore() {
     try {
         // Import getTasks từ store
         import('../store.js').then(({ getTasks }) => {
-            tasksCache = getTasks() || [];
+            tasksCache = sortTasksForDisplay(getTasks() || []);
             console.log(`🔄 Loaded ${tasksCache.length} tasks from store`);
-            
+
             // Apply filter hiện tại thay vì render tất cả
             filterTasks();
         });
