@@ -740,7 +740,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
                     </svg>
                 </button>
-                <h1 class="text-lg font-bold flex-1 text-center pr-8">Hợp đồng thuê</h1>
+                <h1 class="text-lg font-bold flex-1 text-center pr-8" id="contract-screen-title">Hợp đồng thuê</h1>
             </div>
 
             <!-- Scrollable content -->
@@ -761,8 +761,8 @@
                                 </svg>
                             </div>
                             <div>
-                                <p class="text-sm font-semibold text-gray-700 mb-1">Chưa thể ký hợp đồng</p>
-                                <p class="text-xs text-gray-500 leading-relaxed">Hồ sơ của bạn còn thiếu thông tin bắt buộc (năm sinh, số CCCD, địa chỉ thường trú). Vui lòng liên hệ quản lý tòa nhà để bổ sung đầy đủ thông tin trước khi ký hợp đồng.</p>
+                                <p class="text-sm font-semibold text-gray-700 mb-1" id="contract-missing-info-title">Chưa thể ký hợp đồng</p>
+                                <p class="text-xs text-gray-500 leading-relaxed" id="contract-missing-info-desc">Hồ sơ của bạn còn thiếu thông tin bắt buộc (năm sinh, số CCCD, địa chỉ thường trú). Vui lòng liên hệ quản lý tòa nhà để bổ sung đầy đủ thông tin trước khi ký hợp đồng.</p>
                             </div>
                         </div>
                     </div>
@@ -771,15 +771,15 @@
                     <div id="contract-unsigned-area">
                         <div id="sign-upload-panel">
                             <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
-                                <p class="text-sm font-semibold text-gray-700 mb-1">Ảnh chữ ký của Bên B (Bên thuê)</p>
-                                <p class="text-xs text-gray-500 mb-3">Ký tên lên giấy trắng, chụp riêng phần chữ ký (không dính chữ/dòng kẻ khác), ảnh rõ nét.</p>
+                                <p class="text-sm font-semibold text-gray-700 mb-1" id="tenant-signature-label">Ảnh chữ ký của Bên B (Bên thuê)</p>
+                                <p class="text-xs text-gray-500 mb-3" id="tenant-signature-instructions">Ký tên lên giấy trắng, chụp riêng phần chữ ký (không dính chữ/dòng kẻ khác), ảnh rõ nét.</p>
                                 <div id="signature-upload-placeholder" class="relative border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center gap-2 cursor-pointer" style="height:180px;" onclick="document.getElementById('signature-upload-input').click()">
                                     <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
-                                    <p class="text-sm text-gray-400">Nhấn vào đây để tải ảnh chữ ký lên</p>
+                                    <p class="text-sm text-gray-400" id="tap-upload-signature-text">Nhấn vào đây để tải ảnh chữ ký lên</p>
                                 </div>
                                 <div id="signature-upload-preview-area" class="hidden relative border-2 border-dashed border-gray-300 rounded-lg" style="height:180px;">
                                     <img id="signature-upload-preview" src="" alt="" class="w-full h-full object-contain rounded-lg" style="background:repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 50% / 16px 16px;">
-                                    <button type="button" onclick="clearUploadedSignature()" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
+                                    <button type="button" onclick="clearUploadedSignature()" id="remove-signature-btn" class="absolute top-2 right-2 text-xs text-gray-400 hover:text-red-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200 transition-colors">Xóa</button>
                                 </div>
                                 <input type="file" id="signature-upload-input" accept="image/*" class="hidden" onchange="handleSignatureUpload(event)">
                             </div>
@@ -788,7 +788,7 @@
                         <div class="bg-white rounded-xl shadow-sm p-5 mb-3">
                             <label class="flex items-start gap-3 cursor-pointer">
                                 <input type="checkbox" id="contract-agree-checkbox" class="mt-0.5 w-5 h-5 accent-green-600 flex-shrink-0" onchange="updateSignBtn()">
-                                <span class="text-xs text-gray-600 leading-relaxed">Tôi xác nhận đã đọc, hiểu rõ và đồng ý với toàn bộ nội dung hợp đồng thuê phòng này, bao gồm tất cả các điều khoản về giá thuê, tiền cọc, phương thức thanh toán, nghĩa vụ các bên và xử lý vi phạm. Tôi đồng ý ký kết hợp đồng bằng hình thức chữ ký điện tử, có giá trị pháp lý tương đương chữ ký tay theo Luật Giao dịch điện tử 2023.</span>
+                                <span class="text-xs text-gray-600 leading-relaxed" id="contract-consent-text">Tôi xác nhận đã đọc, hiểu rõ và đồng ý với toàn bộ nội dung hợp đồng thuê phòng này, bao gồm tất cả các điều khoản về giá thuê, tiền cọc, phương thức thanh toán, nghĩa vụ các bên và xử lý vi phạm. Tôi đồng ý ký kết hợp đồng bằng hình thức chữ ký điện tử, có giá trị pháp lý tương đương chữ ký tay theo Luật Giao dịch điện tử 2023.</span>
                             </label>
                         </div>
 
@@ -808,7 +808,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                                     </svg>
                                 </div>
-                                <p class="text-sm font-semibold text-green-700">Đã ký hợp đồng</p>
+                                <p class="text-sm font-semibold text-green-700" id="contract-signed-label">Đã ký hợp đồng</p>
                             </div>
                         </div>
                         <img id="signature-result-img" src="" alt="" style="display:none;">
@@ -819,7 +819,7 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
-                            Tải xuống hợp đồng thuê
+                            <span id="download-contract-btn-text">Tải xuống hợp đồng thuê</span>
                         </button>
                     </div>
                 </div>
@@ -1014,7 +1014,7 @@
                                 <p id="payment-account-name" class="text-sm font-bold text-gray-900"></p>
                             </div>
                             <div class="text-right">
-                                <p class="text-xs text-gray-500">Ngân hàng</p>
+                                <p class="text-xs text-gray-500" id="bank-name-label">Ngân hàng</p>
                                 <p id="payment-bank-name" class="text-sm font-bold text-gray-900"></p>
                             </div>
                         </div>
@@ -1294,6 +1294,7 @@
                 download: "Tải xuống ảnh QR chuyển khoản",
                 accountInfoHeader: "Thông tin tài khoản nhận",
                 accountName: "Tên tài khoản",
+                bankName: "Ngân hàng",
                 accountNumber: "Số tài khoản",
                 amount: "Số tiền",
                 copy: "Sao chép",
@@ -1301,7 +1302,54 @@
                 // Common
                 close: "Đóng",
                 save: "Lưu",
-                loading: "Đang tải..."
+                loading: "Đang tải...",
+
+                // Contract screen
+                rentalContract: "Hợp đồng thuê",
+                tapToViewSign: "Nhấn để xem & ký hợp đồng",
+                signed: "Đã ký",
+                unsigned: "Chưa ký",
+                cannotSignYet: "Chưa thể ký hợp đồng",
+                missingInfoDesc: "Hồ sơ của bạn còn thiếu thông tin bắt buộc (năm sinh, số CCCD, địa chỉ thường trú). Vui lòng liên hệ quản lý tòa nhà để bổ sung đầy đủ thông tin trước khi ký hợp đồng.",
+                tenantSignatureLabel: "Ảnh chữ ký của Bên B (Bên thuê)",
+                tenantSignatureInstructions: "Ký tên lên giấy trắng, chụp riêng phần chữ ký (không dính chữ/dòng kẻ khác), ảnh rõ nét.",
+                tapToUploadSignature: "Nhấn vào đây để tải ảnh chữ ký lên",
+                removeSignature: "Xóa",
+                contractConsentText: "Tôi xác nhận đã đọc, hiểu rõ và đồng ý với toàn bộ nội dung hợp đồng thuê phòng này, bao gồm tất cả các điều khoản về giá thuê, tiền cọc, phương thức thanh toán, nghĩa vụ các bên và xử lý vi phạm. Tôi đồng ý ký kết hợp đồng bằng hình thức chữ ký điện tử, có giá trị pháp lý tương đương chữ ký tay theo Luật Giao dịch điện tử 2023.",
+                confirmSignBtn: "Xác nhận ký hợp đồng",
+                contractSignedLabel: "Đã ký hợp đồng",
+                downloadContractBtn: "Tải xuống hợp đồng thuê",
+                savingEllipsis: "Đang lưu...",
+                creatingPdfEllipsis: "Đang tạo file PDF...",
+                signSuccess: "Ký hợp đồng thành công!",
+                signErrorPrefix: "Lỗi khi lưu chữ ký: ",
+                cannotReadImage: "Không đọc được ảnh, vui lòng thử ảnh khác",
+                profileIncompleteForSigning: "Hồ sơ chưa đầy đủ thông tin (năm sinh, CCCD, thường trú). Vui lòng liên hệ quản lý để bổ sung trước khi ký.",
+                pleaseUploadSignatureFirst: "Vui lòng tải ảnh chữ ký trước khi xác nhận",
+                pleaseCheckConsent: "Vui lòng tích vào ô xác nhận",
+                contractShareMsg: "✅ Đã mở bảng chia sẻ, chọn nơi lưu để lưu file hợp đồng!",
+                contractSaveMsg: "✅ Đã lưu file hợp đồng PDF!",
+                pdfCreateError: "Lỗi khi tạo file PDF, vui lòng thử lại",
+
+                // Toast messages
+                accountNumberCopied: "Đã sao chép số tài khoản",
+                amountCopied: "Đã sao chép số tiền",
+                qrShareOpened: "✅ Đã mở bảng chia sẻ, chọn \"Lưu ảnh\" để lưu vào thư viện!",
+                qrSaved: "✅ Đã lưu mã QR vào thư viện!",
+                downloadingQr: "Đang tải ảnh QR...",
+                qrNotFound: "Không tìm thấy mã QR để tải",
+                imageFileError: "Lỗi khi tạo file ảnh",
+                qrDownloadError: "Lỗi khi tải mã QR",
+                qrOpenedHoldToSave: "Mã QR đã được mở. Nhấn giữ ảnh để lưu vào thư viện.",
+                syncError: "Lỗi đồng bộ dữ liệu",
+                issuesLoadError: "Lỗi tải danh sách sự cố",
+                featureInDevelopment: "Chức năng xem chi tiết đang được phát triển",
+                issueSentSuccess: "Đã gửi sự cố thành công! Chúng tôi sẽ xử lý trong thời gian sớm nhất.",
+                issueSendError: "Lỗi gửi sự cố. Vui lòng thử lại.",
+                issueReportSentSuccess: "Đã gửi báo cáo sự cố thành công!",
+                issueReportSendError: "Lỗi gửi báo cáo sự cố",
+                notificationDeleted: "Thông báo đã được xóa",
+                avatarUpdated: "Đã cập nhật ảnh đại diện!"
             },
             en: {
                 // Navigation
@@ -1397,6 +1445,7 @@
                 download: "Download QR code",
                 accountInfoHeader: "Receiving account info",
                 accountName: "Account Name",
+                bankName: "Bank",
                 accountNumber: "Account Number",
                 amount: "Amount",
                 copy: "Copy",
@@ -1404,7 +1453,54 @@
                 // Common
                 close: "Close",
                 save: "Save",
-                loading: "Loading..."
+                loading: "Loading...",
+
+                // Contract screen
+                rentalContract: "Rental Contract",
+                tapToViewSign: "Tap to view & sign contract",
+                signed: "Signed",
+                unsigned: "Unsigned",
+                cannotSignYet: "Cannot sign contract yet",
+                missingInfoDesc: "Your profile is missing required information (date of birth, ID number, permanent address). Please contact the building management to complete your information before signing the contract.",
+                tenantSignatureLabel: "Signature Image of Party B (Tenant)",
+                tenantSignatureInstructions: "Sign on a blank sheet of paper and take a close-up photo of just the signature (no other text or lines), with a clear, sharp image.",
+                tapToUploadSignature: "Tap here to upload your signature image",
+                removeSignature: "Remove",
+                contractConsentText: "I confirm that I have read, fully understood, and agree to the entire content of this rental contract, including all terms on rent price, deposit, payment method, obligations of both parties, and handling of violations. I agree to sign this contract electronically, which has the same legal validity as a handwritten signature under Vietnam's Law on Electronic Transactions 2023.",
+                confirmSignBtn: "Confirm Contract Signing",
+                contractSignedLabel: "Contract Signed",
+                downloadContractBtn: "Download Rental Contract",
+                savingEllipsis: "Saving...",
+                creatingPdfEllipsis: "Creating PDF file...",
+                signSuccess: "Contract signed successfully!",
+                signErrorPrefix: "Error saving signature: ",
+                cannotReadImage: "Could not read the image, please try another one",
+                profileIncompleteForSigning: "Your profile is incomplete (date of birth, ID number, permanent address). Please contact management to complete it before signing.",
+                pleaseUploadSignatureFirst: "Please upload your signature image before confirming",
+                pleaseCheckConsent: "Please check the consent box",
+                contractShareMsg: "✅ Share sheet opened, choose where to save the contract file!",
+                contractSaveMsg: "✅ Contract PDF file saved!",
+                pdfCreateError: "Error creating PDF file, please try again",
+
+                // Toast messages
+                accountNumberCopied: "Account number copied",
+                amountCopied: "Amount copied",
+                qrShareOpened: "✅ Share sheet opened, choose \"Save Image\" to save it to your gallery!",
+                qrSaved: "✅ QR code saved to your gallery!",
+                downloadingQr: "Downloading QR code...",
+                qrNotFound: "QR code not found to download",
+                imageFileError: "Error creating image file",
+                qrDownloadError: "Error downloading QR code",
+                qrOpenedHoldToSave: "QR code opened. Press and hold the image to save it to your gallery.",
+                syncError: "Data sync error",
+                issuesLoadError: "Error loading issue list",
+                featureInDevelopment: "This feature is under development",
+                issueSentSuccess: "Issue reported successfully! We will handle it as soon as possible.",
+                issueSendError: "Error sending issue. Please try again.",
+                issueReportSentSuccess: "Issue report submitted successfully!",
+                issueReportSendError: "Error sending issue report",
+                notificationDeleted: "Notification deleted",
+                avatarUpdated: "Profile picture updated!"
             }
         };
 
@@ -1476,6 +1572,7 @@
             // Force update all screens for language change
             console.log('🔄 Force updating all screens for language change');
             updateHomeScreen();
+            updateContractScreen();
             updateBillsScreen();
             updateNotificationsScreen();
             updateIssuesScreen();
@@ -1504,6 +1601,9 @@
             switch(screenId) {
                 case 'home':
                     updateHomeScreen();
+                    break;
+                case 'contract':
+                    updateContractScreen();
                     break;
                 case 'bills':
                     updateBillsScreen();
@@ -1557,6 +1657,46 @@
             if (profileHeader) {
                 profileHeader.textContent = t('profileTitle');
             }
+
+            const contractCardTitle = document.getElementById('contract-card-title');
+            if (contractCardTitle) {
+                contractCardTitle.textContent = t('rentalContract');
+            }
+        }
+
+        function updateContractScreen() {
+            const titleEl = document.getElementById('contract-screen-title');
+            if (titleEl) titleEl.textContent = t('rentalContract');
+
+            const missingTitleEl = document.getElementById('contract-missing-info-title');
+            if (missingTitleEl) missingTitleEl.textContent = t('cannotSignYet');
+
+            const missingDescEl = document.getElementById('contract-missing-info-desc');
+            if (missingDescEl) missingDescEl.textContent = t('missingInfoDesc');
+
+            const sigLabelEl = document.getElementById('tenant-signature-label');
+            if (sigLabelEl) sigLabelEl.textContent = t('tenantSignatureLabel');
+
+            const sigInstructionsEl = document.getElementById('tenant-signature-instructions');
+            if (sigInstructionsEl) sigInstructionsEl.textContent = t('tenantSignatureInstructions');
+
+            const tapUploadEl = document.getElementById('tap-upload-signature-text');
+            if (tapUploadEl) tapUploadEl.textContent = t('tapToUploadSignature');
+
+            const removeSigBtn = document.getElementById('remove-signature-btn');
+            if (removeSigBtn) removeSigBtn.textContent = t('removeSignature');
+
+            const consentEl = document.getElementById('contract-consent-text');
+            if (consentEl) consentEl.textContent = t('contractConsentText');
+
+            const confirmBtn = document.getElementById('confirm-sign-btn');
+            if (confirmBtn) confirmBtn.textContent = t('confirmSignBtn');
+
+            const signedLabelEl = document.getElementById('contract-signed-label');
+            if (signedLabelEl) signedLabelEl.textContent = t('contractSignedLabel');
+
+            const downloadBtnText = document.getElementById('download-contract-btn-text');
+            if (downloadBtnText) downloadBtnText.textContent = t('downloadContractBtn');
         }
 
         function updateBillsScreen() {
@@ -1677,7 +1817,12 @@
             if (accountNameLabel) {
                 accountNameLabel.textContent = t('accountName');
             }
-            
+
+            const bankNameLabel = document.getElementById('bank-name-label');
+            if (bankNameLabel) {
+                bankNameLabel.textContent = t('bankName');
+            }
+
             const accountNumberLabel = document.getElementById('account-number-label');
             if (accountNumberLabel) {
                 accountNumberLabel.textContent = t('accountNumber');
@@ -2178,7 +2323,7 @@
                             
                             // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
                             if (!isFirstTransactionLoad) {
-                                showInAppNotification('Xác nhận thanh toán', notification.message);
+                                showInAppNotification(translateNotificationTitle(notification.title), translateNotificationMessage(notification.message));
                             }
                             
                             saveNotificationsToStorage();
@@ -2251,7 +2396,7 @@
                                 
                                 // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
                                 if (!isFirstTaskLoad) {
-                                    showInAppNotification('Sự cố đã được giải quyết', notification.message);
+                                    showInAppNotification(translateNotificationTitle(notification.title), translateNotificationMessage(notification.message));
                                 }
                                 
                                 saveNotificationsToStorage();
@@ -2432,7 +2577,7 @@
                             
                             // Chỉ hiển thị popup nếu KHÔNG phải load lần đầu
                             if (!isFirstNotificationLoad) {
-                                showInAppNotification(notificationData.title, messageToShow);
+                                showInAppNotification(translateNotificationTitle(notificationData.title), translateNotificationMessage(messageToShow));
                             }
                             
                             // Lưu và render NGAY LẬP TỨC
@@ -3159,13 +3304,15 @@
 
             // Build service rows giống hệt web admin
             const serviceRows = services.map((service, index) => {
-                let serviceName = service.serviceName || service.name || `Dịch vụ ${index + 1}`;
+                let serviceName = service.serviceName || service.name || (currentLanguage === 'en' ? `Service ${index + 1}` : `Dịch vụ ${index + 1}`);
                 let unitPrice = service.unitPrice || 0;
                 let quantity = service.quantity !== undefined ? service.quantity : 1;
                 let extraInfo = '';
 
                 if (service.type === 'electric' || service.type === 'water_meter') {
-                    extraInfo = `(SC: ${service.oldReading} - SM: ${service.newReading})`;
+                    extraInfo = currentLanguage === 'en'
+                        ? `(Old: ${service.oldReading} - New: ${service.newReading})`
+                        : `(SC: ${service.oldReading} - SM: ${service.newReading})`;
                 } else if (service.type === 'rent') {
                     // Tính số ngày thực tế: ưu tiên quantityDisplay, fallback tính từ fromDate/toDate
                     if (service.quantityDisplay) {
@@ -3182,7 +3329,7 @@
                     if (service.fromDate && service.toDate) {
                         const fromShort = service.fromDate.split('-').slice(1).reverse().join('-');
                         const toShort = service.toDate.split('-').slice(1).reverse().join('-');
-                        extraInfo = `(Từ ${fromShort} đến ${toShort})`;
+                        extraInfo = currentLanguage === 'en' ? `(From ${fromShort} to ${toShort})` : `(Từ ${fromShort} đến ${toShort})`;
                     }
                 } else if (service.type === 'custom' && service.fromDate && service.toDate) {
                     const fromShort = service.fromDate.split('-').slice(1).reverse().join('-');
@@ -3214,29 +3361,29 @@
             const content = `
                 <div style="border:2px solid #1f2937;padding:10px;background:white;">
                     <div style="text-align:center;margin-bottom:10px;">
-                        <h2 style="font-size:16px;font-weight:700;margin:0;white-space:nowrap;">Hóa Đơn Tiền Nhà Tháng ${periodMonth}-${billYear}</h2>
+                        <h2 style="font-size:16px;font-weight:700;margin:0;white-space:nowrap;">${currentLanguage === 'en' ? `Rent Invoice for Month ${periodMonth}-${billYear}` : `Hóa Đơn Tiền Nhà Tháng ${periodMonth}-${billYear}`}</h2>
                     </div>
 
                     <div style="background:#f9fafb;padding:7px 9px;border-radius:5px;font-size:12px;margin-bottom:10px;">
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 4px;margin-bottom:2px;">
-                            <p style="margin:1px 0;"><span style="color:#6b7280;">Phòng:</span> <strong>${bill.room || contract?.room || 'N/A'}</strong></p>
-                            <p style="margin:1px 0;text-align:right;white-space:nowrap;overflow:hidden;"><span style="color:#6b7280;">Số hóa đơn:</span> <strong style="font-size:11px;">${invoiceNumber}</strong></p>
-                            <p style="margin:1px 0;"><span style="color:#6b7280;">Ngày:</span> <strong>${formatDateVN(createdDate)}</strong></p>
-                            <p style="margin:1px 0;text-align:right;"><span style="color:#6b7280;">Hạn cuối:</span> <strong>${dueDateStr}</strong></p>
+                            <p style="margin:1px 0;"><span style="color:#6b7280;">${currentLanguage === 'en' ? 'Room:' : 'Phòng:'}</span> <strong>${bill.room || contract?.room || 'N/A'}</strong></p>
+                            <p style="margin:1px 0;text-align:right;white-space:nowrap;overflow:hidden;"><span style="color:#6b7280;">${currentLanguage === 'en' ? 'Invoice No:' : 'Số hóa đơn:'}</span> <strong style="font-size:11px;">${invoiceNumber}</strong></p>
+                            <p style="margin:1px 0;"><span style="color:#6b7280;">${currentLanguage === 'en' ? 'Date:' : 'Ngày:'}</span> <strong>${formatDateVN(createdDate)}</strong></p>
+                            <p style="margin:1px 0;text-align:right;"><span style="color:#6b7280;">${currentLanguage === 'en' ? 'Due Date:' : 'Hạn cuối:'}</span> <strong>${dueDateStr}</strong></p>
                         </div>
-                        <p style="margin:1px 0;"><span style="color:#6b7280;">Khách hàng:</span> <strong>${customerDisplayName}</strong></p>
-                        <p style="margin:1px 0;"><span style="color:#6b7280;">Địa chỉ:</span> <strong>${buildingAddress}</strong></p>
+                        <p style="margin:1px 0;"><span style="color:#6b7280;">${currentLanguage === 'en' ? 'Customer:' : 'Khách hàng:'}</span> <strong>${customerDisplayName}</strong></p>
+                        <p style="margin:1px 0;"><span style="color:#6b7280;">${currentLanguage === 'en' ? 'Address:' : 'Địa chỉ:'}</span> <strong>${buildingAddress}</strong></p>
                     </div>
 
                     <div style="overflow-x:auto;margin-bottom:10px;">
                         <table style="width:100%;border-collapse:collapse;table-layout:fixed;border:2px solid #1f2937;">
                             <thead style="font-size:10px;">
                                 <tr style="background-color:#16a34a;color:white;">
-                                    <th style="width:8%;padding:5px 2px;text-align:center;border:1px solid #374151;">STT</th>
-                                    <th style="width:32%;padding:5px 2px;text-align:center;border:1px solid #374151;">Nội dung</th>
-                                    <th style="width:22%;padding:5px 2px;text-align:center;border:1px solid #374151;">Đơn giá (VNĐ)</th>
-                                    <th style="width:13%;padding:5px 2px;text-align:center;border:1px solid #374151;">Số lượng</th>
-                                    <th style="width:25%;padding:5px 2px;text-align:center;border:1px solid #374151;">Thành tiền (VNĐ)</th>
+                                    <th style="width:8%;padding:5px 2px;text-align:center;border:1px solid #374151;">${currentLanguage === 'en' ? 'No.' : 'STT'}</th>
+                                    <th style="width:32%;padding:5px 2px;text-align:center;border:1px solid #374151;">${currentLanguage === 'en' ? 'Description' : 'Nội dung'}</th>
+                                    <th style="width:22%;padding:5px 2px;text-align:center;border:1px solid #374151;">${currentLanguage === 'en' ? 'Unit Price (VND)' : 'Đơn giá (VNĐ)'}</th>
+                                    <th style="width:13%;padding:5px 2px;text-align:center;border:1px solid #374151;">${currentLanguage === 'en' ? 'Qty' : 'Số lượng'}</th>
+                                    <th style="width:25%;padding:5px 2px;text-align:center;border:1px solid #374151;">${currentLanguage === 'en' ? 'Amount (VND)' : 'Thành tiền (VNĐ)'}</th>
                                 </tr>
                             </thead>
                             <tbody style="font-size:12px;">${serviceRows}</tbody>
@@ -3249,15 +3396,15 @@
                         </div>
                         <div style="font-size:12px;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
                             <div style="display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;">
-                                <span style="color:#6b7280;white-space:nowrap;">Tổng cộng:</span>
+                                <span style="color:#6b7280;white-space:nowrap;">${currentLanguage === 'en' ? 'Total:' : 'Tổng cộng:'}</span>
                                 <span style="text-align:right;font-weight:500;">${formatCurrency(bill.totalAmount || 0)}</span>
                             </div>
                             <div style="display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;">
-                                <span style="color:#6b7280;white-space:nowrap;">Đã thanh toán:</span>
+                                <span style="color:#6b7280;white-space:nowrap;">${currentLanguage === 'en' ? 'Paid:' : 'Đã thanh toán:'}</span>
                                 <span style="text-align:right;font-weight:500;">${formatCurrency(paidAmount)}</span>
                             </div>
                             <div style="border-top:1px solid #e5e7eb;padding-top:4px;display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;">
-                                <span style="font-weight:700;color:${remainColor};white-space:nowrap;">Còn lại:</span>
+                                <span style="font-weight:700;color:${remainColor};white-space:nowrap;">${currentLanguage === 'en' ? 'Remaining:' : 'Còn lại:'}</span>
                                 <span style="text-align:right;font-weight:700;color:${remainColor};">${formatCurrency(remainingAmount)}</span>
                             </div>
                         </div>
@@ -3490,7 +3637,7 @@
         function copyAccountNumber() {
             if (!currentPaymentData) return;
             navigator.clipboard.writeText(currentPaymentData.accountNumber).then(() => {
-                showToast('Đã sao chép số tài khoản', 'success');
+                showToast(t('accountNumberCopied'), 'success');
             });
         }
         
@@ -3499,7 +3646,7 @@
             // Copy số tiền không có VNĐ, chỉ số
             const amountNumber = currentPaymentData.amount.toString().replace(/\./g, '');
             navigator.clipboard.writeText(amountNumber).then(() => {
-                showToast('Đã sao chép số tiền', 'success');
+                showToast(t('amountCopied'), 'success');
             });
         }
         
@@ -3507,8 +3654,8 @@
         // vì Safari iOS không hỗ trợ thuộc tính download của thẻ <a> nên link-click không lưu được vào Ảnh).
         // Nếu máy không hỗ trợ share file (Android/máy tính) thì rơi về cách link download cũ.
         async function _saveOrShareBlob(blob, filename, opts = {}) {
-            const shareMsg = opts.shareMsg || '✅ Đã mở bảng chia sẻ, chọn "Lưu ảnh" để lưu vào thư viện!';
-            const saveMsg = opts.saveMsg || '✅ Đã lưu mã QR vào thư viện!';
+            const shareMsg = opts.shareMsg || t('qrShareOpened');
+            const saveMsg = opts.saveMsg || t('qrSaved');
             try {
                 const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -3536,12 +3683,12 @@
             if (!currentPaymentData) return;
 
             try {
-                showToast('Đang tải ảnh QR...', 'info');
+                showToast(t('downloadingQr'), 'info');
 
                 // Lấy ảnh QR từ element hiện tại
                 const qrImg = document.getElementById('payment-qr-image');
                 if (!qrImg || !qrImg.src) {
-                    showToast('Không tìm thấy mã QR để tải', 'error');
+                    showToast(t('qrNotFound'), 'error');
                     return;
                 }
 
@@ -3567,7 +3714,7 @@
                             const filename = `QR_Thanh_Toan_Phong_${currentPaymentData.room || 'Unknown'}_${new Date().getTime()}.jpg`;
                             _saveOrShareBlob(blob, filename);
                         } else {
-                            showToast('Lỗi khi tạo file ảnh', 'error');
+                            showToast(t('imageFileError'), 'error');
                         }
                     }, 'image/jpeg', 0.9);
                 };
@@ -3583,7 +3730,7 @@
 
             } catch (error) {
                 console.error('Lỗi download QR:', error);
-                showToast('Lỗi khi tải mã QR', 'error');
+                showToast(t('qrDownloadError'), 'error');
             }
         }
 
@@ -3619,7 +3766,7 @@
             link.click();
             document.body.removeChild(link);
             
-            showToast('Mã QR đã được mở. Nhấn giữ ảnh để lưu vào thư viện.', 'info');
+            showToast(t('qrOpenedHoldToSave'), 'info');
         }
 
         async function refreshData() {
@@ -3787,12 +3934,12 @@
                     }
                 }, (error) => {
                     console.error('❌ Error in realtime listener:', error);
-                    showToast('Lỗi đồng bộ dữ liệu', 'error');
+                    showToast(t('syncError'), 'error');
                 });
                 
             } catch (error) {
                 console.error('❌ Error setting up realtime listener:', error);
-                showToast('Lỗi tải danh sách sự cố', 'error');
+                showToast(t('issuesLoadError'), 'error');
             }
         }
 
@@ -3844,7 +3991,7 @@
         // View issue detail (placeholder for future implementation)
         window.viewIssueDetail = function(issueId) {
             console.log('View issue detail:', issueId);
-            showToast('Chức năng xem chi tiết đang được phát triển', 'info');
+            showToast(t('featureInDevelopment'), 'info');
         };
 
         window.backToHome = function() {
@@ -4063,7 +4210,7 @@
                 updateImageCounter();
                 
                 // Hiện thông báo thành công
-                showToast('Đã gửi sự cố thành công! Chúng tôi sẽ xử lý trong thời gian sớm nhất.', 'success');
+                showToast(t('issueSentSuccess'), 'success');
                 
                 // Quay về màn hình danh sách sự cố
                 setTimeout(async () => {
@@ -4079,7 +4226,7 @@
                 
             } catch (error) {
                 console.error('Error creating issue:', error);
-                showToast('Lỗi gửi sự cố. Vui lòng thử lại.', 'error');
+                showToast(t('issueSendError'), 'error');
             } finally {
                 isSubmittingIssue = false;
                 if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t('submitIssue'); }
@@ -4524,12 +4671,12 @@
                 // Lưu vào Firebase
                 const docRef = await addDoc(collection(db, 'tasks'), taskData);
                 
-                showToast('Đã gửi báo cáo sự cố thành công!');
+                showToast(t('issueReportSentSuccess'));
                 
                 return { id: docRef.id, ...taskData };
             } catch (error) {
                 console.error('Error creating issue:', error);
-                showToast('Lỗi gửi báo cáo sự cố', 'error');
+                showToast(t('issueReportSendError'), 'error');
                 throw error;
             }
         };
@@ -4581,7 +4728,7 @@
                     renderNotificationsList();
                 }
                 
-                showToast('Thông báo đã được xóa', 'info');
+                showToast(t('notificationDeleted'), 'info');
             }
         }
 
@@ -5159,9 +5306,9 @@
             if (notifications.length > maxVisible) {
                 listEl.innerHTML += `
                     <div class="text-center py-4 bg-gray-50 border-t">
-                        <p class="text-gray-600 text-sm">Hiển thị ${maxVisible}/${notifications.length} thông báo mới nhất</p>
+                        <p class="text-gray-600 text-sm">${currentLanguage === 'en' ? `Showing ${maxVisible}/${notifications.length} most recent notifications` : `Hiển thị ${maxVisible}/${notifications.length} thông báo mới nhất`}</p>
                         <button onclick="clearAllNotifications()" class="mt-2 text-blue-600 text-sm hover:underline">
-                            Xóa tất cả để cải thiện hiệu suất
+                            ${currentLanguage === 'en' ? 'Clear all to improve performance' : 'Xóa tất cả để cải thiện hiệu suất'}
                         </button>
                     </div>
                 `;
@@ -5178,6 +5325,12 @@
                 if (title.includes('Thông báo hóa đơn')) {
                     return 'Bill Notification';
                 }
+                if (title.includes('Xác nhận thanh toán')) {
+                    return 'Payment Confirmation';
+                }
+                if (title.includes('Sự cố đã được giải quyết')) {
+                    return 'Issue Resolved';
+                }
                 return title;
             }
             return title;
@@ -5190,6 +5343,15 @@
                         .replace('Bạn có hóa đơn tiền nhà tháng', 'You have a monthly rent bill for')
                         .replace('cần thanh toán', 'that needs payment')
                         .replace('Vui lòng kiểm tra và thanh toán đúng hạn', 'Please check and pay on time');
+                }
+                if (message.includes('Chúng tôi đã nhận được khoản thanh toán')) {
+                    return message
+                        .replace('Chúng tôi đã nhận được khoản thanh toán', 'We have received your payment of')
+                        .replace('của bạn. Xin cảm ơn!', '. Thank you!');
+                }
+                const issueResolvedMatch = message.match(/^Sự cố "(.*)" đã được xử lý hoàn thành\. Cảm ơn bạn đã phản hồi!$/);
+                if (issueResolvedMatch) {
+                    return `Issue "${issueResolvedMatch[1]}" has been resolved. Thank you for your feedback!`;
                 }
                 return message;
             }
@@ -5325,7 +5487,7 @@
                     // Lưu vào localStorage
                     if (currentUser?.phone) {
                         localStorage.setItem(`avatar_${currentUser.phone}`, e.target.result);
-                        showToast('Đã cập nhật ảnh đại diện!', 'success');
+                        showToast(t('avatarUpdated'), 'success');
                     }
                 };
                 reader.readAsDataURL(file);
@@ -5539,6 +5701,7 @@
             if (!currentUser) return;
             const screen = document.getElementById('contract-screen');
             screen.classList.remove('hidden');
+            updateContractScreen();
             document.body.style.overflow = 'hidden';
 
             const contract = getActiveHomeContract(contracts);
@@ -5612,7 +5775,7 @@
                 document.getElementById('signature-upload-placeholder').classList.add('hidden');
                 updateSignBtn();
             }).catch(() => {
-                showToast('Không đọc được ảnh, vui lòng thử ảnh khác', 'error');
+                showToast(t('cannotReadImage'), 'error');
             });
             event.target.value = '';
         }
@@ -5646,31 +5809,31 @@
             const subtitle = document.getElementById('contract-card-subtitle');
             if (!badge || !subtitle) return;
             if (signed) {
-                badge.innerHTML = '<span class="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full">Đã ký</span>';
+                badge.innerHTML = `<span class="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full">${t('signed')}</span>`;
                 subtitle.textContent = '';
             } else {
-                badge.innerHTML = '<span class="bg-yellow-400 text-yellow-900 text-xs font-bold px-2.5 py-1 rounded-full">Chưa ký</span>';
+                badge.innerHTML = `<span class="bg-yellow-400 text-yellow-900 text-xs font-bold px-2.5 py-1 rounded-full">${t('unsigned')}</span>`;
                 subtitle.textContent = '';
             }
         }
 
         async function confirmSign() {
             if (!isCustomerInfoCompleteForSigning(customerData)) {
-                showToast('Hồ sơ chưa đầy đủ thông tin (năm sinh, CCCD, thường trú). Vui lòng liên hệ quản lý để bổ sung trước khi ký.', 'error');
+                showToast(t('profileIncompleteForSigning'), 'error');
                 return;
             }
             if (!uploadedSignatureDataUrl) {
-                showToast('Vui lòng tải ảnh chữ ký trước khi xác nhận', 'error');
+                showToast(t('pleaseUploadSignatureFirst'), 'error');
                 return;
             }
             if (!document.getElementById('contract-agree-checkbox').checked) {
-                showToast('Vui lòng tích vào ô xác nhận', 'error');
+                showToast(t('pleaseCheckConsent'), 'error');
                 return;
             }
 
             const btn = document.getElementById('confirm-sign-btn');
             btn.disabled = true;
-            btn.textContent = 'Đang lưu...';
+            btn.textContent = t('savingEllipsis');
 
             try {
                 const signatureImage = uploadedSignatureDataUrl;
@@ -5691,12 +5854,12 @@
                 contractSignedData = signatureData;
 
                 showSignedState(signatureData);
-                showToast('Ký hợp đồng thành công!');
+                showToast(t('signSuccess'));
             } catch (err) {
                 btn.disabled = false;
-                btn.textContent = 'Xác nhận ký hợp đồng';
+                btn.textContent = t('confirmSignBtn');
                 updateSignBtn();
-                showToast('Lỗi khi lưu chữ ký: ' + err.message, 'error');
+                showToast(t('signErrorPrefix') + err.message, 'error');
             }
         }
 
@@ -5748,17 +5911,17 @@
             if (isMobile) {
                 await loadContractLibs();
                 const originalBtnHtml = btn ? btn.innerHTML : null;
-                if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.innerHTML = 'Đang tạo file PDF...'; }
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.7'; btn.innerHTML = t('creatingPdfEllipsis'); }
                 try {
                     const blob = await generateContractPdfBlob(printRoot, tenantSig, landlordSig);
                     const filename = `${document.title}.pdf`; // Cùng format tên với file PC (bản PC dùng document.title làm tên gợi ý khi in ra PDF)
                     await _saveOrShareBlob(blob, filename, {
-                        shareMsg: '✅ Đã mở bảng chia sẻ, chọn nơi lưu để lưu file hợp đồng!',
-                        saveMsg: '✅ Đã lưu file hợp đồng PDF!'
+                        shareMsg: t('contractShareMsg'),
+                        saveMsg: t('contractSaveMsg')
                     });
                 } catch (err) {
                     console.error('Lỗi tạo PDF hợp đồng:', err);
-                    showToast('Lỗi khi tạo file PDF, vui lòng thử lại', 'error');
+                    showToast(t('pdfCreateError'), 'error');
                 } finally {
                     document.title = originalTitle;
                     printRoot.innerHTML = '';

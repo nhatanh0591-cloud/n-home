@@ -21,6 +21,7 @@ const customerMobileListEl = document.getElementById('documents-customer-mobile-
 const exportBtn = document.getElementById('documents-export-btn');
 const residenceUntilInput = document.getElementById('documents-temp-residence-until');
 const signDateInput = document.getElementById('documents-ct01-sign-date');
+const ct01IncludePhoneCheckbox = document.getElementById('documents-ct01-include-phone');
 const onho1SignDateInput = document.getElementById('documents-onho1-sign-date');
 const onho2SignDateInput = document.getElementById('documents-onho2-sign-date');
 const onho3SignDateInput = document.getElementById('documents-onho3-sign-date');
@@ -271,11 +272,13 @@ async function handleExportCT01() {
         ? signDateRaw.split('-').reverse().join('/')
         : '';
 
+    const includePhone = ct01IncludePhoneCheckbox.checked;
+
     const pagesHtml = checkedBoxes.map(cb => {
         const customer = customers.find(c => c.id === cb.dataset.customerId);
         const contract = contracts.find(c => c.id === cb.dataset.contractId);
         const signature = getCustomerSignature(customer, contract);
-        return buildCT01Html(building, customer, signature, residenceUntilDate, signDate);
+        return buildCT01Html(building, customer, signature, residenceUntilDate, signDate, includePhone);
     });
 
     const printRoot = document.getElementById('_print_root');
