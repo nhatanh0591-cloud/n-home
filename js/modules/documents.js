@@ -347,7 +347,7 @@ async function handleExportOnho1() {
     const pagesHtml = [...customerIdsByContract.entries()].map(([contractId, customerIds]) => {
         const contract = contracts.find(c => c.id === contractId);
         const tenants = customerIds.map(id => customers.find(c => c.id === id)).filter(Boolean);
-        const tenantSignature = contract?.signatureData?.signatureImage || null;
+        const tenantSignature = tenants.map(t => getCustomerSignature(t, contract)).filter(Boolean);
         return buildOnho1Html(building, contract, tenants, tenantSignature, onho1SignDate);
     });
 
@@ -409,7 +409,7 @@ async function handleExportOnho2() {
     const pagesHtml = [...customerIdsByContract.entries()].map(([contractId, customerIds]) => {
         const contract = contracts.find(c => c.id === contractId);
         const tenants = customerIds.map(id => customers.find(c => c.id === id)).filter(Boolean);
-        const tenantSignature = contract?.signatureData?.signatureImage || null;
+        const tenantSignature = tenants.map(t => getCustomerSignature(t, contract)).filter(Boolean);
         return buildOnho2Html(building, contract, tenants, tenantSignature, onho2SignDate);
     });
 
@@ -471,7 +471,7 @@ async function handleExportOnho3() {
     const pagesHtml = [...customerIdsByContract.entries()].map(([contractId, customerIds]) => {
         const contract = contracts.find(c => c.id === contractId);
         const tenants = customerIds.map(id => customers.find(c => c.id === id)).filter(Boolean);
-        const tenantSignature = contract?.signatureData?.signatureImage || null;
+        const tenantSignature = tenants.map(t => getCustomerSignature(t, contract)).filter(Boolean);
         return buildOnho3Html(building, contract, tenants, tenantSignature, onho3SignDate);
     });
 

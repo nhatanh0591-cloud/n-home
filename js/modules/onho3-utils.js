@@ -34,7 +34,7 @@ function fmtDateParts(d) {
  * @param {object} building - cần address, landlordName, landlordIdNumber, landlordDob, landlordSignatureImage
  * @param {object} contract - hợp đồng thuê, dùng làm ngày ký mặc định (startDate) khi không tự chọn ngày ký
  * @param {Array<object>} tenants - danh sách khách đã chọn thuộc hợp đồng này (đưa vào mục Bên B)
- * @param {string} [tenantSignatureDataUrl] - chữ ký người đại diện hợp đồng (lấy lại từ hợp đồng thuê đã ký)
+ * @param {string|Array<string>} [tenantSignatureDataUrl] - chữ ký của (các) khách được chọn (lấy từ hồ sơ khách hàng)
  * @param {string} [signDateOverride] - ngày ký hợp đồng (dd/mm/yyyy) người dùng tự chọn trước khi xuất;
  *                                       để trống thì lấy ngày bắt đầu hợp đồng thuê, không có thì lấy ngày hiện tại
  */
@@ -59,9 +59,12 @@ export function buildOnho3Html(building, contract, tenants, tenantSignatureDataU
     const landlordSigHtml = building?.landlordSignatureImage
         ? `<img src="${building.landlordSignatureImage}" style="height:75pt;max-width:100%;object-fit:contain;display:block;margin:14pt auto 0;">`
         : '';
-    const tenantSigHtml = tenantSignatureDataUrl
-        ? `<img src="${tenantSignatureDataUrl}" style="height:75pt;max-width:100%;object-fit:contain;display:block;margin:14pt auto 0;">`
-        : '';
+    // Chữ ký của đúng (các) khách được chọn - nhiều người thì xếp chồng, thu nhỏ lại cho vừa trang
+    const tenantSigs = (Array.isArray(tenantSignatureDataUrl) ? tenantSignatureDataUrl : [tenantSignatureDataUrl]).filter(Boolean);
+    const tenantSigHeight = tenantSigs.length > 1 ? 50 : 75;
+    const tenantSigHtml = tenantSigs
+        .map((src, i) => `<img src="${src}" style="height:${tenantSigHeight}pt;max-width:100%;object-fit:contain;display:block;margin:${i === 0 ? 14 : 4}pt auto 0;">`)
+        .join('');
 
     const mb3 = 'margin-bottom:1pt;';
     const ind = 'margin-left:18pt;margin-bottom:1pt;';
