@@ -1217,7 +1217,7 @@ async function openDepositReturnModal(bill) {
 
             <div class="flex gap-3">
                 <button id="dr-cancel" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-200 transition">Hủy</button>
-                <button id="dr-confirm" disabled
+                <button id="dr-confirm"
                     class="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
                     Duyệt
                 </button>
@@ -1240,7 +1240,6 @@ async function openDepositReturnModal(bill) {
             modal.querySelector('#dr-repair-display').textContent = `${formatMoney(repairCost)}đ`;
             modal.querySelector('#dr-deduction').textContent = '—đ';
             modal.querySelector('#dr-return').textContent = '—đ';
-            confirmBtn.disabled = true;
             return;
         }
 
@@ -1254,7 +1253,6 @@ async function openDepositReturnModal(bill) {
         modal.querySelector('#dr-repair-display').textContent = `${formatMoney(repairCost)}đ`;
         modal.querySelector('#dr-deduction').textContent = `${formatMoney(totalDeduction)}đ`;
         modal.querySelector('#dr-return').textContent = `${formatMoney(returnAmount)}đ`;
-        confirmBtn.disabled = false;
     }
 
     finalInput.addEventListener('input', recalc);
@@ -1291,69 +1289,7 @@ async function openDepositReturnModal(bill) {
 }
 
 async function approveTerminationWithDepositReturn(bill, contract, building, customer, calcData) {
-    const { finalReading, repairCost, electricUnits, electricCost, depositReturn } = calcData;
-
-    // Nếu không có tiền hoàn cọc thì chỉ duyệt hóa đơn, không tạo phiếu chi
-    if (depositReturn === 0) {
-        await toggleBillApproval(bill.id);
-        return;
-    }
-
-    // Tìm hạng mục "Tiền hoa hồng"
-    const categories = getTransactionCategories();
-    const hoaHongCat = categories.find(c => c.name === 'Tiền hoa hồng');
-
-    // Tìm sổ quỹ MB Bank - DANG NHAT ANH
-    const accounts = getAccounts();
-    const mbAccount = accounts.find(a => {
-        const bank = (a.bank || '').toLowerCase().replace(/\s/g, '');
-        const holder = (a.accountHolder || '').toLowerCase().replace(/\s/g, '');
-        return (bank.includes('mb') || bank.includes('mbbank')) && holder.includes('dangnhatanh');
-    });
-
-    if (!mbAccount) {
-        throw new Error('Không tìm thấy sổ quỹ MB Bank - DANG NHAT ANH trong hệ thống!');
-    }
-
-    // Lấy chữ cuối tên khách hàng
-    const customerLastName = (customer?.name || '').split(' ').filter(Boolean).pop() || '';
-
-    // Tạo phiếu chi Trả cọc (Chưa duyệt)
-    const txCode = `PC${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}`;
-    const txData = {
-        type: 'expense',
-        code: txCode,
-        buildingId: bill.buildingId,
-        room: bill.room,
-        customerId: bill.customerId,
-        billId: bill.id,
-        accountId: mbAccount.id,
-        title: `Trả cọc ${bill.room}`,
-        payer: `P${bill.room} - ${customerLastName} - ${building?.code || ''}`,
-        date: getCurrentDateString(),
-        items: [{
-            name: `Trả cọc phòng ${bill.room}`,
-            amount: depositReturn,
-            categoryId: hoaHongCat?.id || ''
-        }],
-        approved: false,
-        isDepositReturn: true,
-        depositReturnDetails: {
-            finalReading, electricUnits, electricCost,
-            repairCost, deposit: contract.deposit || 0, depositReturn
-        },
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-    };
-
-    const txRef = await addDoc(collection(db, 'transactions'), txData);
-
-    const state = getState();
-    state.transactions.unshift({ ...txData, id: txRef.id, createdAt: new Date(), updatedAt: new Date() });
-    saveToCache();
-    document.dispatchEvent(new CustomEvent('store:transactions:updated'));
-
-    // Duyệt hóa đơn thanh lý
+    // Chỉ duyệt hóa đơn thanh lý, không tự tạo phiếu chi Trả cọc nữa
     await toggleBillApproval(bill.id);
 }
 
