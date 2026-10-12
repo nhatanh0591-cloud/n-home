@@ -1386,23 +1386,6 @@ async function deleteTransaction(id) {
             window.dispatchEvent(new CustomEvent('store:bills:updated'));
 
             showToast('Đã xóa phiếu thu, cập nhật hóa đơn và xóa thông báo!');
-        } else if (t.type === 'expense' && t.isDepositReturn && t.billId) {
-            // Phiếu chi Trả cọc bị xóa → bỏ duyệt hóa đơn thanh lý liên quan
-            await setDoc(doc(db, 'bills', t.billId), {
-                approved: false,
-                status: 'unpaid',
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-
-            updateInLocalStorage('bills', t.billId, {
-                approved: false,
-                status: 'unpaid'
-            });
-            console.log(`✅ Đã bỏ duyệt hóa đơn thanh lý ${t.billId} do xóa phiếu chi Trả cọc`);
-
-            window.dispatchEvent(new CustomEvent('store:bills:updated'));
-
-            showToast('Đã xóa phiếu chi, hóa đơn thanh lý trở về chưa duyệt!');
         } else {
             showToast(`Đã xóa phiếu ${t.type === 'income' ? 'thu' : 'chi'} và thông báo liên quan!`);
         }
@@ -1468,8 +1451,8 @@ async function toggleTransactionApproval(id) {
 
                 window.dispatchEvent(new CustomEvent('store:bills:updated'));
             }
-        } else if (t.billId) {
-            // Loại phiếu khác liên kết hóa đơn (vd: trả cọc thanh lý) - giữ hành vi cũ
+        } else if (t.billId && !t.isDepositReturn) {
+            // Loại phiếu khác liên kết hóa đơn - giữ hành vi cũ (phiếu chi trả cọc thanh lý thì không đụng tới hóa đơn)
             await setDoc(doc(db, 'bills', t.billId), {
                 status: newApproved ? 'paid' : 'unpaid',
                 updatedAt: serverTimestamp()
@@ -1958,8 +1941,8 @@ async function bulkApproveTransactions(approve) {
                     billOverrides.set(transaction.billId, new Map());
                 }
                 billOverrides.get(transaction.billId).set(transactionId, approve);
-            } else if (transaction && transaction.billId) {
-                // Loại phiếu khác liên kết hóa đơn (vd: trả cọc thanh lý) - giữ hành vi cũ
+            } else if (transaction && transaction.billId && !transaction.isDepositReturn) {
+                // Loại phiếu khác liên kết hóa đơn - giữ hành vi cũ (phiếu chi trả cọc thanh lý thì không đụng tới hóa đơn)
                 await setDoc(doc(db, 'bills', transaction.billId), {
                     status: approve ? 'paid' : 'unpaid',
                     updatedAt: serverTimestamp()
