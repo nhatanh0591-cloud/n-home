@@ -3302,6 +3302,22 @@
             const remainingAmount = (bill.totalAmount || 0) - paidAmount;
             const fmtNum = n => new Intl.NumberFormat('vi-VN').format(n);
 
+            // Lấy tài khoản nhận tiền của nhà trước khi dựng giao diện, để biết có phải quỹ tiền mặt không
+            let billAccount = null;
+            if (remainingAmount > 0 && building && building.accountId) {
+                try {
+                    const accountsQuery = query(collection(db, 'accounts'), where('__name__', '==', building.accountId));
+                    const accountsSnap = await getDocs(accountsQuery);
+                    if (!accountsSnap.empty) {
+                        billAccount = { id: accountsSnap.docs[0].id, ...accountsSnap.docs[0].data() };
+                        cachedBillAccount = billAccount;
+                    }
+                } catch (e) {
+                    console.error('Account load error:', e);
+                }
+            }
+            const isCashAccount = billAccount?.bank === 'Cash';
+
             // Build service rows giống hệt web admin
             const serviceRows = services.map((service, index) => {
                 let serviceName = service.serviceName || service.name || (currentLanguage === 'en' ? `Service ${index + 1}` : `Dịch vụ ${index + 1}`);
@@ -3391,7 +3407,7 @@
                     </div>
 
                     <div style="display:flex;justify-content:space-between;align-items:stretch;gap:8px;">
-                        <div style="flex-shrink:0;">
+                        <div style="flex-shrink:0;display:${isCashAccount ? 'none' : 'block'};">
                             <img id="invoice-qr-img" src="" alt="" style="width:90px;height:90px;object-fit:contain;display:${remainingAmount > 0 ? 'block' : 'none'};"/>
                         </div>
                         <div style="font-size:12px;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
@@ -3411,7 +3427,7 @@
                     </div>
                 </div>
 
-                ${remainingAmount > 0 ? `
+                ${remainingAmount > 0 && !isCashAccount ? `
                     <div style="margin-top:8px;flex-shrink:0;">
                         <button onclick="showQRPayment('${bill.id}')" style="width:100%;background:#16a34a;color:white;padding:13px 16px;border-radius:8px;font-weight:600;font-size:15px;border:none;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                             ${currentLanguage === 'en' ? 'Tap here to pay' : 'Bấm vào đây để thanh toán'}
@@ -3423,14 +3439,11 @@
             document.getElementById('bill-detail-content').innerHTML = content;
 
             // Load QR thực từ Firebase (giống web admin)
-            if (remainingAmount > 0 && building && building.accountId) {
+            if (remainingAmount > 0 && billAccount && !isCashAccount) {
                 try {
-                    const accountsQuery = query(collection(db, 'accounts'), where('__name__', '==', building.accountId));
-                    const accountsSnap = await getDocs(accountsQuery);
-                    if (!accountsSnap.empty) {
-                        const account = { id: accountsSnap.docs[0].id, ...accountsSnap.docs[0].data() };
-                        cachedBillAccount = account;
-                        if (account.bank !== 'Cash' && account.accountNumber) {
+                    {
+                        const account = billAccount;
+                        if (account.accountNumber) {
                             const BANK_ID_MAP = {
                                 'VietcomBank': '970436', 'BIDV': '970418', 'VietinBank': '970415',
                                 'Agribank': '970405', 'ACB': '970416', 'Techcombank': '970407',
