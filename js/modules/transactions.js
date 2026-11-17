@@ -9,6 +9,18 @@ import {
     exportToExcel, formatFileSize, importFromExcel, showConfirm, safeToDate
 } from '../utils.js';
 
+// Thời điểm tạo phiếu: "dd/mm/yyyy HH:mm" nếu có createdAt, nếu không thì chỉ ngày giao dịch
+function formatTransactionCreatedAt(t) {
+    if (t.createdAt) {
+        const d = safeToDate(t.createdAt);
+        if (d instanceof Date && !isNaN(d.getTime())) {
+            const p = n => String(n).padStart(2, '0');
+            return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        }
+    }
+    return t.date ? formatDateForDisplay(t.date).replace(/-/g, '/') : '';
+}
+
 // --- BIẾN CỤC BỘ CHO MODULE ---
 let transactionsCache_filtered = []; // Cache đã lọc
 let transactionCategoriesCache = []; // Cache cho loại thu chi
@@ -566,7 +578,10 @@ function renderTransactionsTable(transactions) {
             <td class="py-4 px-4">${building ? building.code : '-'}</td>
             <td class="py-4 px-4">${t.payer || (customer ? customer.name : '-')}</td>
             <td class="py-4 px-4">${categoryDisplay}</td>
-            <td class="py-4 px-4 font-medium">${formatMoney(totalAmount)}</td>
+            <td class="py-4 px-4 font-medium">
+                ${formatMoney(totalAmount)}
+                ${formatTransactionCreatedAt(t) ? `<div class="text-xs text-gray-400 font-normal mt-1 whitespace-nowrap">${formatTransactionCreatedAt(t)}</div>` : ''}
+            </td>
             <td class="py-4 px-4">${accountDisplay}</td>
         `;
             // Thêm event listener cho checkbox để cập nhật bulk buttons
@@ -630,6 +645,11 @@ function renderTransactionsTable(transactions) {
                         <span class="mobile-card-label">Số tiền:</span>
                         <span class="mobile-card-value font-bold text-green-600">${formatMoney(totalAmount)}</span>
                     </div>
+                    ${formatTransactionCreatedAt(t) ? `
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Tạo lúc:</span>
+                        <span class="mobile-card-value text-sm text-gray-500">${formatTransactionCreatedAt(t)}</span>
+                    </div>` : ''}
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Sổ quỹ:</span>
                         <span class="mobile-card-value text-sm">${accountDisplay}</span>
