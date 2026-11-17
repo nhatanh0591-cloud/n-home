@@ -18,9 +18,7 @@ const MODULE_LABELS = {
     bills: 'Hóa đơn',
     transactions: 'Thu chi',
     tasks: 'Sự cố/Công việc',
-    notifications: 'Thông báo',
-    materials: 'Vật tư',
-    materialCategories: 'Loại vật tư'
+    notifications: 'Thông báo'
 };
 
 /**

@@ -25,9 +25,7 @@ const SYNC_TARGETS = [
     { firebaseName: 'bills', stateKey: 'bills' },
     { firebaseName: 'transactions', stateKey: 'transactions' },
     { firebaseName: 'tasks', stateKey: 'tasks' },
-    { firebaseName: 'adminNotifications', stateKey: 'notifications' },
-    { firebaseName: 'materials', stateKey: 'materials' },
-    { firebaseName: 'materialCategories', stateKey: 'materialCategories' }
+    { firebaseName: 'adminNotifications', stateKey: 'notifications' }
 ];
 
 // Các module tài khoản "quản lý" (viewer) không được xem -> không đồng bộ cho tài khoản này
