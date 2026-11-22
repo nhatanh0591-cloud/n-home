@@ -45,31 +45,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // ⚡ BƯỚC 1: KHỞI TẠO STORE (CHỈ LOCALSTORAGE)
         console.log("Main: 🚀 Khởi tạo store - CHỈ DÙNG LOCALSTORAGE...");
-        initializeStore();
-        
-        // 🔄 BƯỚC 2: Kiểm tra đăng nhập admin SONG SONG với cache loading
-        const authPromise = initAuth();
-        
-        // ⚡ BƯỚC 3: Chờ cache load xong (nhanh hơn auth)
-        const cacheLoadedPromise = new Promise((resolve) => {
-            document.addEventListener('store:ready', resolve, { once: true });
-            // Fallback nếu store ready quá lâu
-            setTimeout(resolve, 2000);
+        const storePromise = initializeStore().catch(error => {
+            console.error("Main: Lỗi đọc dữ liệu trên máy:", error);
         });
-        
-        // Load cache trước, hiển thị ngay
-        await cacheLoadedPromise;
-        console.log("Main: ⚡ Cache loaded! Hiển thị web ngay...");
-        
-        // Hiển thị web ngay với data cache VÀ LOAD DỮ LIỆU DASHBOARD
-        showSection('dashboard');
-        loadDashboard(); // ← Thêm dòng này để load dữ liệu dashboard ngay
-        loadingOverlay.classList.add('hidden');
-        
-        // 🔄 BƯỚC 4: Kiểm tra auth sau (không block UI)
+
+        // 🔄 BƯỚC 2: Kiểm tra đăng nhập (đọc từ thông tin đã lưu trên máy, không chờ mạng)
+        const authPromise = initAuth();
+
+        // ⚡ BƯỚC 3: Giữ màn hình "đang tải" cho tới khi đọc XONG dữ liệu trên máy,
+        // để trang hiện ra là đã đầy đủ, không bị trống rồi mới hiện.
+        // Chỉ bỏ chờ nếu quá 20 giây (trường hợp kho dữ liệu của trình duyệt bị treo).
+        await Promise.race([
+            storePromise,
+            new Promise(resolve => setTimeout(resolve, 20000))
+        ]);
+        console.log("Main: ⚡ Đã đọc xong dữ liệu trên máy");
+
+        // 🔄 BƯỚC 4: Kiểm tra đăng nhập
         const isAuthenticated = await authPromise;
         if (!isAuthenticated) {
-            return; // Dừng lại nếu chưa đăng nhập, nhưng UI đã hiển thị
+            loadingOverlay.classList.add('hidden');
+            return; // Chưa đăng nhập -> hiện form đăng nhập
         }
 
         // 🔄 BƯỚC 5: SKIP Firebase auth - hoàn toàn offline
@@ -120,7 +116,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const _roleAfterAuth = getCurrentUserRole();
         if (_roleAfterAuth && _roleAfterAuth.role === 'viewer') {
             showSection('tasks', loaders['tasks']);
+        } else {
+            showSection('dashboard');
+            loadDashboard();
         }
+
+        // Mọi thứ đã sẵn sàng với dữ liệu đầy đủ -> mới tắt màn hình "đang tải"
+        loadingOverlay.classList.add('hidden');
 
         // 🔄 BƯỚC 9: Khởi tạo Sync UI
         initSyncUI();
