@@ -1,7 +1,7 @@
 // admin-sw.js
 // Service Worker cho N-Home PWA
 
-const CACHE_NAME = 'n-home-admin-v11';
+const CACHE_NAME = 'n-home-admin-v12';
 const urlsToCache = [
     '/index.html',
     '/styles.css',
@@ -66,19 +66,36 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
+    // Chỉ xử lý GET, các request khác để browser tự lo
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    // NETWORK-FIRST: luôn lấy bản mới nhất từ server, cache chỉ dùng khi mất mạng
+    // (tránh lỗi web chạy lẫn code cũ/mới sau mỗi lần deploy)
     event.respondWith(
-        // ignoreSearch: true -> 'styles.css?v=8.5' match được cache entry '/styles.css'
-        caches.match(event.request, { ignoreSearch: true })
+        fetch(event.request, { cache: 'no-cache' })
             .then((response) => {
-                return response || fetch(event.request);
+                // Lưu bản mới vào cache để dùng khi offline
+                if (response && response.ok && response.type === 'basic') {
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+                }
+                return response;
             })
             .catch(() => {
-                // Chỉ trả index.html cho navigate (gõ URL, click link)
-                // KHÔNG trả index.html cho CSS/JS/image - tránh HTML bị parse làm asset
-                if (event.request.mode === 'navigate') {
-                    return caches.match('/index.html', { ignoreSearch: true });
-                }
-                return Response.error();
+                // Mất mạng -> dùng bản trong cache
+                // ignoreSearch: true -> 'styles.css?v=8.5' match được cache entry '/styles.css'
+                return caches.match(event.request, { ignoreSearch: true })
+                    .then((cached) => {
+                        if (cached) return cached;
+                        // Chỉ trả index.html cho navigate (gõ URL, click link)
+                        // KHÔNG trả index.html cho CSS/JS/image - tránh HTML bị parse làm asset
+                        if (event.request.mode === 'navigate') {
+                            return caches.match('/index.html', { ignoreSearch: true });
+                        }
+                        return Response.error();
+                    });
             })
     );
 });

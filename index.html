@@ -53,8 +53,18 @@
 
         // Service Worker Registration
         if ('serviceWorker' in navigator) {
+            // Khi SW mới thay SW cũ (sau deploy) -> tự tải lại 1 lần để chạy code mới
+            // Chỉ reload nếu trang đang được SW cũ điều khiển (không reload ở lần cài đầu tiên)
+            const hadController = !!navigator.serviceWorker.controller;
+            let swReloaded = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!hadController || swReloaded) return;
+                swReloaded = true;
+                window.location.reload();
+            });
+
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/admin-sw.js')
+                navigator.serviceWorker.register('/admin-sw.js', { updateViaCache: 'none' })
                     .then((registration) => {
                         console.log('N-Home SW registered successfully:', registration.scope);
                     })
